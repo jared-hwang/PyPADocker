@@ -3,7 +3,7 @@
 
 ### Overview
 
-This is the Dockerfile for a PyPE image that contains most modules necessary for operation of packages in the PyPA (PyParticleAccelerator) network. This includes:
+This is the Dockerfile for a PyPA image that contains most modules necessary for operation of packages in the PyPA (PyParticleAccelerator) network. This includes:
 
 *   anaconda
 *   bempp
