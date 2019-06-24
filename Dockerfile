@@ -47,6 +47,7 @@ RUN apt-get install -y \
     dh-python \
     python-all python3-all \
     libpython3.5 libpython2.7 \
+    gmsh \
     && rm -rf /var/lib/apt/lists*
 
 RUN pip install Forthon \
