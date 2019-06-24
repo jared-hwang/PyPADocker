@@ -36,9 +36,8 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 
 *   To enable the use of GUI applications (on linux) add the following parameters:
 
-    `-v /tmp/.X11-unix:/tmp/.X11-unix \ 
-     -e DISPLAY`
-
+    `-v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY`
+     
     <sub>Note: you may have to run <code>xhost +local:docker</code> on the host machine to give docker X11 display permissions.</sub>
 
 ### Customizing the image
