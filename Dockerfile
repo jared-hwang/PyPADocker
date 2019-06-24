@@ -1,5 +1,5 @@
 #
-# Dockerfile for PyRFQ related projects
+# Dockerfile for PyPA related projects
 # Jared Hwang, June 2019
 #
 
@@ -53,13 +53,12 @@ RUN pip install Forthon \
     && pip3 install Forthon
 
 # Establishing home environment
-# RUN useradd --create-home pyrfq
-RUN adduser --disabled-password --gecos '' pyrfq
-RUN adduser pyrfq sudo
+RUN adduser --disabled-password --gecos '' pypa
+RUN adduser pypa sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-WORKDIR /home/pyrfq
-RUN mkdir /home/pyrfq/installation/
-COPY ./installation /home/pyrfq/installation
+WORKDIR /home/pypa
+RUN mkdir /home/pypa/installation/
+COPY ./installation /home/pypa/installation
 
 # Installing anaconda
 RUN wget https://repo.anaconda.com/archive/Anaconda3-2019.03-Linux-x86_64.sh
@@ -69,13 +68,11 @@ RUN rm Anaconda3-2019.03-Linux-x86_64.sh
 # Set path to conda
 ENV PATH /root/anaconda3/bin:$PATH
 
-# Updating conda packages
+# Create (PyPA) environment from yml and activate it automatically
 RUN conda update conda
-
-# Create (PyRFQ) environment from yml and activate it automatically
 RUN conda env create -f ./installation/environment.yml
-RUN echo "source activate PyRFQ" > ~/.bashrc
-ENV PATH /root/anaconda3/envs/PyRFQ/bin:$PATH
+RUN echo "source activate PyPA" > ~/.bashrc
+ENV PATH /root/anaconda3/envs/PyPA/bin:$PATH
 
 # Install serial and parallel Warp and related modules
 RUN cd ./installation/pygist \
