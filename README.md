@@ -26,7 +26,7 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 
 ### Run a PyPA image
 
-*   Running the following will open a shell from the previous `pypa`and remove it once exited (in the interest of reduction of bloat.
+*   Running the following will open a shell from the previous `pypa`and remove it once exited (in the interest of reduction of bloat).
 
     `docker run -it --rm pypa`
 
