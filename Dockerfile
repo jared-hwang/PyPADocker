@@ -1,5 +1,5 @@
 #
-# Dockerfile for PyRFQ project
+# Dockerfile for PyRFQ related projects
 # Jared Hwang, June 2019
 #
 
@@ -24,6 +24,29 @@ RUN apt-get install -y \
     python3-h5py \
     python3-pip \
     python-pip \
+    gfortran \
+    dh-make \
+    gcc \
+    g++ \
+    gfortran \
+    libeigen3-dev \
+    python-dev python3-dev \
+    python-numpy python3-numpy \
+    patchelf \
+    libtbb-dev \
+    zlib1g-dev \
+    libboost-all-dev \
+    cmake \
+    cpio \
+    libdune-common-dev libdune-geometry-dev libdune-grid-dev libdune-localfunctions-dev \
+    mpi-default-dev \
+    cython cython3 \
+    python-setuptools python3-setuptools \
+    python-mpi4py python3-mpi4py \
+    python-scipy python3-scipy \
+    dh-python \
+    python-all python3-all \
+    libpython3.5 libpython2.7 \
     && rm -rf /var/lib/apt/lists*
 
 RUN pip install Forthon \
@@ -36,7 +59,7 @@ RUN adduser pyrfq sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 WORKDIR /home/pyrfq
 RUN mkdir /home/pyrfq/installation/
-COPY ./transfer/installation /home/pyrfq/installation
+COPY ./installation /home/pyrfq/installation
 
 # Installing anaconda
 RUN wget https://repo.anaconda.com/archive/Anaconda3-2019.03-Linux-x86_64.sh
@@ -44,7 +67,6 @@ RUN bash Anaconda3-2019.03-Linux-x86_64.sh -b
 RUN rm Anaconda3-2019.03-Linux-x86_64.sh
 
 # Set path to conda
-# ENV PATH /home/pyrfq/anaconda3/bin:$PATH
 ENV PATH /root/anaconda3/bin:$PATH
 
 # Updating conda packages
@@ -53,10 +75,9 @@ RUN conda update conda
 # Create (PyRFQ) environment from yml and activate it automatically
 RUN conda env create -f ./installation/environment.yml
 RUN echo "source activate PyRFQ" > ~/.bashrc
-
 ENV PATH /root/anaconda3/envs/PyRFQ/bin:$PATH
-RUN pip install Forthon 
-# Install pygist
+
+# Install serial and parallel Warp and related modules
 RUN cd ./installation/pygist \
     && python3 setup.py config \
     && python3 setup.py install \
@@ -65,7 +86,6 @@ RUN cd ./installation/pygist \
 RUN pip install Forthon \
     && pip3 install Forthon
 
-# Install warp as root
 RUN cd ./installation/warp/pywarp90 \
     && make cleanall \
     && rm -f *local* \
@@ -77,38 +97,15 @@ RUN cd ./installation/warp/pywarp90 \
     && make pinstall3 \
     && make pclean3
 
-RUN apt-get update \
-    && apt-get install -y \
-       dh-make \
-       gcc \
-       g++ \
-       gfortran \
-       libeigen3-dev \
-       python-dev python3-dev \
-       python-numpy python3-numpy \
-       patchelf \
-       libtbb-dev \
-       zlib1g-dev \
-       libboost-all-dev \
-       cmake \
-       cpio \
-       libdune-common-dev libdune-geometry-dev libdune-grid-dev libdune-localfunctions-dev \
-       mpi-default-dev \
-       cython cython3 \
-       python-setuptools python3-setuptools \
-       python-mpi4py python3-mpi4py \
-       python-scipy python3-scipy \
-       dh-python 
-       python-all python3-all \
-       libpython3.5 libpython2.7 \
-    && conda install -c anaconda h5py 
-
-# ENV PATH /root/anaconda3/bin:$PATH
+# Install bempp and related modules
+RUN conda install -c anaconda h5py 
 RUN cd ./installation/bempp \
     && python setup.py install
 
+# dans_pymodules
 RUN cd ./installation/dans_pymodules \
     && pip install .
 
+# pythonocc-utils required with pythonocc
 RUN cd ./installation/pythonocc-utils \
     && pip install .

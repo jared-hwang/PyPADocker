@@ -1,0 +1,2 @@
+warpoptions is installed as a separate package from Warp so that it can be imported before Warp, allowing
+additional runtime options to be added.

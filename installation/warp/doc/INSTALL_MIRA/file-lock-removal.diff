@@ -1,0 +1,94 @@
+Index: src/H5private.h
+===================================================================
+--- src/H5private.h	(revision 30093)
++++ src/H5private.h	(working copy)
+@@ -812,13 +812,12 @@
+      * fcntl(2), then fall back to a function that always fails if
+      * it is not present at all.
+      */
+-    #if defined(H5_HAVE_FLOCK)
+-        #define HDflock(F,L)    flock(F,L)
+-    #elif defined(H5_HAVE_FCNTL)
+-        #define HDflock(F,L)    Pflock(F,L)
+-    #else
+-        #define HDflock(F,L)    Nflock(F,L)
+-    #endif /* H5_HAVE_FLOCK */
++    /* TEMPORARY SOURCE PATCH for HDF5 1.10.0-patch1
++     *
++     * Define the no-op function as flock to disable file
++     * locking.
++     */
++    #define HDflock(F,L)    Nflock(F,L)
+ #endif /* HDflock */
+ #ifndef HDfloor
+     #define HDfloor(X)    floor(X)
+Index: src/H5system.c
+===================================================================
+--- src/H5system.c	(revision 30093)
++++ src/H5system.c	(working copy)
+@@ -638,14 +638,14 @@
+  * Purpose:     Wrapper function for systems where no file locking is
+  *              available.
+  *
+- * Return:      Failure:    -1 (always fails)
++ * Return:      Success:    1 (always passes)
+  *
+  *-------------------------------------------------------------------------
+  */
+ int H5_ATTR_CONST
+ Nflock(int H5_ATTR_UNUSED fd, int H5_ATTR_UNUSED operation) {
+-    /* just fail */
+-    return -1;
++    /* just pass */
++    return 1;
+ } /* end Nflock() */
+ 
+ 
+Index: test/swmr.c
+===================================================================
+--- test/swmr.c	(revision 30093)
++++ test/swmr.c	(working copy)
+@@ -4507,7 +4507,6 @@
+ **    This is for concurrent access.
+ **
+ *****************************************************************/
+-#if !(defined(H5_HAVE_FORK) && defined(H5_HAVE_WAITPID) && defined(H5_HAVE_FLOCK))
+ 
+ static int
+ test_file_lock_concur(hid_t H5_ATTR_UNUSED in_fapl)
+@@ -4520,7 +4519,12 @@
+ 
+ } /* end test_file_lock_concur() */
+ 
+-#else
++/* THIS TEST IS DISABLED IN THIS SOURCE PATCH
++ *
++ * The test will fail when file locking (disabled in this patch)
++ * is non-functional so it is simply skipped.
++ */
++#if 0
+     
+ static int
+ test_file_lock_concur(hid_t in_fapl)
+@@ -4883,7 +4887,6 @@
+ **    This is for concurrent access.
+ **
+ *****************************************************************/
+-#if !(defined(H5_HAVE_FORK) && defined(H5_HAVE_WAITPID))
+ 
+ static int
+ test_file_lock_swmr_concur(hid_t H5_ATTR_UNUSED in_fapl)
+@@ -4896,7 +4899,12 @@
+ 
+ } /* end test_file_lock_swmr_concur() */
+ 
+-#else
++/* THIS TEST IS DISABLED IN THIS SOURCE PATCH
++ *
++ * The test will fail when file locking (disabled in this patch)
++ * is non-functional so it is simply skipped.
++ */
++#if 0
+ 
+ static int
+ test_file_lock_swmr_concur(hid_t in_fapl)

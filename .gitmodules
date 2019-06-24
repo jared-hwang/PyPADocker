@@ -1,0 +1,15 @@
+[submodule "transfer/installation/bempp"]
+	path = transfer/installation/bempp
+	url = https://bitbucket.org/bemppsolutions/bempp.git
+[submodule "transfer/installation/pygist"]
+	path = transfer/installation/pygist
+	url = https://github.com/radiasoft/pygist.git
+[submodule "transfer/installation/pythonocc-utils"]
+	path = transfer/installation/pythonocc-utils
+	url = https://github.com/tpaviot/pythonocc-utils.git
+[submodule "transfer/installation/warp"]
+	path = transfer/installation/warp
+	url = https://bitbucket.org/berkeleylab/warp.git
+[submodule "transfer/installation/dans_pymodules"]
+	path = transfer/installation/dans_pymodules
+	url = https://github.com/DanielWinklehner/dans_pymodules.git

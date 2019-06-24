@@ -1,0 +1,103 @@
+#!/bin/bash
+#COBALT -q default -t 60 -n 1 -O LOG.configure -M hvincenti@lbl.gov -A PICSSAR
+
+# !!!!!!
+# Script to configure shared lib version of HDF5 (@author: H. VINCENTI)
+# BG/Q This is intended to be submitted via "qsub do-configure"
+
+if [ -z $COBALT_PARTNAME  ] ; then
+  echo "Not in job, submitting self"
+  exec qsub $0 "$@"
+fi
+
+
+echo "pwd is" `pwd`
+echo "------Env begin-------------------"
+env
+echo "------Env end-------------------"
+
+echo
+echo "Driver version:"
+/bin/ls -l /bgsys/drivers/ppcfloor
+
+# echo
+# echo "Saving efix_version.pl output"
+# efix_version.pl >LOG.configure.efix_version
+
+
+export CC=mpicc
+export CFLAGS='-O3 -dynamic'
+export LDFLAGS='-dynamic'
+echo
+# expecting INCLUDE_PATH to be e.g. /bgsys/drivers/ppcfloor/comm/xl/include
+export CPPFLAGS=-I$INCLUDE_PATH
+
+
+echo
+echo "C compiler version:"
+$CC --version
+
+
+export F9X=mpif90
+export FFLAGS="-O3"
+
+
+echo
+echo "F9X compiler version:"
+$F9X --version
+
+echo
+
+export hdf5_cv_gettimeofday_tz=yes
+export hdf5_cv_system_scope_threads=no
+
+
+#
+# Note:
+# RUNSERIAL is used in src/Makefile.in and points to
+# a wrapper "do-mpirun".
+# Depending on whether we are working inside a script job or
+# from a normal login node, "do-mpirun" can be set to
+# perform a cobalt-mpirun or a bg_run, respectively.
+#
+
+export RUNSERIAL="runjob --np 1 -p 16 --block \$(COBALT_PARTNAME) --verbose=INFO : "
+export RUNPARALLEL="runjob --np 4 -p 16 --block \$(COBALT_PARTNAME) --verbose=INFO : "
+
+# echo "****Using do-mpirun.configure"
+# cp -f do-mpirun.configure do-mpirun
+
+
+
+# ./configure --build powerpc32-unknown-gnu --host powerpc-suse-linux \
+#        --without-pthread --disable-shared --enable-parallel \
+#        --disable-cxx --disable-stream-vfd --enable-fortran
+
+
+# --enable-threadsafe --with-pthread=DIR
+#        --enable-cxx --disable-parallel \
+
+
+set -x
+./configure-hdf5 --without-pthread --enable-shared --enable-fortran \
+        --disable-cxx --enable-parallel \
+        --with-zlib=/soft/libraries/alcf/current/xl/ZLIB \
+        --prefix=$HOME/parallel-hdf5-lib #\
+#	--host=powerpc64-bgq-linux
+
+status=$?
+set +x
+
+echo
+echo "configure is finished with status $status"
+
+# echo "Calling cobalt-mpirun -free wait"
+# cobalt-mpirun -free wait
+# echo "Done calling cobalt-mpirun -free wait"
+
+exit $status
+
+
+
+
+

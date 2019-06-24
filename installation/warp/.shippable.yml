@@ -1,0 +1,32 @@
+build:
+
+  pre_ci:
+    docker build -no-cache -t warp:tip .
+
+  pre_ci_boot:
+    image_name: warp
+    image_tag: tip
+    pull: false
+
+  ci:
+    # Do some basic checks on the source
+    - pip3 install flake8 --user
+    - cd /home/warp_user/warp/scripts
+    #- /home/warp_user/.local/bin/flake8 --count --select E101,E111,E112,E113,E223,E224,E273,E274 # includes 4 space indent
+    - /home/warp_user/.local/bin/flake8 --count --select E101,E112,E113,E223,E224,E273,E274
+    # Run the standard warp tests
+    - cd /home/warp_user/warp/warp_test/
+    - python3 runalltests.py
+    # Check that the example scripts run (with MPI and restart)
+    #- cd /home/warp_user/run/
+    #- cp ../warp/examples/plasma_acceleration/* ./
+    #- mpirun -np 4 python3 lpa_script.py -p 2 1 2
+    #- mpirun -np 4 python3 restart_after_lpa_script.py -p 2 1 2
+    #- rm -rf ./diags
+    #- mpirun -np 2 python3 lpa_boostedframe_script.py
+    #- rm -rf ./diags
+    #- mpirun -np 4 python3 test_antenna.py -p 2 1 2
+
+    # Finally, check that warp can be imported by itself, without
+    # depending on scipy or h5py
+    #- conda uninstall --yes scipy h5py ; python3 -c 'import warp'

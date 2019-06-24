@@ -1,0 +1,68 @@
+DEBUG = #-g --farg "-O0"
+FARGS =
+FCOMP =
+FCOMPEXEC =
+SO = so
+VERBOSE = #-v
+FORTHON = Forthon
+PYTHON = python2
+BUILDBASEDIR = build
+INSTALLOPTIONS = #--user
+-include Makefile.local
+BUILDBASE = --build-base $(BUILDBASEDIR)
+BUILDARGS = $(BUILDBASE) --build-platlib $(BUILDBASEDIR)/tempsofiles
+
+install: installso
+	(cd ../scripts;$(PYTHON) setup.py build $(BUILDBASE) install $(INSTALLOPTIONS))
+
+all: toppy.$(SO) envpy.$(SO) w3dpy.$(SO) f3dpy.$(SO) wxypy.$(SO) fxypy.$(SO) wrzpy.$(SO) frzpy.$(SO) herpy.$(SO) cirpy.$(SO) chopy.$(SO) em3dpy.$(SO) ranffortran.c
+	$(PYTHON) setup.py $(FCOMP) $(FCOMPEXEC) build $(BUILDBASE)
+
+installso: toppy.$(SO) envpy.$(SO) w3dpy.$(SO) f3dpy.$(SO) wxypy.$(SO) fxypy.$(SO) wrzpy.$(SO) frzpy.$(SO) herpy.$(SO) cirpy.$(SO) chopy.$(SO) em3dpy.$(SO) ranffortran.c
+	$(PYTHON) setup.py $(FCOMP) $(FCOMPEXEC) build $(BUILDBASE) install $(INSTALLOPTIONS)
+
+toppy.$(SO): top.F top_lattice.F top_fsl.F dtop.F util.F top.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) top top_lattice.F top_fsl.F dtop.F util.F $(BUILDARGS)
+
+envpy.$(SO): toppy.$(SO) env.F env.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) env $(BUILDARGS)
+
+w3dpy.$(SO): toppy.$(SO) w3d.F dw3d.F w3d_injection.F w3d_interp.F w3d_collisions.F w3d_utilities.F w3d_load.F w3d.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) --macros top.v w3d dw3d.F w3d_injection.F w3d_interp.F w3d_collisions.F w3d_load.F w3d_utilities.F $(BUILDARGS)
+
+f3dpy.$(SO): toppy.$(SO) w3dpy.$(SO) f3d.F f3d_mgrid.F f3d_ImplicitES.F f3d_mgrid_be.F f3d_bfield.F f3d_conductors.F fft.F f3d.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) --macros top.v f3d f3d_mgrid.F f3d_ImplicitES.F f3d_mgrid_be.F f3d_bfield.F f3d_conductors.F fft.F $(BUILDARGS)
+
+wxypy.$(SO): toppy.$(SO) w3dpy.$(SO) wxy.F wxy.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) wxy $(BUILDARGS)
+
+fxypy.$(SO): toppy.$(SO) w3dpy.$(SO) f3dpy.$(SO) fxy.F fxy_mgrid.F fxy.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) fxy fxy_mgrid.F $(BUILDARGS)
+
+wrzpy.$(SO): toppy.$(SO) w3dpy.$(SO) wrz.F dwrz.F wrz.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) --macros top.v wrz dwrz.F $(BUILDARGS)
+
+frzpy.$(SO): toppy.$(SO) w3dpy.$(SO) f3dpy.$(SO) frz.F frz_mgrid.F90 frz_mgrid_be.F frz_ImplicitES.F frz.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) frz frz_mgrid.F90 frz_mgrid_be.F frz_ImplicitES.F $(BUILDARGS)
+
+herpy.$(SO): toppy.$(SO) wrzpy.$(SO) her.F her.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) her $(BUILDARGS)
+
+cirpy.$(SO): toppy.$(SO) cir.F cir.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) cir $(BUILDARGS)
+
+chopy.$(SO): toppy.$(SO) f3dpy.$(SO) cho.F cho.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) cho $(BUILDARGS)
+
+em2dpy.$(SO): toppy.$(SO) em2d.F90 em2d_apml.F90 em2d_apml_cummer.F90 em2d_maxwell.F90 em2d.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) em2d em2d_apml.F90 em2d_apml_cummer.F90 em2d_maxwell.F90 $(BUILDARGS)
+
+em3dpy.$(SO): toppy.$(SO) em3d.F90 em3d_maxwell.F90 em3d.v
+	$(FORTHON) -a $(VERBOSE) $(FCOMP) $(FCOMPEXEC) $(FARGS) $(DEBUG) em3d em3d_maxwell.F90 $(BUILDARGS)
+
+ranffortran.c: ranffortran.m
+	$(PYTHON) -c "from Forthon.preprocess import main;main()" ranffortran.m ranffortran.c
+
+clean:
+	rm -rf $(BUILDBASEDIR) *.o ../scripts/$(BUILDBASEDIR) ../scripts/__version__.py
+

@@ -1,0 +1,2 @@
+parallel is installed as a separate package so that it can be imported before Warp, allowing additional
+control over how the parallelism of Warp is managed.

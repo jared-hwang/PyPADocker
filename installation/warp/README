@@ -1,0 +1,49 @@
+Warp is a extensively developed open-source particle-in-cell code designed to
+simulate charged particle beams with high space-charge intensity. The name
+"Warp" stems from the code's ability to simulate Warped (bent) Cartesian
+meshes. This bent-mesh capability allows the code to efficiently simulate
+space-charge effects in bent accelerator lattices (resolution can be placed
+where needed) associated with rings and beam transfer lines with dipole
+bends. Warp was first developed by Alex Friedman in the 1980s at LLNL
+following a Livermore Lab model of steerable compiled code modules linked to
+an interpreter. The Warp code has been continuously and extensively extended
+by David Grote (LLNL/LBNL) from the late 1980s to the present with key
+contributions from others in the Warp team to achieve it's present highly
+developed state.
+
+Warp has a broad variety of integrated physics models and extensive
+diagnostics -- most of which work in multiple dimensions to allow examination
+of modeling idealizations within a common framework. The code is setup around
+the interactive python interpreter with dynamically loaded compiled code
+modules. This allows flexible problem descriptions in python scripts which
+can exploit the full versatility of python and compiled packages as well as
+allowing interactive steering of runs. A mix of interpreter-linked compiled
+code modules and flexible scripts can be employed for highly adaptable and
+flexible problem descriptions without modifying or recompiling the source
+code. Many diagnostics and tools are built in, mostly written in python,
+which are documented in-line. A user can develop additional elaborate tools
+and diagnostics, as needed, by extending and building on the scripts within
+python for specific applications. Extensive provisions are included to define
+realistic lattice elements in accelerator modeling and standard MAD-style
+lattice element descriptions can be employed. Warp has a hierarchy of
+multi-species models ranging from full 3D, transverse slice x-y (including
+pz), and axisymmetric r-z (including ptheta), as well as simple envelope
+models useful for problem setup. Warp can operate in a boosted-frame mode. A
+broad variety of particle movers and field solvers are available. Particle
+movers include leap-frog models as well as gyro-kinetic models. Electrostatic
+and electromagnetic field solvers are included. Electrostatic field solvers
+include FFT, multi-grid, and multigrid with mesh refinement (both static and
+dynamic) options. The fieldsolvers work with bent (x-plane) meshes. A variety
+of conducting structures can be loaded on the grid with subgrid resolution
+and various boundary conditions can be employed. Particles can be scraped
+consistently with conducting structures and secondary particles (for e-cloud
+modeling) emitted. Electromagnetic field solvers are available in 3D,
+transverse x-y, and r-z packages. There are options to control the dispersion
+and smoothing. Extensive options exist to initialize the beam distributions
+including space-charge effects and beams can also be consistently injected
+off sources using Child-Langmuir-like emission. Warp is also a plasma code
+and has been used for electron cloud and plasma modeling. Limited scattering
+and inelastic collision models are available, as well as models for particle
+interactions with surfaces. Warp can be compiled in serial and in parallel
+using pyMPI or mpi4py.
+

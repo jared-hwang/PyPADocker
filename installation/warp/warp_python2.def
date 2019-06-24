@@ -1,0 +1,84 @@
+Bootstrap: docker
+From: ubuntu:18.04
+
+%environment
+OMPI_MCA_btl_vader_single_copy_mechanism=none
+
+%post
+# Install a few packages, as root
+apt-get update && apt-get install -y \
+sudo \
+wget \
+make \
+git \
+vim \
+gcc \
+gfortran \
+libx11-dev \
+openmpi-bin libopenmpi-dev \
+python \
+python-pip \
+python-numpy \
+python-scipy \
+python-mpi4py \
+python-h5py \
+&& rm -rf /var/lib/apt/lists/*
+
+# openPMD-viewer is installed mainly for tests
+# Note: matplotlib is installed with pip since the apt-get install matplotlib
+#       needs the time zone to be set.
+pip --no-cache-dir install matplotlib \
+openPMD-viewer \
+Forthon
+
+# Install pygist
+GIT_SSL_NO_VERIFY=1
+git clone https://bitbucket.org/dpgrote/pygist.git \
+&& cd pygist \
+&& python setup.py config \
+&& python setup.py install \
+&& cd ../ \
+&& rm -rf pygist
+
+# Get Warp and install it in /usr/local/
+git clone https://bitbucket.org/berkeleylab/warp.git \
+&& cp -r warp/ /usr/local/ \
+&& rm -rf warp/
+cd /usr/local/warp/pywarp90 \
+&& make cleanall \
+&& rm -f *local* \
+&& echo 'FCOMP= -F gfortran' >> Makefile.local \
+&& echo 'FCOMP= -F gfortran' >> Makefile.local.pympi \
+&& echo 'FCOMPEXEC= --fcompexec mpifort' >> Makefile.local.pympi \
+&& make install \
+&& make clean \
+&& make pinstall \
+&& make pclean
+
+# Create a mountpoint for $HOME as seen on the host by the user executing the image
+# (so s/he is expected to use -H $HOME:/home_mnt/)
+mkdir /home_mnt
+# Create a mountpoint for /lustre
+mkdir /lustre
+
+# This is needed to get around a bug in openmpi that would print copious error messages
+# Unfortunately, this turns off CMA and uses shared memory for communication.
+# An alternative is to do "docker run --cap-add SYS_PTRACE ...", which keeps CMA.
+OMPI_MCA_btl_vader_single_copy_mechanism=none
+
+
+%environment
+export GIT_SSL_NO_VERIFY=1
+export OMPI_MCA_btl_vader_single_copy_mechanism=none
+export PYTHONPATH=/usr/local/lib/python2.7/dist-packages/
+
+%labels
+Title Singularity image for Warp (https://bitbucket.org/berkeleylab/warp/src/master/)
+Ubuntu 18.04
+Warp master
+
+%help
+'/home_mnt' in the container is available for bind mounting your $HOME on the host. warp is installed in /usr/local/.
+'/lustre' in the container is available for bind mounting /lustre on the host.
+To launch a warp example execute python and the example within this image. For example:
+$ singularity exec -H $HOME:/home_mnt path/to/warp.simg python /usr/local/warp/examples/Solenoid_transport.py

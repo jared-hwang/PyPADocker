@@ -1,0 +1,13745 @@
+#include "top.h"
+c=============================================================================
+c# Copyright (c) 1990-1998, The Regents of the University of California.
+c# All rights reserved.  See LEGAL.LLNL for full text and disclaimer.
+c  This is main file of package W3D of code WARP
+c  3d electrostatic PIC code, Cartesian geometry, for beam problems
+c  Alex Friedman, LLNL, (510)422-0827
+c  David P. Grote, LLNL, (510)423-7194
+c=============================================================================
+      module w3d_interfaces
+      interface
+
+      subroutine assignrhopandphipforparticles(rhopin,phipin)
+      use InMesh3d
+      use Fields3dParticles
+      real(kind=8),target:: rhopin(-nxguardrho:nxp+nxguardrho,
+     &                             -nyguardrho:nyp+nyguardrho,
+     &                             -nzguardrho:nzp+nzguardrho)
+      real(kind=8),target:: phipin(-nxguardphi:nxp+nxguardphi,
+     &                             -nyguardphi:nyp+nyguardphi,
+     &                             -nzguardphi:nzp+nzguardphi)
+      end subroutine assignrhopandphipforparticles
+
+      subroutine assignrhoandphiforfieldsolve(rhopin,phipin)
+      use InMesh3d
+      use Fields3dParticles
+      real(kind=8),target:: rhopin(-nxguardrho:nxp+nxguardrho,
+     &                             -nyguardrho:nyp+nyguardrho,
+     &                             -nzguardrho:nzp+nzguardrho)
+      real(kind=8),target:: phipin(-nxguardphi:nxp+nxguardphi,
+     &                             -nyguardphi:nyp+nyguardphi,
+     &                             -nzguardphi:nzp+nzguardphi)
+      end subroutine assignrhoandphiforfieldsolve
+
+      subroutine setrhoandphiforfieldsolve(rhopin,phipin)
+      use InMesh3d
+      use Fields3dParticles
+      real(kind=8),target:: rhopin(-nxguardrho:nxp+nxguardrho,
+     &                             -nyguardrho:nyp+nyguardrho,
+     &                             -nzguardrho:nzp+nzguardrho)
+      real(kind=8),target:: phipin(-nxguardphi:nxp+nxguardphi,
+     &                             -nyguardphi:nyp+nyguardphi,
+     &                             -nzguardphi:nzp+nzguardphi)
+      end subroutine setrhoandphiforfieldsolve
+
+      subroutine fetche3d(pgroup,ipmin,ip,is)
+      use ParticleGroupmodule
+      type(ParticleGroup),target:: pgroup
+      integer(ISZ):: ipmin,ip,is
+      end subroutine fetche3d
+
+      end interface
+      end module w3d_interfaces
+c=============================================================================
+      subroutine w3dinit
+      use Subtimersw3d
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c  Called at first reference to package (not nec. a "run" etc.).
+
+      call w3dvers (STDOUT)
+
+!$OMP MASTER
+      if (lw3dtimesubs) timew3dinit = timew3dinit + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine w3dvers (iout)
+      use Subtimersw3d
+      integer(ISZ):: iout
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+c  Echoes code version, etc. to output files as they're created
+      call printpkgversion(iout,"Particle package W3D")
+!$OMP MASTER
+      if (lw3dtimesubs) timew3dvers = timew3dvers + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine w3dgen()
+      use GlobalVars
+      use Subtimersw3d
+      use Ch_var
+      use Constant
+      use InGen
+      use InGen3d
+      use InDiag
+      use InPart
+      use InPart3d
+      use InMesh3d
+      use Mesh3d
+!     use Fields3dParticles
+      use GridBoundary3d
+      use Multipole
+      use Io
+      use Lattice
+      use LatticeInternal
+      use Particles, Only: pgroup,npmax,chdtspid,
+     &                     xoldpid,yoldpid,zoldpid,lsaveoldpos
+      use Picglb
+      use Picglb3d
+      use OutParams
+      use Beam_acc
+      use Z_arrays
+      use Win_Moments
+      use Z_Moments
+      use Moments
+      use Damped_eom
+      use Hist
+      use InDiag3d
+      use ExtPart
+      use Subcycling,Only: zgridndts
+      use w3d_interfaces
+c     use ifcore
+
+c  Invoked by the GENERATE command, it sets up the problem
+c  This routine allots all of the neccesary dynamic arrays, calls the
+c  particle loader and does the initial load onto the charge density
+c  mesh, initializes arrays for the field solver and sets the mesh arrays,
+c  does the initial field solve, and sets up other arrays that are needed.
+
+      integer(ISZ):: i,j,k,ipmin,ip,iwin,nl
+      integer(ISZ):: nextpid
+c     integer(4):: fff
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("w3dgen", 1)
+c     fff = for_set_fpe(14_4)
+
+c  Announce that we're starting up
+
+      call remark(" ***  particle simulation package W3D generating")
+
+c     call seedranf(24598274059827)
+
+c  Put ny to zero for RZ geometry and setup a few flags
+
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom) then
+        ny = 0
+        if (fstype .ne. -1 .and. fstype .ne. 12) fstype = 10
+      elseif(solvergeom==XYgeom) then
+        nz = 0
+        if (fstype .ne. -1 .and. fstype .ne. 12) fstype = 10
+      elseif(solvergeom==Zgeom) then
+        nx = 0
+        ny = 0
+        if (fstype .ne. -1 .and. fstype .ne. 12) fstype = 10
+      elseif(solvergeom==Rgeom) then
+        ny = 0
+        nz = 0
+        if (fstype .ne. -1 .and. fstype .ne. 12) fstype = 10
+      elseif(solvergeom==AMRgeom) then
+        if (fstype .ne. -1 .and. fstype .ne. 12) fstype = 11
+      endif
+
+c Set epflagpid if needed
+      if (lepsaveonce) then
+        if (epflagpid == 0) epflagpid = nextpid()
+      endif
+
+c initializes boundary conditions
+
+c --- if using old variables
+      if(.not. periinz .or. stickyz .or. .not. stickyxy) then
+        call remark("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        call remark("Notice: The variables periinz, stickyz and stickyxy are still ")
+        call remark("        valid but will be obsolete soon. They are replaced ")
+        call remark("        by the variables pbound0, pboundnz and pboundxy ")
+        call remark("        which can be set to absorb, reflect or periodic.")
+        call remark("        Note that the periodicity is now set independently")
+        call remark("        for fields and for particles.")
+        call remark("        Please fix your input files accordingly.")
+        call remark("        Your simulation will run ok now, but in future")
+        call remark("        versions, it will stop with an error.")
+        call remark("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+       if(periinz) then
+          bound0  = periodic
+          boundnz = periodic
+          if(.not. stickyz) then
+            pbound0  = periodic
+            pboundnz = periodic
+          end if
+        end if
+        if(stickyz) then
+          pbound0  = absorb
+          pboundnz = absorb
+        end if
+        if(stickyxy) then
+          pboundxy  = absorb
+        end if
+      end if
+
+c --- using new variables
+      if((bound0==periodic .and. boundnz/=periodic) .or.
+     &   (bound0/=periodic .and. boundnz==periodic)) then
+         call kaboom("w3dgen: Error in setup of bound0 and boundnz: either both"//
+     &" or none should be periodic")
+         return
+      end if
+      if((pbound0==periodic .and. pboundnz/=periodic) .or.
+     &   (pbound0/=periodic .and. pboundnz==periodic)) then
+         call kaboom("w3dgen: Error in setup of pbound0 and pboundnz: either both"//
+     &" or none should be periodic")
+         return
+      end if
+      if(bound0==periodic .or. boundnz==periodic) then
+        bound0  = periodic
+        boundnz = periodic
+      end if
+      if(pbound0==periodic .or. pboundnz==periodic) then
+        pbound0  = periodic
+        pboundnz = periodic
+      end if
+
+c     --- Now set the bounds array.
+      call setboundsfromflags(bounds,boundxy,bound0,boundnz,l2symtry,l4symtry)
+
+c     --- Adjust the transverse mins for symmetry.
+      if(solvergeom==XYZgeom   .or. solvergeom==XYgeom) then
+        if (l2symtry) then
+          ymmin = 0.
+        elseif (l4symtry) then
+          xmmin = 0.
+          ymmin = 0.
+        endif
+      else if(solvergeom==XZgeom) then
+c        ymmin = 0.
+        if (l2symtry .or. l4symtry) xmmin = 0.
+      else if(solvergeom==RZgeom .or. solvergeom==Zgeom .or. solvergeom==Rgeom) then
+        l2symtry=.false.
+        l4symtry=.false.
+        xmmin = 0.
+        ymmin = 0.
+      endif
+
+#ifdef MPIPARALLEL
+      call init_w3d_parallel()
+#endif
+      call setupdecompositionw3d()
+
+c  Estimate wall radius, needed for g-factor calc
+c  (rwallfac = 1 is probably NOT a good guess)
+
+      rwall = rwallfac * sqrt( xmmax**2 + xmmin**2 )
+
+c  Calculate derived quantities and species related arrays  (species are
+c  set from an internal call to "species" in derivqty).
+      call derivqty
+
+c  Load text lines which are printed at the bottom of all plots.
+      call stepid (it, time, zbeam)
+
+c  Print values of input variables, other interesting things to text file
+      if (warpout > -1) then
+        call edit (warpout, "runid")
+        call edit (warpout, "it")
+        call edit (warpout, "time")
+        call edit (warpout, "InGen")
+        call edit (warpout, "InDiag")
+        call edit (warpout, "InPart3d")
+        call edit (warpout, "InMesh3d")
+      endif
+
+c  Create the dynamic arrays for fields
+
+      call setupSubcycling(pgroup)
+      call setupSelfB(pgroup)
+
+c  Setup the initial location and velocity of the beam frame.
+
+      vbeamfrm = vbeam
+      zgrid = zbeam
+      zgridndts = zbeam
+      zgridprv = zbeam
+
+c  Setup grid cells sizes and mesh arrays
+      call setupgridextent()
+
+      if (dx == 0.) call kaboom("w3dgen: dx is zero!")
+      if (dy == 0.) call kaboom("w3dgen: dy is zero!")
+      if (dz == 0.) call kaboom("w3dgen: dz is zero!")
+
+c  Calculate location of axis in mesh, the term dx*1.e-5 acts as fuzp
+      ix_axis = nint(-xmmin/dx)
+      ixlocal_axis = nint(-xmminlocal/dx)
+      if(solvergeom==XYZgeom .or.solvergeom==AMRgeom .or. solvergeom==XYgeom) then
+        iy_axis = nint(-ymmin/dy)
+        iylocal_axis = nint(-ymminlocal/dy)
+      else ! RZgeom, XZgeom, Zgeom, Rgeom
+        iy_axis = 0
+        iylocal_axis = 0
+      endif
+      iz_axis = nint(-zmmin/dz)
+      izlocal_axis = nint(-zmminlocal/dz)
+
+c  Setup arrays for potential and charge density for the particles.
+      xpmin = xmmin
+      xpmax = xmmin + nx*dx
+      ypmin = ymmin
+      ypmax = ymmin + ny*dy
+      zpmin = zmmin
+      zpmax = zmmin + nz*dz
+
+c  Initialize base grid for RZ solver
+      if (fstype == 10) then
+        if(solvergeom==RZgeom .or.
+     &     solvergeom==XZgeom .or.
+     &     solvergeom==Rgeom  .or.
+     &     solvergeom==Zgeom) then
+#ifdef MPIPARALLEL
+          call init_base(nxlocal,nzlocal,dx,dz,xmminlocal,zmminlocal,.true.)
+#else
+          call init_base(nxlocal,nzlocal,dx,dz,xmminlocal,zmminlocal,.false.)
+#endif
+        elseif(solvergeom==XYgeom) then
+#ifdef MPIPARALLEL
+          call init_base(nxlocal,nylocal,dx,dy,xmminlocal,ymminlocal,.true.)
+#else
+          call init_base(nxlocal,nylocal,dx,dy,xmminlocal,ymminlocal,.false.)
+#endif
+        end if
+      end if
+
+c  Initialize the B field solver if it is being used
+
+      call init_bfieldsolver(bfstype)
+
+c  Initial call to fieldsolver in order to initialize attx, kxsq, etc.
+      call fieldsol3d(1)
+
+c  Create the dynamic arrays in Z_arrays; set the z mesh
+
+      if (nzzarr == 0) nzzarr = nz
+      call gchange("Z_arrays", 0)
+      if (zzmin == 0.) zzmin = zmmin
+      if (zzmax == 0.) zzmax = zmmax
+      dzz = (zzmax - zzmin)/nzzarr
+      dzzi = 1./dzz
+      do k = 0, nzzarr
+         zplmesh(k) = zzmin + k*dzz
+      enddo
+
+c  Set the value of prwall, radius at which particles are lost
+      do k=0,nzzarr
+        if (prwallz(k) == LARGEPOS) prwallz(k) = prwall
+        if (prwallxz(k) == 0.) prwallxz(k) = prwallx
+        if (prwallyz(k) == 0.) prwallyz(k) = prwally
+        if (prwelipz(k) == 1.) prwelipz(k) = prwelip
+      enddo
+
+c  Re-size the dynamic arrays for the lattice (scan for true length, first).
+c  Also allocate the dynamic internal lattice arrays.
+
+      call remark(" ---  Resetting lattice array sizes")
+      if (nzlmax == 0) nzlmax = nz
+      if (nzl    == 0 .or. nzl > nzlmax) nzl = nzlmax
+      if (zlmin == 0.) zlmin = zmmin
+      if (zlmax == 0.) zlmax = zmmax
+      dzl = (zlmax - zlmin)/nzl
+      dzli = 1./dzl
+      call resetlat
+      do k = 0, nzl
+         zlmesh(k) = zlmin + k*dzl
+      enddo
+
+c If using the idadt option, then force the use of selfe.
+      if (idadt>0) efetch = 3
+
+c  Create dynamic arrays for 3D multipole moments of the electrostatic
+c  potential
+      call gchange("Multipole", 0)
+
+c  Create the dynamic arrays for particles (set npmax to an estimated
+c  length for now, for those loading schemes that don't actually
+c  use a user-set npmax directly)
+
+      call remark(" ---  Allocating space for particles")
+      if (xrandom == "grid") npmax = nxstripe*nystripe*nzstripe
+      if (xrandom == "fibonacc") npmax = nfibgrps*fibg1
+
+      call alotlostpart
+
+c  Load the particles, calculate the charge density
+
+      call remark(" ---  Loading particles")
+      pgroup%ns = ns
+      call setuppgroup(pgroup)
+      call stptcl3d(pgroup)
+      call injctint(pgroup)
+      call particleboundaries3d(pgroup,-1,.true.)
+      call remark(" ---  Setting charge density")
+      if (fstype>-1) then
+        call loadrho3d(pgroup,-1,-1,-1,.true.,lfinalize_rho)
+        call loadj3d(pgroup,-1,-1,-1,.true.,lfinalize_rho)
+      end if
+      if (chdtspid>0) then
+        lsaveoldpos = .true.
+        allspecl    = .true.
+      endif
+      if (lsaveoldpos) then
+        if (xoldpid == 0) xoldpid = nextpid()
+        if (yoldpid == 0) yoldpid = nextpid()
+        if (zoldpid == 0) zoldpid = nextpid()
+      endif
+      call remark(" ---  done")
+
+c  Set up for injection
+
+c  Create the dynamic arrays for the partcle qtys needed for the
+c  damped mover.  They are always allocated, but with length 1 if not used.
+
+      if (eomdamp /= 0.) then
+        if (exeomoldpid == 0) exeomoldpid = nextpid()
+        if (eyeomoldpid == 0) eyeomoldpid = nextpid()
+        if (ezeomoldpid == 0) ezeomoldpid = nextpid()
+        if (exeomlagpid == 0) exeomlagpid = nextpid()
+        if (eyeomlagpid == 0) eyeomlagpid = nextpid()
+        if (ezeomlagpid == 0) ezeomlagpid = nextpid()
+      endif
+
+c  Create the dynamic arrays for "window" moments
+
+      call remark(" ---  Allocating Win_Moments")
+      zwindows(1,0) = zmmin
+      zwindows(2,0) = zmmax
+      nzwind = 0
+      do iwin = 1, NWINDOWS
+         if (zwindows(1,iwin) /= zwindows(2,iwin)) nzwind = nzwind + 1
+      enddo
+      call gchange("Win_Moments", 0)
+
+c  Create the dynamic arrays for z moments
+
+      call remark(" ---  Allocating Z_Moments")
+      if (nzmmnt == 0) nzmmnt = max(nz,1)
+      call gchange("Z_Moments", 0)
+      if (zmmntmin == 0.) zmmntmin = zmmin
+      if (zmmntmax == 0.) zmmntmax = zmmax
+      dzm = (zmmntmax - zmmntmin)/nzmmnt
+      dzmi = 1./dzm
+      do k = 0, nzmmnt
+         zmntmesh(k) = zmmntmin + k*dzm
+      enddo
+
+c  Create the dynamic arrays for lab frame moments
+
+      call remark(" ---  Allocating Lab_Moments")
+      if (vbeam*dt /= 0.) then
+c       --- This number is just an estimate, so its value doesn't
+c       --- really matter, except for a slight efficiency with
+c       --- pre-allocating the memory. Add a min in case the
+c       --- expression becomes too large for integer conversion.
+        nl = int(min(1000.,(zmmaxlocal-zmminlocal)/(vbeam*dt) +.5))
+      else
+        nl = 1
+      endif
+      call initlabwn(nl)
+
+c  Create the scratch arrays for phase space plots (permanent, for now)
+c  and set limits for plots
+
+c     call remark(" ---  Allocating scratch space for plots")
+c     if (npsplt == 0) npsplt = nparpgrp-1
+      if (xplmin == 0.) xplmin = -(xmmin + nx*dx)
+      if (xplmax == 0.) xplmax =  (xmmin + nx*dx)
+      if (yplmin == 0.) yplmin = -(ymmin + ny*dy)
+      if (yplmax == 0.) yplmax =  (ymmin + ny*dy)
+      if (zplmin == 0.) zplmin = zmmin
+      if (zplmax == 0.) zplmax = (zmmin + nz*dz)
+
+c  Setup history mechanism
+
+c     --- This section is not needed, since the history arrays will be
+c     --- allocated as needed when the data is gathered.
+c     if (nhist > 0) then
+c       --- create the dynamic arrays for history data; set pointer into them
+c       call remark(" ---  Allocating history arrays")
+c       if (lenhist == 0) lenhist = min ( nt/nhist + 1, 100)
+c       call gchange("Hist", 0)
+c       jhist = -1
+c     elseif (nhist < 0) then
+c       --- call interpreter routine to setup hst package
+c       --- setup_hst is in bas.wrp
+c       --- This is no longer supported.
+c       call execuser("setup_hst")
+c     endif
+
+c  Print interesting things to plot file and teletype
+
+      call prntpara(dx,dy,dz,lprntpara,pgroup)
+      call prntpa3d(lprntpara)
+
+c  Initial fieldsolve, diagnostics
+
+      call step3d ("w3dgen")
+
+c  Set up Eears of z
+
+      call seteears()
+
+      call printexiting("w3dgen", 1)
+!$OMP MASTER
+      if (lw3dtimesubs) timew3dgen = timew3dgen + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine w3dexe()
+      use Subtimersw3d
+      use Picglb
+      use InGen
+      use InPart
+      use Picglb3d
+      use Ctl_to_pic
+      use Subcycling,Only: nsndts,zgridndts,ndts
+
+c  Takes a time step.
+c  This routine advances the mesh in the lab frame, sets the logicals
+c  which control how this next step is to be done, and then calls
+c  the routine STEP3D to do the step.
+
+
+      real(kind=8):: zcorrection
+      real(kind=8):: substarttime,wtime
+      integer(ISZ):: indts
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("w3dexe", 1)
+
+c --- Announce that we're running
+
+      if (it == 0) call remark(" ***  particle simulation package W3D running")
+
+c --- Accelerate grid frame.
+      call acclbfrm(zcorrection)
+
+c --- Set timestep counter, time, and advance grid frame. The grid
+c --- frame is advanced here to be with the particles after the
+c --- position advance.
+c --- The zcorrection from the accleration of the beam frame is added on
+c --- by adding it to zgrid.
+c --- zgridprv is set here (as well as in padvnc3d) in case the
+c --- user has changed zbeam.
+
+      it = it + 1
+c     time = time + dt ! Moved to end of padvnc3d
+
+      if (lbeamcom .and. nsndts > 1) then
+        call kaboom("w3dexe: subcycling is not supported with lbeamcom")
+        return
+      endif
+
+c     --- Set zgridprv to zbeam so that the user only has to set zbeam.
+c     --- Otherwise, zbeam is the same as zgrid, as set at the
+c     --- end of padvnc3d.
+      zgridprv = zbeam
+c     --- Note that with lbeamcom, zgrid will be reset after the positions
+c     --- are advanced.
+      zgrid = zbeam + dt*vbeamfrm + zcorrection
+      do indts=0,nsndts-1
+        if (mod(it-1,ndts(indts)) == 0) then
+c         --- Only update zgridndts on steps when the group of particles
+c         --- will be advanced.
+          zgridndts(indts) = zbeam + dt*vbeamfrm*ndts(indts) + zcorrection
+        endif
+      enddo
+c     --- zgrid is integer number of dz's
+      if (lgridqnt) then
+        zgrid = nint(zgrid/dz)*dz
+        zgridndts = nint(zgridndts/dz)*dz
+      endif
+
+      call stepid (it, time+dt, zgrid)
+
+c  set logicals
+
+      lfirst = .false.
+      if (ncall == 1) lfirst = .true.
+      llast = .false.
+      if (ncall == maxcalls) llast = .true.
+
+c  call the routine that does the actual work
+
+      call step3d ("w3dexe")
+
+c  Have we reached the end of the run or run out of particles?
+
+c     if ( lfinishd ) then
+c        call remark("w3dexe: problem completed.")
+c$OMP MASTER
+c        if (lw3dtimesubs) timew3dexe = timew3dexe + wtime() - substarttime
+c$OMP END MASTER
+c        return
+c     elseif (nplive <= 0) then
+c Check if there are any live particles left.
+c If on first time step, set nplive to one and continue running since if using
+c injection, there may not be any particles yet but still want to run.
+c        if (it == 1) then
+c          nplive = 1
+c        else
+c          print*," *** W3DEXE: stopping, nplive =",nplive
+c$OMP MASTER
+c          if (lw3dtimesubs) timew3dexe = timew3dexe + wtime() - substarttime
+c$OMP END MASTER
+c          return
+c        endif
+c     endif
+
+c  Continue to run.
+      call printexiting("w3dexe", 1)
+!$OMP MASTER
+      if (lw3dtimesubs) timew3dexe = timew3dexe + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine w3dfin()
+      use Subtimersw3d
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("w3dfin", 1)
+
+c  Finish up at end of RUN, or on receipt of FIN
+c  This routine is never called, at present; history plots are
+c  made using a Python interpreter script (histplot), and we just
+c  end the run.  If we wanted to chain runs so that an output qty
+c  might be plotted vs a parameter, this routine might be useful.
+c  It would be needed for a non-Python version of WARP.
+c  For now it serves as a place-holder.
+
+
+c  print final edits
+
+c  perform diagnostics (unless we just did)
+
+c  Create history plots
+
+c  Make a restart dump (unless we just did, or the user inhibits it)
+
+c  create final printouts
+
+c  release storage
+
+      call gfree ("Mesh3d")
+      call gfree ("Fields3dSolver")
+      call gfree ("Fields3dParticles")
+      call gfree ("Hist")
+      call gfree ("Win_Moments")
+      call gfree ("Z_Moments")
+      call gfree ("Lab_Moments")
+      call gfree ("Moments")
+      call gfree ("Lattice")
+      call gfree ("LatticeInternal")
+      call gfree ("Z_arrays")
+
+      call printexiting("w3dfin", 1)
+!$OMP MASTER
+      if (lw3dtimesubs) timew3dfin = timew3dfin + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine step3d (caller)
+      use Subtimersw3d
+      use Constant
+      use InGen
+      use InGen3d
+      use InDiag
+      use InDiag3d
+      use InPart
+      use InMesh3d
+      use Fields3dParticles
+      use Io
+      use Particles, Only: pgroup,nplive
+      use Picglb
+      use Picglb3d
+      use DKInterp
+      use LatticeInternal
+      use GridBoundary3d
+      use Z_Moments,Only: tempmaxp,tempminp,tempzmmnts0,tempzmmnts
+      use Subcycling,Only: ndtsaveraging,zgridndts
+      use Timers
+      character(*):: caller
+
+c  When called by W3DEXE, step3d advances the system forward in time one
+c  timestep and gathers diagnostics.  When called by W3DGEN, step3d takes
+c  a step of zero size, to compute fields, and gather diagnostics at start
+c  of run.
+
+      real(kind=8):: getbeamcom,zgridnew
+      logical(ISZ):: thisstep,thiszbeam,thistime,dolabwn
+      real(kind=8):: zbeaml,zbeamr
+      real(kind=8):: time1,time2
+      integer(ISZ):: k,ipc,is
+      integer(ISZ):: ioldsetup,ihasinterp
+      real(kind=8):: substarttime,wtime
+c     Assumes ioldsetup is initialized to zero by compiler; the following
+c     saves it between calls to this subroutine
+      save ioldsetup
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("step3d", 1)
+
+      if (l4symtry .and. l2symtry) then
+        call kaboom("step3d: both l4symtry and l2symtry are set to true")
+      endif
+
+c --- Set the internal lattice variables. This is not generally necessary at
+c --- this point (it is redundant most of the time, the next call to
+c --- setlatt in this subroutine is sufficient). There are cases where
+c --- this is required for consistency. Since it is cheap (time wise),
+c --- it is better to make sure the data is consistent than to save a
+c --- little bit of time. The value of nzl etc must be checked since other
+c --- packages (like WXY or ENV) may have reset it. For example, if the
+c --- ENV package is generated after the W3D package, nzl will be set to
+c --- zero. Switching back to W3D and running step, the internal lattice
+c --- would still be setup for the ENV package and so the step would produce
+c --- erroneaous results.
+      if (nzl == 0) then
+        nzl = nzlmax
+        zlmin = zmmin
+        zlmax = zmmax
+        dzl = (zlmax - zlmin)/nzl
+        dzli = 1./dzl
+        do k = 0, nzl
+          zlmesh(k) = zlmin + k*dzl
+        enddo
+      endif
+      call setlatt()
+
+c     --- This is a special routine needed when there is subcycling.
+c     call setupevensubcyclingrho(it)
+
+c  Main particle advance: x to t.l. it; v to t.l. it-1/2
+c  Half-step in v from t.l. it-1   if last step was "special"
+c  Full-step in v from t.l. it-3/2 if last step not "special"
+c  No step at all if generating.
+c  Above applies to a non-interpolated species (conventional warp).
+c  For a species using interpolated mover, we allow the option of
+c  a predictor-corrector scheme.  The number of corrector steps is set
+c  by npcmax; for npcmax > = 0, the predictor step is centered, going from
+c  t.l. it-2 to t.l. it.   For npcmax < 0, predictor step is uncentered
+c  going from level it-1 to it, and in this case number of corrector
+c  steps is -npcmax -1.  To recover earlier coding without this option,
+c  set npcmax = -1.
+
+c    set up for predictor-corrector loop if there is an interpolated species
+      ipcmax = 0
+      ihasinterp = 0
+      do is = 1,ns
+         if (interpdk(is) > 0 .and. npcmax .ge. 0) ipcmax=npcmax
+         if (interpdk(is) > 0 .and. npcmax < 0) ipcmax = -npcmax-1
+         if (interpdk(is) > 0) ihasinterp = 1
+      enddo
+c     Don't do corrector on a generate
+      if (caller == "w3dgen") ipcmax = 0
+      if (ihasinterp == 1 .and. ioldsetup .ne. 1) then
+         call oldsetup()
+c        sets up pid arrays to store old values, and sets up pointers
+         ioldsetup = 1
+      endif
+
+c     BEGIN predictor-corrector loop
+      do ipc = 0,ipcmax
+         ipredcor = ipc
+
+         if (caller == "w3dexe") then
+            if (lspecial) then
+               call padvnc3d ("halfv",pgroup)
+            else
+               call padvnc3d ("fullv",pgroup)
+            endif
+
+c           --- Inject more particles. This adds particles and alters ins
+c           --- and nps.
+            call inject3d(1,pgroup)
+            call callpythonfunc("userinjection","controllers")
+
+c           --- This is done here in case padvnc3d is called for multiple
+c           --- pgroups
+            if (lbeamcom) then
+c             --- Reset zgrid to be the center of mass of the beam. This should
+c             --- be safe since zgrid should not have been used since it was
+c             --- updated in w3dexe. Ony zgridndts(0) needs to be set since
+c             --- lbeamcom does not work with subcycling.
+              zgridnew = getbeamcom(pgroup) - zbeamcomoffset
+              if (lgridqnt) then
+c               --- zgrid is integer number of dz's
+                zgridnew = nint(zgridnew/dz)*dz
+              endif
+              if (lbeamcomforwardonly) then
+                if (zgridnew < zgrid) zgridnew = zgrid
+              endif
+              zgrid = zgridnew
+              zgridndts(0) = zgrid
+              call stepid (it, time+dt, zgrid)
+            endif
+
+c           --- Treat particles at boundaries
+            call particleboundaries3d(pgroup,-1,.true.)
+
+c           --- Collect charge density and current
+            call loadrho3d(pgroup,-1,-1,-1,.not. laccumulate_rho,lfinalize_rho)
+            call loadj3d(pgroup,-1,-1,-1,.not. laccumulate_rho,lfinalize_rho)
+
+c           --- This is done here in case padvnc3d is called for multiple
+c           --- pgroups
+            if (lgridqnt .and. .not. lbeamcom) then
+c             --- Advance beam frame location using the nominal beam frame
+c             --- velocity. Note that this may need similar treatment to
+c             --- lbeamcom.
+              zbeam = zbeam+vbeamfrm*dt
+            else
+              zbeam = zgrid
+            endif
+
+c       --- zgridprv needs to be updated for the "synchv" step
+c       --- Note that zgridprv is also set at the beginning of w3dexe
+            zgridprv = zgrid
+
+            if (ipc == 0) time = time + dt
+
+         endif
+
+c  The next two variables are the left and right ends of the range centered
+c  about the end of the current time step plus/minus one half a step.
+c  The range is used is determining whether diagnostics are done which
+c  are based on the z location of the beam frame.  The diagnostics are done
+c  on the time step which ends closest to the value given in the controlling
+c  arrays.
+c  The absolute values are taken so that if dt < 0 or vbeamfrm < 0, then
+c  it will still be true that zbeaml < zbeamr.
+         zbeaml = zbeam - abs(0.5*vbeamfrm*dt)
+         zbeamr = zbeam + abs(0.5*vbeamfrm*dt)
+         time1  = time - abs(0.5*dt)
+         time2  = time + abs(0.5*dt)
+
+c  Set logical flags to determine if "always" or "seldom" phase space
+c  plots, restart dumps, final timesteps, and moment accumulations should
+c  be done at the end of this step.
+
+         lfinishd = (it >= nt) .or. (time >= tstop*(1.-MACHEPS)) .or.
+     &                              (zbeam >= zstop)
+         lalways  = thisstep (it           ,itplalways,NCONTROL) .or.
+     &              thiszbeam(zbeaml,zbeamr,zzplalways,NCONTROL) .or.
+     &              thistime (time1 ,time2 ,ttplalways,NCONTROL) .or.
+     &              thisstep (it           ,itplfreq,  NCONTROL) .or.
+     &              thiszbeam(zbeaml,zbeamr,zzplfreq,  NCONTROL) .or.
+     &              thistime (time1 ,time2 ,ttplfreq,  NCONTROL)
+         lseldom  = thisstep (it           ,itplseldom,NCONTROL) .or.
+     &              thiszbeam(zbeaml,zbeamr,zzplseldom,NCONTROL) .or.
+     &              thistime (time1 ,time2 ,ttplseldom,NCONTROL) .or.
+     &              thisstep (it           ,itplps,    NCONTROL) .or.
+     &              thiszbeam(zbeaml,zbeamr,zzplps,    NCONTROL) .or.
+     &              thistime (time1 ,time2 ,ttplps,    NCONTROL)
+         lmoments = thisstep (it           ,itmomnts,  NCONTROL) .or.
+     &              thiszbeam(zbeaml,zbeamr,zzmomnts,  NCONTROL) .or.
+     &              thistime (time1 ,time2 ,ttmomnts,  NCONTROL)
+         if (nhist /= 0) then
+            lhist  = mod(it,nhist) == 0
+         else
+            lhist  = .false.
+         endif
+         ldump    = mod(it, itdump) == 0
+         llabwn   = dolabwn()
+         lspecial = (lfinishd .or. lalways .or. lseldom .or. ldump .or.
+     &            lmoments .or. lhist .or. llabwn .or. llast .or.
+     &            (it == 0) .or. allspecl)
+
+c  Set the "gap" electric field.
+
+         call setegap
+
+c  Charge density contour plot diagnostics.  Note -- these diagnostics
+c  are done at this phase of the particle advance to allow for the eventual
+c  use of a single array for rho and phi.
+
+         if (lalways .or. lseldom) call pltfld3d("rho",ALWAYS)
+         if (lseldom)            call pltfld3d("rho",SELDOM)
+
+c  Set lattice; this is done just before field solve, and so is
+c  relative to ZBEAM in the same way that self-fields are.
+
+
+         call setlatt
+
+c  Field-solve for potential.
+
+         if (lbeforefs) call callpythonfunc("beforefs","controllers")
+         call fieldsol3d(-1)
+         call bfieldsol3d(-1)
+         if (lafterfs) call callpythonfunc("afterfs","controllers")
+
+c  Pre-calculate the self-E if it is needed for sete3d. This is done
+c  after the call to afterfs in case some manipulation is done to phi.
+         if ((ANY(efetch == 3) .or. ANY(depos_order > 1)) .and.
+     &       fstype .ne. -1 .and. fstype < 12 .and.
+     &        (solvergeom == XYZgeom .or.
+     &         solvergeom == RZgeom .or.
+     &         solvergeom == XZgeom .or.
+     &         solvergeom == XYgeom .or.
+     &         solvergeom == Rgeom  .or.
+     &         solvergeom == Zgeom)) then
+            if (maxval(pgroup%ndts) > 1 .and. ndtsaveraging > 1) then
+c           --- Note that with subcycling, this option will be incorrect since
+c           --- the selfe for each ndts group is not (and will not) be
+c           --- calculated. Note that this does not apply to sampled averaging,
+c           --- in which cases all species use the same field.
+               print*,"The efetch option 3 cannot be used with subcycling option ",ndtsaveraging
+               call kaboom("step3d: efetch option 3 cannot be used with subcycling option")
+               return
+            endif
+            call allocateselfepforparticles(.true.)
+            call getselfe3d(phip,nxp,nyp,nzp,nxguardphi,nyguardphi,nzguardphi,
+     &                      selfep,nxguarde,nyguarde,nzguarde,
+     &                      dx,dy,dz,.true.)
+            if(idadt>0) then
+              call getefroma3d(selfep,nxp,nyp,nzp,
+     &                        nxguarde,nyguarde,nzguarde,
+     &                        dt,dz,vbeamfrm,idadt,zgrid,zgridaprv)
+            endif
+         endif
+
+c  Set the potential near the emitting surface.
+c     call getinj_phi()
+c     call gettinj_phi()
+
+c  Set the transverse E fields near any defined apertures.
+         call set_aperture_e()
+
+c  END predictor-corrector loop on ipc
+      enddo
+      ipredcor = 0
+
+c  Complete constant current and axially directed space-charge limited
+c  injection with new fields including injected particles.
+      if (caller == "w3dexe") then
+        call inject3d(2,pgroup)
+        call callpythonfunc("userinjection2","controllers")
+      end if
+
+c  Call this here since getzmmnt needs to have lvdts updated.
+c  Note that it is still called in padvnc3d.
+      if (caller == "w3dexe" .and. lspecial) then
+        call setuppadvncsubcyclingaveraging(it,"synchv",pgroup)
+      elseif (caller == "w3dgen") then
+        call setuppadvncsubcyclingaveraging(it,"gen",pgroup)
+      endif
+
+c  Initialize the moments arrays which are calculated during the synchv and
+c  gen phases.
+c  0. is passed in as a dummy for all of the particles coordinates
+c  which are not used at this time.
+      if ((caller == "w3dexe" .and. lspecial) .or.caller == "w3dgen") then
+        call getzmmnt(1,0.,0.,0.,0.,0.,0.,0.,
+     &                0.,0.,0.,0.,0.,1,
+     &                nplive,0.,0.,0.,1,-1,ns,
+     &                tempmaxp,tempminp,tempzmmnts0,tempzmmnts)
+      endif
+
+c  If a flag was set making this a "special" step,
+c  do a half-advance to bring v to t.l. it
+
+      if (caller == "w3dexe" .and. lspecial) then
+         call padvnc3d ("synchv",pgroup)
+      elseif (caller == "w3dgen") then
+         call padvnc3d ("gen",pgroup)
+      endif
+
+c  Finalize the moments calculation and do other diagnostics.
+      if ((caller == "w3dexe" .and. lspecial) .or.caller == "w3dgen") then
+        call getzmmnt(1,0.,0.,0.,0.,0.,0.,0.,
+     &                0.,0.,0.,0.,0.,3,nplive,0.,0.,0.,
+     &                1,1,ns,tempmaxp,tempminp,tempzmmnts0,tempzmmnts)
+      endif
+      call getlabwn()
+      call rhodia
+
+c  Gather moments used in diagnostics at "special" timesteps only.
+c  Compute mean beam z velocity from current and line charge density
+c  on a 1-d mesh.  Also, calculate the electrostatic energy (getese),
+c  electrostatic potential on axis (sphiax), and the axial electric
+c  field (sezax).
+
+      if (lspecial) then
+        if (lgetvzofz) call getvzofz
+        call gtlchg
+        call srhoax
+        call getese
+        call sphiax
+        call sezax
+      endif
+
+c  Electrostatic potential contour plot diagnostics
+
+      if (lalways .or. lseldom) call pltfld3d("phi",ALWAYS)
+      if (lseldom)            call pltfld3d("phi",SELDOM)
+
+c  1d array plot diagnostics.
+
+      if (lalways .or. lseldom) call onedplts(ALWAYS)
+      if (lseldom)            call onedplts(SELDOM)
+
+c  Phase space diagnostics
+
+      if (lalways .or. lseldom) call psplots (ALWAYS)
+      if (lseldom)            call psplots (SELDOM)
+
+c  Finally, moment diagnostic printout and history storage
+
+      if (caller == "w3dgen" .or. lspecial)
+     &  call minidiag (it,time,lspecial)
+
+      call printexiting("step3d", 1)
+!$OMP MASTER
+      if (lw3dtimesubs) timestep3d = timestep3d + wtime() - substarttime
+!$OMP END MASTER
+
+      return
+      end
+c=============================================================================
+      subroutine exteb3d(np,xp,yp,zp,uzp,gaminv,dtl,dtr,
+     &                   bx,by,bz,ex,ey,ez,m,q,bendres,bendradi,dt)
+      use Subtimersw3d
+      use Timers
+      integer(ISZ):: np
+      real(kind=8):: dtl,dtr,m,q,dt
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: uzp(np), gaminv(np)
+      real(kind=8):: bx(np), by(np), bz(np), bendres(np), bendradi(np)
+      real(kind=8):: ex(np), ey(np), ez(np)
+
+c  Calculates "external" E, B fields
+c  Calculates electric or magnetic AG focusing fields, bending and dipole
+c  fields, and accelerating fields.
+c  Includes back-rotation associated with coordinate transformation into By.
+
+c  NOTE: When we (someday) set B_self from a Lorentz transformation
+c  on E_self, we'll have to carefully work out a sequence of calls,
+c  since this routine is called more than once in the PADVNC3D loop on
+c  a single step at present.  Perhaps we will also have to compute
+c  B_self more than once.
+
+      integer(ISZ):: ip
+      real(kind=8):: timetemp,wtime
+      real(kind=8):: substarttime
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("exteb3d", 2)
+
+      timetemp = wtime()
+
+c     --- handle uniform fields
+      call applyuniformfields(np,ex,ey,ez,bx,by,bz)
+
+c     --- handle quads
+      call applyquad(np,xp,yp,np,zp,uzp,gaminv,dtl,dtr,dt,.false.,ex,ey,bx,by)
+
+c     --- handle dipos
+      call applydipo(np,np,zp,uzp,gaminv,dtl,dtr,dt,.false.,ex,ey,bx,by)
+
+c     --- handle sexts
+      call applysext(np,xp,yp,np,zp,uzp,gaminv,dtl,dtr,dt,.false.,ex,ey,bx,by)
+
+c     --- handle hard-edge electric and magnetic multipoles
+      call applyhele(np,xp,yp,np,zp,uzp,gaminv,dtl,dtr,dt,.false.,
+     &               ex,ey,ez,bx,by,bz)
+
+c     --- fold in coordinate transformation associated with bends
+      call applybend(np,xp,uzp,np,bendres,bendradi,m,q,.false.,by)
+
+c     --- handle acceleration (and calculate position correction)
+      call applyaccl(np,xp,zp,uzp,gaminv,dtl,dtr,dt,q,m,.false.,ez)
+
+c     --- handle electrostatic multipole components
+      call applyemlt(np,xp,yp,np,zp,dtl,dtr,dt,.false.,ex,ey,ez)
+
+c     --- handle magnetostatic multipole components
+      call applymmlt(np,xp,yp,np,zp,dtl,dtr,dt,.false.,bx,by,bz)
+
+c     --- handle electric fields from 3-D grid
+      call applyegrd(np,xp,yp,np,zp,uzp,gaminv,dtl,dtr,dt,.false.,ex,ey,ez)
+
+c     --- handle magnetic fields from 3-D grid
+      call applybgrd(np,xp,yp,np,zp,uzp,gaminv,dtl,dtr,dt,.false.,bx,by,bz)
+
+c     --- handle electrostatic potential from 3-D grid
+      call applypgrd(np,xp,yp,np,zp,.false.,ex,ey,ez)
+
+c     --- handle python implemented element
+      call applypyelem(np,xp,yp,np,zp,uzp,gaminv,dtl,dtr,dt,.false.,ex,ey,ez,bx,by,bz)
+
+c     --- Accumulate time for applying the fields of the lattice
+!$OMP MASTER
+      latticetime = latticetime + (wtime() - timetemp)
+!$OMP END MASTER
+
+      call printexiting("exteb3d", 2)
+!$OMP MASTER
+      if (lw3dtimesubs) timeexteb3d = timeexteb3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine othere3d(np,xp,yp,zp,zbeam,zimax,zimin,straight,
+     &                    ifeears,eears,eearsofz,dzzi,nzzarr,zzmin,
+     &                    dedr,dexdx,deydy,dbdr,dbxdy,dbydx,ex,ey,ez,bx,by,bz)
+      use InGen3d, only:lothereuser
+      use Subtimersw3d
+      integer(ISZ):: np,ifeears,nzzarr
+      real(kind=8):: zbeam,zimax,zimin,straight,eears,dzzi,zzmin
+      real(kind=8):: dedr,dexdx,deydy,dbdr,dbxdy,dbydx
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: ex(np), ey(np), ez(np)
+      real(kind=8):: bx(np), by(np), bz(np)
+      real(kind=8):: eearsofz(0:nzzarr)
+
+      integer(ISZ):: ip,iz
+      real(kind=8):: zs,wz
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("othere3d", 2)
+
+c  Set the electric fields from external sources,
+c  inculding axial confining fields, and uniform focusing fields.
+
+      if (lothereuser) call callpythonfunc("othereuser","controllers")
+
+c  Apply axial confining ears for finite beam.
+
+      if (ifeears == 1 .or. ifeears == 3) then
+        zs = (zimax - zimin)*straight*0.5
+        do ip=1,np
+          if ((zp(ip)-zbeam) > zs) then
+            ez(ip) = ez(ip) + eears*(zp(ip) - zbeam - zs)
+          elseif ((zp(ip)-zbeam) < -zs) then
+            ez(ip) = ez(ip) + eears*(zp(ip) - zbeam + zs)
+          endif
+        enddo
+      endif
+
+c  axial confining ears for finite beam as a function of z
+
+      if (ifeears == 2) then
+        do ip=1,np
+          iz = (zp(ip) - zbeam - zzmin)*dzzi
+          if (0 <= iz .and. iz < nzzarr) then
+            wz = (zp(ip) - zbeam - zzmin)*dzzi - iz
+            ez(ip) = ez(ip) + eearsofz(iz)*(1.-wz) + eearsofz(iz+1)*wz
+          endif
+        enddo
+      endif
+
+c  uniform focusing forces
+
+c     --- radial electric field
+      if (dedr /= 0.) then
+        do ip=1,np
+          ex(ip) = ex(ip) + dedr*xp(ip)
+          ey(ip) = ey(ip) + dedr*yp(ip)
+        enddo
+      endif
+c     --- x- and y-electric fields
+      if ((dexdx /= 0.) .or. (deydy /= 0.)) then
+        do ip=1,np
+          ex(ip) = ex(ip) + dexdx*xp(ip)
+          ey(ip) = ey(ip) + deydy*yp(ip)
+        enddo
+      endif
+c     --- azimuthal magnetic field
+      if (dbdr /= 0.) then
+        do ip=1,np
+          bx(ip) = bx(ip) - dbdr*yp(ip)
+          by(ip) = by(ip) + dbdr*xp(ip)
+        enddo
+      endif
+c     --- x- and y-magnetic fields
+      if ((dbxdy /= 0.) .or. (dbydx /= 0.)) then
+        do ip=1,np
+          bx(ip) = bx(ip) - dbxdy*yp(ip)
+          by(ip) = by(ip) + dbydx*xp(ip)
+        enddo
+      endif
+
+      call printexiting("othere3d", 2)
+!$OMP MASTER
+      if (lw3dtimesubs) timeothere3d = timeothere3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine seteears()
+      use Subtimersw3d
+      use Beam_acc
+      use InGen
+      use InPart
+      use InMesh3d
+      use Picglb3d
+      use Constant
+      use Z_arrays
+
+c Calculate ear fields to confine the beam axially.
+c Controlled by ifears.  If zero, no ear fields.
+c If one, strictly linear ear fields, calculated from expression from Nueffer.
+c If two, ear fields obtained from axial E fields on axis with linear pressure
+c         term added on.
+c Calculated for first species.
+
+
+      real(kind=8):: zm
+      integer(ISZ):: nzla,nzlb,nzma,nzmb,iz
+      real(kind=8):: zs,zl,eearsprs
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      zm = (zimax - zimin)*(1. - straight)*0.5
+      emitlong = zm*2.*vthz
+
+c     set to be linear in z (eears is actually slope of Eears)
+      if (ifeears == 1) then
+        eears = eears*(- 2*abs(ibeam/vbeam)/(zm**2)*gfactor/(2.*Pi*eps0)
+     &                 - (aion*amu)*emitlong**2/((zion*echarge)*zm**4))
+
+      elseif (ifeears == 2) then
+
+c     set to initial field on axis (with the center part zero)
+c     the '5' is just a guestimate, it should be nz dependent
+c     The ends (beyond the beam) are set with the E at the end of the beam
+        zl = (zimax - zimin)*0.5
+        nzla = nzzarr/2-int(zl*dzzi)
+        nzlb = nzzarr/2+int(zl*dzzi)
+        zs = (zimax - zimin)*straight*0.5
+        nzma = nzzarr/2-int(zs*dzzi)
+        nzmb = nzzarr/2+int(zs*dzzi)
+        do iz=0,nzla
+          eearsofz(iz) = - ezax(nzla)
+        enddo
+        do iz=nzla+1,nzma+5
+          eearsofz(iz) = - ezax(iz)
+        enddo
+        do iz=nzmb-5,nzlb
+          eearsofz(iz) = - ezax(iz)
+        enddo
+        do iz=nzlb+1,nzzarr
+          eearsofz(iz) = - ezax(nzlb)
+        enddo
+c       --- Add on linear pressure term
+        if (emitlong /= 0.) then
+          eearsprs = - (aion*amu)*emitlong**2/((zion*echarge)*zm**4)
+          do iz=0,nzma
+            eearsofz(iz) = eearsofz(iz) + eearsprs*(zplmesh(iz) + zs)
+          enddo
+          do iz=nzmb,nzzarr
+            eearsofz(iz) = eearsofz(iz) + eearsprs*(zplmesh(iz) - zs)
+          enddo
+        endif
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeseteears = timeseteears + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine setuppadvncsubcyclingsampledaveraging(it,indts,center)
+      use Subcycling
+      integer(ISZ):: it,indts
+      character(*):: center
+
+c  Advance species according to subcycling rule governed by ndts.
+c  The ndts groups are advanced as soon as all of the needed
+c  information is available.
+c
+c  The halfv can be done on the first time step of each cycle.
+c  The synchv is done on the last.
+c
+c  Note that (it-1) is used since it is advanced before this point.
+
+      if (mod(it-1,ndts(indts)) == 0 .and.
+     &    (center == "fullv" .or. center == "halfv")) then
+        ldts(indts) = .true.
+        if (itndts(indts) == it-1) then
+          itndts(indts) = itndts(indts) + ndts(indts)
+        endif
+      elseif ((mod(it-1,ndts(indts)) == ndts(indts) - 1 .and.
+     &        center == "synchv") .or. center == "gen") then
+        lvdts(indts) = .true.
+      else
+        ldts(indts) = .false.
+        lvdts(indts) = .false.
+      endif
+
+      return
+      end
+c=============================================================================
+      subroutine setuppadvncsubcyclingfullvaveraging(it,indts,center)
+      use Subcycling
+      integer(ISZ):: it,indts
+      character(*):: center
+
+c  Advance species according to subcycling rule governed by ndts.
+c  If ndts is even, then the particles can be advanced when the faster
+c  particles has gone half way through the larger time step. At that
+c  point, there will be enough future charge densities from the faster
+c  particles to form a time centered average.
+c
+c  If ndts is odd, then the particles are advanced on the time step that
+c  is past the half way point, again so that all of the future charge
+c  densities are known to form a time centered average.
+c  The ndtstmp is just a clever way of finding that time step.
+c
+c  Note that (it-1) is used since it is advanced before this point.
+c
+c  The synchv is done one time step sooner since it is done after the
+c  field solve which will include that time centered rho average.
+
+      integer(ISZ):: ndtstmp
+
+      ndtstmp = ndts(indts) - mod(ndts(indts),2)
+      if (mod(it-1,ndts(indts)) == ndtstmp/2 .and.
+     &        (center == "fullv" .or. center == "halfv")) then
+        ldts(indts) = .true.
+        if (itndts(indts) < it) then
+          itndts(indts) = itndts(indts) + ndts(indts)
+        endif
+      elseif ((ndts(indts) == 1 .or.
+     &        (mod(it-1,ndts(indts)) == ndtstmp/2-1) .and.
+     &         center == "synchv") .or. center == "gen") then
+        lvdts(indts) = .true.
+      else
+        ldts(indts) = .false.
+      endif
+
+      return
+      end
+c=============================================================================
+      subroutine setuppadvncsubcyclinghalfvaveraging(it,indts,center)
+      use Subcycling
+      integer(ISZ):: it,indts
+      character(*):: center
+
+      return
+      end
+c=============================================================================
+      subroutine setuppadvncsubcyclingaveraging(it,center,pgroup)
+      use ParticleGroupmodule
+      use Subcycling
+      integer(ISZ):: it
+      character(*):: center
+      type(ParticleGroup):: pgroup
+
+      integer(ISZ):: indts,js
+
+      do indts=0,nsndts-1
+        if (ndtsaveraging == 0 .or. ndtsaveraging == 1) then
+          call setuppadvncsubcyclingsampledaveraging(it,indts,center)
+        elseif (ndtsaveraging == 2) then
+          call setuppadvncsubcyclingfullvaveraging(it,indts,center)
+        elseif (ndtsaveraging == 3) then
+          call setuppadvncsubcyclinghalfvaveraging(it,indts,center)
+          call kaboom("ndtsaveraging == 3 not supported")
+        endif
+      enddo
+
+c     --- The pgroup%ldts variable should be removed since its not really needed.
+      do js=0,pgroup%ns-1
+        indts = ndtstorho(pgroup%ndts(js))
+        pgroup%ldts(js) = ldts(indts)
+        pgroup%lvdts(js) = lvdts(indts)
+      enddo
+
+      return
+      end
+c=============================================================================
+      subroutine positionadvance3d(pgroup,is,np,ipmin,interpdk,dt,
+     &                             bendres,bendradi,vbeam)
+      use Subtimersw3d
+      use ParticleGroupmodule
+      use Particles, Only: xoldpid,yoldpid,zoldpid
+      use InGen, Only: boost_gamma
+      use Constant, Only: clight
+      use Picglb, Only: time
+      use LatticeInternal, Only: linbend
+      use Lattice, Only: bends
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: is,np,ipmin,interpdk,i1,i2
+      real(kind=8):: dt,vbeam,uzboost,invclightsq,vzboost
+      real(kind=8):: bendres(np),bendradi(np)
+
+      real(kind=8),pointer:: zpo(:)
+      real(kind=8),allocatable::dtlab(:),tlab(:)
+      integer:: alloc_status
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      i1 = ipmin
+      i2 = ipmin + np - 1
+
+c     Store old positions if not interpolating; if we are interpolating this
+c     is done in xpush3dinterp in a more complicated way to allow for
+c     predictor-corrector.
+      if (interpdk == 0) then
+         if (xoldpid > 0) pgroup%pid(i1:i2,xoldpid) = pgroup%xp(i1:i2)
+         if (yoldpid > 0) pgroup%pid(i1:i2,yoldpid) = pgroup%yp(i1:i2)
+         if (zoldpid > 0) pgroup%pid(i1:i2,zoldpid) = pgroup%zp(i1:i2)
+      endif
+
+      if (bends .and. linbend) then
+        if (zoldpid > 0 .and. boost_gamma==1.) then
+          zpo => pgroup%pid(i1:i2,zoldpid)
+        else
+          allocate(zpo(np), stat=alloc_status)
+          if (alloc_status /= 0) then
+            print*,"Error:positionadvance3d: zpo could not be allocated"
+            stop
+          endif
+          zpo = pgroup%zp(i1:i2)
+        endif
+      endif
+
+      if (.not. pgroup%l_maps(is-1)) then
+        if (interpdk .ne. 0) then
+          call xpush3dintrp(pgroup,np,is,ipmin,dt)
+        else
+          call xpush3d(np,pgroup%xp(i1:i2),pgroup%yp(i1:i2),pgroup%zp(i1:i2),
+     &                 pgroup%uxp(i1:i2),pgroup%uyp(i1:i2),pgroup%uzp(i1:i2),pgroup%gaminv(i1:i2),dt)
+        endif
+      endif
+
+      if (.not. bends .or. .not. linbend) then
+        bendres = 0.
+      else
+        ! the particles are in a bend
+        if (boost_gamma>1.) then
+          ! if the calculation is done in a boosted frame, then one must
+          ! transform the particle quantities into the lab frame for
+          ! the application of bending elements.
+          allocate(dtlab(np),tlab(np), stat=alloc_status)
+          if (alloc_status /= 0) then
+            print*,"Error:positionadvance3d: dtlab or tlab could not be allocated"
+            stop
+          endif
+          invclightsq=1./clight**2
+          uzboost=clight*sqrt(boost_gamma*boost_gamma-1.)
+          vzboost = uzboost/boost_gamma
+c         --- get time in lab frame
+          tlab(1:np) = boost_gamma*(time+dt)+uzboost*pgroup%zp(i1:i2)*invclightsq
+c         --- transform position to lab frame
+          pgroup%zp(i1:i2) = boost_gamma*pgroup%zp(i1:i2)+uzboost*(time+dt)
+          zpo = boost_gamma*zpo+uzboost*time
+c         --- get time step in lab frame
+          dtlab(1:np) = boost_gamma*dt*(1.+vbeam*vzboost*invclightsq)
+c         --- transform velocity to lab frame
+          call setu_in_uzboosted_frame3d(np,pgroup%uxp(i1:i2),
+     &                                      pgroup%uyp(i1:i2),
+     &                                      pgroup%uzp(i1:i2),
+     &                                      pgroup%gaminv(i1:i2),
+     &                                      -uzboost,boost_gamma)
+          ! this is an attempt to fool getbend and zbendcor.
+          ! Normally, each particle should have its
+          ! own dt, but this would require to modify the two routines,
+          ! with associated numerical cost.
+          ! This works since gaminv is always multiplied by dt in its
+          ! usage in the two routines. If this is not the case, then the
+          ! kludge will fail.
+          pgroup%gaminv(i1:i2) = pgroup%gaminv(i1:i2)*dtlab(1:np)/dt
+        end if
+
+c       --- Bend residence factor over POSITION advance step
+        call getbend(np,np,pgroup%zp(i1:i2),pgroup%uzp(i1:i2),
+     &               pgroup%gaminv(i1:i2),
+     &               bendres,bendradi,-dt,0.,.false.)
+
+c       --- Correct position advance for warped mesh effect
+        call zbendcor(pgroup,np,ipmin,dt,bendres,bendradi)
+
+        if (boost_gamma>1.) then
+          ! Need to undo kludge for getbend and zbendcor.
+          pgroup%gaminv(i1:i2) = pgroup%gaminv(i1:i2)*dt/dtlab(1:np)
+        end if
+
+c       --- Correct position advance for slanted dipole entry/exit
+        call sledgcor(pgroup,np,ipmin,zpo,0.,0.,0.,
+     &                pgroup%sm(is),pgroup%sq(is),.false.)
+
+        if (boost_gamma>1.) then
+c         --- transform position back to boosted frame
+          pgroup%zp(i1:i2) = boost_gamma*pgroup%zp(i1:i2)-uzboost*tlab(1:np)
+c         --- transform velocity back to boosted frame
+          call setu_in_uzboosted_frame3d(np,pgroup%uxp(i1:i2),
+     &                                      pgroup%uyp(i1:i2),
+     &                                      pgroup%uzp(i1:i2),
+     &                                      pgroup%gaminv(i1:i2),
+     &                                      uzboost,boost_gamma)
+          deallocate(dtlab,tlab)
+        end if
+
+        if (zoldpid == 0 .or. boost_gamma>1.) then
+          deallocate(zpo)
+        endif
+      endif
+
+      if(pgroup%zshift(is)/=0.) pgroup%zp(i1:i2)=pgroup%zp(i1:i2)+pgroup%zshift(is)
+
+!$OMP MASTER
+      if (lw3dtimesubs) timepositionadvance3d = timepositionadvance3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine epush(np,uxp,uyp,uzp,gaminv,exp,eyp,ezp,sq,sm,dt,
+     &                 ndtfact,dtfact,l_dtmult,l_paraxial)
+      use Subtimersw3d
+      use Beam_acc,only:lrelativ
+      use InGen,only:gamadv
+      integer(ISZ):: np,ndtfact
+      real(kind=8):: uxp(np),uyp(np),uzp(np),gaminv(np)
+      real(kind=8):: exp(np),eyp(np),ezp(np)
+      real(kind=8):: sq,sm,dt
+      real(kind=8):: dtfact(ndtfact)
+      logical(ISZ)::l_dtmult,l_paraxial
+
+c --- Push the particle velocity with E field
+c --- If l_dtmult is true, then ndtfact must equal np.
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if(l_paraxial) then
+        call epush2d(np,uxp,uyp,exp,eyp,sq,sm,dt)
+      else
+        if(.not. l_dtmult) then
+          call epush3d(np,uxp,uyp,uzp,exp,eyp,ezp,sq,sm,dt)
+        else
+          call epusht3d(np,uxp,uyp,uzp,exp,eyp,ezp,sq,sm,dtfact,dt)
+        endif
+c       --- Advance relativistic Gamma factor
+        call gammaadv(np,gaminv,uxp,uyp,uzp,gamadv,lrelativ)
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeepush = timeepush + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine bpush(np,uxp,uyp,uzp,gaminv,bxp,byp,bzp,sq,sm,dt,
+     &                 ndtfact,dtfact,l_dtmult,l_paraxial,ibpush)
+      use Subtimersw3d
+      integer(ISZ):: np,ndtfact,ibpush
+      real(kind=8):: uxp(np),uyp(np),uzp(np),gaminv(np)
+      real(kind=8):: bxp(np),byp(np),bzp(np)
+      real(kind=8):: sq,sm,dt
+      real(kind=8):: dtfact(ndtfact)
+      logical(ISZ)::l_dtmult,l_paraxial
+
+c --- Push the particle velocity with B field
+c --- If l_dtmult is true, then ndtfact must equal np.
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if(l_paraxial) then
+        call bpush2d(np,uxp,uyp,uzp,gaminv,bxp,byp,bzp,sq,sm,dt,ibpush)
+      else
+        if(.not. l_dtmult) then
+          call bpush3d(np,uxp,uyp,uzp,gaminv,bxp,byp,bzp,sq,sm,dt,ibpush)
+        else
+          call bpusht3d(np,uxp,uyp,uzp,gaminv,bxp,byp,bzp,sq,sm,dtfact,dt,ibpush)
+        endif
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timebpush = timebpush + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine padvnc3d(center,pgroup)
+      use ParticleGroupmodule
+      use GlobalVars
+      use Subtimersw3d
+      use Constant
+      use InMesh3d
+      use InGen
+      use InGen3d
+      use InPart,Only: zimin,zimax
+      use InGaps
+      use InDiag
+      use InDiag3d
+      use Lattice
+      use LatticeInternal
+      use Particles,Only: nplive,wpid,chdtspid,uxoldpid,uyoldpid,uzoldpid,lmappid,zbirthlabpid
+      use Subcycling
+      use Fields3dParticles
+      use Picglb
+      use Picglb3d
+      use Beam_acc
+      use Z_arrays
+      use Z_Moments, only: nzmmnt,nszmmnt,tempmaxp,tempminp,tempzmmnts0,tempzmmnts
+      use Damped_eom
+      use Apertures
+      use GridBoundary3d
+      use DKInterp
+      use DKInterptmp
+      use FieldSolveAPI
+      use w3d_interfaces
+      type(ParticleGroup):: pgroup
+      character(*):: center
+
+c  Advances the particles position and velocity according to CENTER,
+c  and also loads RHO at the new time level.
+
+c     --- Create local pointers to the arrays in pgroup.
+      real(kind=8),pointer:: xp(:),yp(:),zp(:),uxp(:),uyp(:),uzp(:)
+      real(kind=8),pointer:: ex(:),ey(:),ez(:),bx(:),by(:),bz(:)
+      real(kind=8),pointer:: gaminv(:),pid(:,:)
+      real(kind=8),pointer:: sm(:),sq(:),sw(:),dtscale(:)
+      integer(ISZ),pointer:: ins(:),nps(:)
+
+      integer(ISZ):: isid,is,ismax,ip,ipmin,i,indts,i1,i2
+      real(kind=8):: uxpadv,uypadv,uzpadv,halfdt,invclightsq,uzboost,vzboost
+      real(kind=8):: fulldt_s,halfdt_s
+      real(kind=8):: zgridprv_save
+      real(kind=8),allocatable:: uxpo(:), uypo(:), uzpo(:)
+      real(kind=8),allocatable:: exo(:),eyo(:),ezo(:),bxo(:),byo(:),bzo(:)
+      real(kind=8),allocatable:: gaminvo(:)
+      real(kind=8),allocatable:: bendres(:), bendradi(:)
+      real(kind=8),allocatable:: exlab(:),eylab(:),ezlab(:),
+     &                           bxlab(:),bylab(:),bzlab(:),
+     &                           zlab(:),uxlab(:),uylab(:),
+     &                           uzlab(:),ginvlab(:),tlab(:),dtmaps(:),zend(:),
+     &                           tstart(:),tend(:),zbeam_maps(:),zbeamend_maps(:)
+#ifdef _OPENMP
+      real(kind=8),allocatable:: threadmaxp(:,:,:),threadminp(:,:,:)
+      real(kind=8),allocatable:: threadzmmnts0(:,:,:),threadzmmnts(:,:,:,:)
+      integer(ISZ):: ithread,omp_get_thread_num
+      integer(ISZ):: nthread,omp_get_num_threads
+#endif
+      real(kind=8),pointer:: maxp(:,:),minp(:,:)
+      real(kind=8),pointer:: zmmnts0(:,:),zmmnts(:,:,:)
+      real(kind=8):: dummy(1) = (/1./)
+      integer:: alloc_status
+      real(kind=8):: substarttime,wtime
+
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("padvnc3d", 1)
+
+      call setuppgroup(pgroup)
+
+c     --- Create local pointers to the arrays in pgroup.
+      xp => pgroup%xp
+      yp => pgroup%yp
+      zp => pgroup%zp
+      uxp => pgroup%uxp
+      uyp => pgroup%uyp
+      uzp => pgroup%uzp
+      gaminv => pgroup%gaminv
+      ex => pgroup%ex
+      ey => pgroup%ey
+      ez => pgroup%ez
+      bx => pgroup%bx
+      by => pgroup%by
+      bz => pgroup%bz
+      if (pgroup%npid > 0) pid => pgroup%pid
+
+      sm => pgroup%sm
+      sq => pgroup%sq
+      sw => pgroup%sw
+      ins => pgroup%ins
+      nps => pgroup%nps
+      dtscale => pgroup%dtscale
+
+      ismax = maxval(pgroup%sid)+1
+      if (ismax == 0) return
+
+      halfdt = 0.5*dt
+
+      if (luserappliedfields)
+     &  call callpythonfunc("userappliedfields","controllers")
+
+!$OMP PARALLEL
+!$OMP&PRIVATE(ip,xpo,ypo,zpo,uxpo,uypo,uzpo,bendres,bendradi,
+!$OMP&        uxpadv,uypadv,uzpadv,maxp,minp,zmmnts0,zmmnts)
+
+      allocate(uxpo(nparpgrp),uypo(nparpgrp),uzpo(nparpgrp), gaminvo(nparpgrp),
+     &         bendres(nparpgrp), bendradi(nparpgrp), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:padvnc3d: uxpo et al could not be allocated"
+        stop
+      endif
+      if (center == "synchv" .and. chdtspid>0) then
+        allocate(exo(nparpgrp),eyo(nparpgrp),ezo(nparpgrp),
+     &           bxo(nparpgrp),byo(nparpgrp),bzo(nparpgrp), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:padvnc3d: exo et al could not be allocated"
+          stop
+        endif
+      endif
+      if (boost_gamma>1.) then
+        allocate(exlab(nparpgrp),eylab(nparpgrp),ezlab(nparpgrp),
+     &           bxlab(nparpgrp),bylab(nparpgrp),bzlab(nparpgrp),
+     &           zlab(nparpgrp),uxlab(nparpgrp),uylab(nparpgrp),
+     &           uzlab(nparpgrp),ginvlab(nparpgrp),tlab(nparpgrp),
+     &           tstart(nparpgrp),tend(nparpgrp), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:padvnc3d: elab et al could not be allocated"
+          stop
+        endif
+        invclightsq = 1./(clight*clight)
+      endif
+      if (any(pgroup%l_maps)) then
+        allocate(dtmaps(nparpgrp),zbeam_maps(nparpgrp),zbeamend_maps(nparpgrp),zend(nparpgrp), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:padvnc3d: dtmaps et al could not be allocated"
+          stop
+        endif
+        allspecl = .true.
+      end if
+
+#ifdef _OPENMP
+      allocate(maxp(6,0:nszmmnt),minp(6,0:nszmmnt),
+     &         zmmnts0(NUMZMMNT,0:nszmmnt),
+     &         zmmnts(0:nzmmnt,NUMZMMNT,0:nszmmnt),stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:padvnc3d: maxp et al could not allocate to shape ",nszmmnt
+        stop
+      endif
+#endif
+
+c  Zero the bend radius and residence arrays
+c     call zeroarry (bendres,nparpgrp)
+c     call zeroarry (bendradi,nparpgrp)
+      bendres = 0.
+      bendradi = 0.
+
+c  Setup the setsubcycling flags for this advance. This is done ahead of
+c  time since the value of lvdts is needed for species other that the one
+c  being looped over below.
+      call setuppadvncsubcyclingaveraging(it,center,pgroup)
+
+c  Loop over species
+      do is=1,pgroup%ns
+        if (.not. pgroup%ldoadvance(is-1)) cycle
+        if (.not. pgroup%ldts(is-1) .and. .not. pgroup%lvdts(is-1)) cycle
+        isid = pgroup%sid(is-1) + 1
+c
+c  If this is a corrector step, do nothing for a species that is neither
+c  interpolated nor implicit
+        if ( interpdk(isid) == 0
+     &      .and. ipredcor > 0 .and. .not. pgroup%limplicit(isid-1)) cycle
+c
+c  If this is a predictor step for an interpolated
+c  species, save the current uxp's as old velocities.
+c  Note ipredcor = 0 for a synchv step so we are also storing
+c  old v's in that case as well.
+c
+        if (interpdk(isid) == 1 .and. ipredcor == 0 .and.
+     &       (center .ne. "halfv" .or. it == 1 .or. .not. allspecl))
+     &        call storeoldu(pgroup,isid)
+
+c Include the scaling factors in the time step size, both the one for
+c subcycling and step size scaling for steady-state and slice modes.
+        fulldt_s = dt*pgroup%ndts(is-1)*pgroup%dtscale(is)
+        halfdt_s = 0.5*fulldt_s
+
+c If this species involves drift-kinetic interpolation, allocate
+c  space for temporary arrays if sufficient space not already allocated
+c Also set m_over_q, q_over_m**2
+        if (interpdk(isid) .ne. 0) then
+           if (npint < nparpgrp) then
+              npint = nparpgrp
+              call gchange("DKInterptmp",0)
+           endif
+           notusealphcalc(isid) = (1.-usealphacalc(isid))*alpha0(isid)
+           if (sq(is) .ne. 0.) m_over_q(isid)=sm(is)/sq(is)
+           if (sm(is) .ne. 0.) qovermsq(isid)= (sq(is)/sm(is))**2
+        endif
+
+c  Setup the moments if center is synchv or gen
+c  If OPENMP, copies data to arrays which will be threadprivate
+c  This needs to be fixed when there are multiple pgroups since the
+c  species may be spread out among the pgroups.
+        if (center == "synchv" .or. center == "gen") then
+#ifdef _OPENMP
+c         --- Same defaults as set in getzmmnt
+          maxp(:,isid) = -LARGEPOS
+          minp(:,isid) = +LARGEPOS
+          zmmnts0(:,isid) = 0.
+          zmmnts(:,:,isid) = 0.
+#else
+          maxp => tempmaxp
+          minp => tempminp
+          zmmnts0 => tempzmmnts0
+          zmmnts => tempzmmnts
+#endif
+        endif
+c  Loop over particle blocks; move each block separately
+!$OMP DO
+        do ipmin = ins(is), ins(is) + nps(is) - 1, nparpgrp
+          ip = min(nparpgrp, ins(is)+nps(is)-ipmin)
+          jmin = ipmin-1
+          jmax = jmin+ip
+          i1 = ipmin
+          i2 = ipmin + ip - 1
+
+c         --- Save old fields which are needed to check if particles
+c         --- can have their ndts changed.
+          if(center == "synchv" .and. chdtspid>0) then
+            exo(1:ip) = ex(i1:i2)
+            eyo(1:ip) = ey(i1:i2)
+            ezo(1:ip) = ez(i1:i2)
+            bxo(1:ip) = bx(i1:i2)
+            byo(1:ip) = by(i1:i2)
+            bzo(1:ip) = bz(i1:i2)
+          endif
+
+c         --- Zero out B field arrays, but only if B is going
+c         --- to be recomputed; B doesn't get recomputed if
+c         --- center is "synchv" and interpdk is nonzero and allspecl
+c         --- is 0
+          if (.not. (center .eq. "synchv" .and. interpdk(isid) .ne. 0
+     &        .and. .not. allspecl) .and. lresetparticleb) then
+            bx(i1:i2) = 0.
+            by(i1:i2) = 0.
+            bz(i1:i2) = 0.
+          endif
+
+c         --- Obtain the self-fields
+c         --- Should skip this for implicit species as E is fetched in
+c         --- the python stepper.
+          if (.not. pgroup%limplicit(isid-1)) then
+             call fetche3d(pgroup,ipmin,ip,is)
+             call fetchb3d(pgroup,ipmin,ip,is)
+          endif
+
+c         --- Get E field for particles near the injection surface.
+          call inj_sete(pgroup,ipmin,ip,ex(i1:i2),ey(i1:i2),ez(i1:i2))
+          call inj_addtemp3d(pgroup,ip,ipmin,dz)
+
+c         --- Get transverse E field for particles near any defined
+c         --- apertures.
+          call sete3d_aperture(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),
+     &                         zgridprv,xmminp,ymminp,zmminp,zmmaxp,dx,dy,dz,
+     &                         nzp,ex(i1:i2),ey(i1:i2),l2symtry,l4symtry)
+
+c         --- Scale the self E-field to get the lowest order relativistic
+c         --- correction.
+          if (relativity == 1) then
+            call sete3d_relativity(ip,ex(i1:i2),ey(i1:i2),vbeam)
+          end if
+
+c         --- Compute lag average for experimental damping algorithm
+          if (eomdamp /= 0.) then
+            call edamp(eomdamp,it,itdamp,center,ip,
+     &                 ex(i1:i2),ey(i1:i2),ez(i1:i2),
+     &                 pid(i1:i2,exeomoldpid),
+     &                 pid(i1:i2,eyeomoldpid),
+     &                 pid(i1:i2,ezeomoldpid),
+     &                 pid(i1:i2,exeomlagpid),
+     &                 pid(i1:i2,eyeomlagpid),
+     &                 pid(i1:i2,ezeomlagpid))
+          end if
+
+c         --- Save old velocity, but only if not doing the interpolated mover
+          if (interpdk(isid) == 0 .and. center /= "synchv") then
+            if (uxoldpid > 0) pgroup%pid(i1:i2,uxoldpid) = pgroup%uxp(i1:i2)
+            if (uyoldpid > 0) pgroup%pid(i1:i2,uyoldpid) = pgroup%uyp(i1:i2)
+            if (uzoldpid > 0) pgroup%pid(i1:i2,uzoldpid) = pgroup%uzp(i1:i2)
+          endif
+
+c         --- FULLV
+c         Note if this is a species with interpolation between
+c         drift kinetics and full PIC, and allspecl
+c         is not 1, then ALWAYS do full-v steps.
+c         That is, v is always interpreted as at a half step.
+c         In this case fullv and halfv do the same thing and
+c         synchv does nothing
+          if (center == "fullv" .or. (center == "halfv" .and.
+     &        interpdk(isid) == 1 .and. .not. allspecl)) then
+            if (boost_gamma==1.) then
+c             --- Obtain bend radii and residence factors
+              call getbend(ip,ip,pgroup%zp(i1:i2),pgroup%uzp(i1:i2),
+     &                     pgroup%gaminv(i1:i2),
+     &                     bendres,bendradi,-halfdt_s,halfdt_s,.false.)
+c             --- Correct Ez_self for warped mesh effect
+              call bendez3d(ip,pgroup%xp(i1:i2),pgroup%zp(i1:i2),ez(i1:i2),
+     &                      bendres,bendradi,bends,bnezflag,linbend)
+c             --- Add in Ez from axially-smoothed gaps
+              call gapfield(ip,pgroup%zp(i1:i2),ez(i1:i2),zbeam,zzmin,egap(0),dzz)
+c             --- Add in ears and uniform focusing E field pieces
+              call othere3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),
+     &                      zbeam,zimax,zimin,straight,ifeears,eears,
+     &                      eearsofz,dzzi,nzzarr,zzmin,dedr,dexdx,deydy,dbdr,dbxdy,dbydx,
+     &                      ex(i1:i2),ey(i1:i2),ez(i1:i2),
+     &                      bx(i1:i2),by(i1:i2),bz(i1:i2))
+c             --- Set quad, dipole E and B; All: Bz
+              call exteb3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),uzp(i1:i2),
+     &                     gaminv(i1:i2),-halfdt_s,halfdt_s,
+     &                     bx(i1:i2),by(i1:i2),bz(i1:i2),
+     &                     ex(i1:i2),ey(i1:i2),ez(i1:i2),sm(is),sq(is),
+     &                     bendres,bendradi,fulldt_s)
+            else
+              uzboost=clight*sqrt(boost_gamma*boost_gamma-1.)
+              exlab(1:ip)=0.;eylab(1:ip)=0.;ezlab(1:ip)=0.
+              bxlab(1:ip)=0.;bylab(1:ip)=0.;bzlab(1:ip)=0.
+              zlab(1:ip) = boost_gamma*zp(i1:i2)+uzboost*time
+!              uzlab(1:ip) = boost_gamma*uzp(i1:i2)+uzboost/gaminv(i1:i2)
+!              ginvlab(1:ip) = 1./(boost_gamma/gaminv(i1:i2)
+!     &                      +     uzboost*uzp(i1:i2)*invclightsq)
+              uxlab(1:ip) = uxp(i1:i2)
+              uylab(1:ip) = uyp(i1:i2)
+              uzlab(1:ip) = uzp(i1:i2)
+              ginvlab(1:ip) = gaminv(i1:i2)
+              call setu_in_uzboosted_frame3d(ip,uxlab(1),uylab(1),uzlab(1),ginvlab(1),-uzboost,boost_gamma)
+              tstart(1:ip) = boost_gamma*time+uzboost*zp(i1:i2)*invclightsq
+              tend  (1:ip) = boost_gamma*(time+fulldt_s)+uzboost*(zp(i1:i2)
+     &                     + uzp(i1:i2)*gaminv(i1:i2)*fulldt_s)*invclightsq
+              ! this is an attempt to fool exteb3d. Normally, each particle should have its
+              ! own dt, but this would require to modify all the routines called by exteb3d.
+              ! We are assuming that ginvlab will always be multiplied by dt in its
+              ! usage in the routines called by exteb3d. If this is not the case, then the
+              ! kludge will fail.
+              ginvlab(1:ip) = ginvlab(1:ip)*(tend(1:ip)-tstart(1:ip))/fulldt_s
+c             --- Obtain bend radii and residence factors
+              call getbend(ip,ip,zlab(1),uzlab(1),
+     &                     ginvlab(1),
+     &                     bendres,bendradi,-halfdt_s,halfdt_s,.false.)
+c             --- Correct Ez_self for warped mesh effect
+              call bendez3d(ip,pgroup%xp(i1:i2),zlab(1),ezlab(1),
+     &                      bendres,bendradi,bends,bnezflag,linbend)
+c             --- Add in Ez from axially-smoothed gaps
+              call gapfield(ip,zlab(1),ezlab(1),zbeam,zzmin,egap(0),dzz)
+c             --- Add in ears and uniform focusing E field pieces
+              call othere3d(ip,xp(i1:i2),yp(i1:i2),zlab(1),
+     &                      zbeam*boost_gamma+uzboost*time,
+     &                      zimax,zimin,straight,ifeears,eears,
+     &                      eearsofz,dzzi,nzzarr,zzmin,dedr,dexdx,deydy,dbdr,dbxdy,dbydx,
+     &                      exlab(1),eylab(1),ezlab(1),
+     &                      bxlab(1),bylab(1),bzlab(1))
+c             --- Set quad, dipole E and B; All: Bz
+              call exteb3d(ip,xp(i1:i2),yp(i1:i2),zlab(1),uzlab(1),
+     &                     ginvlab(1),-halfdt_s,halfdt_s,
+     &                     bxlab(1),bylab(1),bzlab(1),
+     &                     exlab(1),eylab(1),ezlab(1),sm(is),sq(is),
+     &                     bendres,bendradi,fulldt_s)
+              call seteb_in_boosted_frame(ip,exlab(1),eylab(1),ezlab(1),
+     &                                       bxlab(1),bylab(1),bzlab(1),
+     &                                       0.,0.,uzboost,boost_gamma)
+              ex(i1:i2)=ex(i1:i2)+exlab(1:ip)
+              ey(i1:i2)=ey(i1:i2)+eylab(1:ip)
+              ez(i1:i2)=ez(i1:i2)+ezlab(1:ip)
+              bx(i1:i2)=bx(i1:i2)+bxlab(1:ip)
+              by(i1:i2)=by(i1:i2)+bylab(1:ip)
+              bz(i1:i2)=bz(i1:i2)+bzlab(1:ip)
+            endif
+c           --- Correction to z on entry/exit to accelerator gap
+            call zgapcorr(ip,zp(i1:i2),xp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                    -halfdt_s, halfdt_s, fulldt_s, sm(1), sq(1), time)
+c           --- First half-electric field increment to momenta
+c           Only do a vpush for ipredcor = 0, if we are not implicit.
+c           If species is implicit it needs vpush regardless of whether
+c           interpolated or not.   In any case will still
+c           need to calculate gradB for ipredcor = 1; this is
+c           part of mugrdbpush. So must do explicitly in xpush3dintrp
+c           for ipredcor = 1 (if we are not implicit).
+            if (ipredcor == 0 .or. pgroup%limplicit(isid-1)) then
+              if (pgroup%lebcancel_pusher) then
+                call ebcancelpush3d(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                                 ex(i1:i2),ey(i1:i2),ez(i1:i2),
+     &                                 bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),fulldt_s,0)
+              else
+                call epush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                        ex(i1:i2),ey(i1:i2),ez(i1:i2),sq(is),sm(is),
+     &                        halfdt_s,1,dummy,.false.,pgroup%lparaxial(is))
+c               --- Magnetic field increment to momenta
+c               --- If interpolating with drift kinetics, must do half
+c               ---  a mu grad B correction before and half after Bpush
+                if (interpdk(isid) .ne. 0) then
+c                 call setptrs(bx(i1:i2),by(i1:i2),bz(i1:i2),
+c    &                         ex(i1:i2),ey(i1:i2),ez(i1:i2))
+                  call mugrdbpush(pgroup,ip,isid,ipmin,halfdt_s,fulldt_s,1)
+                endif
+                call bpush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                        bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),
+     &                        fulldt_s,1,dummy,.false.,pgroup%lparaxial(is),ibpush)
+                if (interpdk(isid) .ne. 0)
+     &          call mugrdbpush(pgroup,ip,is,ipmin,halfdt_s,fulldt_s,0)
+                call epush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                        ex(i1:i2),ey(i1:i2),ez(i1:i2),sq(is),sm(is),
+     &                        halfdt_s,1,dummy,.false.,pgroup%lparaxial(is))
+c             end of predictor-only if for vpush
+              endif
+            endif
+
+c           --- Grab particles that cross user specified z locations.
+            call getcrossingparticles(ipmin,ip,pgroup,fulldt_s,isid,time,zbeam)
+
+c             --- Calculate the grid crossing moments
+            call gridcrossingmoments(is,isid,ipmin,ip,pgroup,fulldt_s,time)
+
+c           --- Position advance
+            call positionadvance3d(pgroup,is,ip,ipmin,interpdk(isid),
+     &                             fulldt_s,bendres,bendradi,vbeam)
+c         --- HALFV
+          elseif ((center == "halfv" .and. (interpdk(isid) .ne. 1 .or.
+     &             allspecl)) .or. (center == "hbor2" .and.
+     &             interpdk(isid) .ne. 0)) then
+c           --- drift-kinetic-interpolated species are always treated
+c           --- with full-v steps except when initalizing, which is
+c           --- optionally taken care of by "hbor2" option
+c           --- The hbor1 option does 1st half of a Boris step,
+c           --- hbor2 does 2nd half.  This means for hbor1, the sequence
+c           --- epush, mugradbpush (if interpolating), bpush, for 1/2 dt,
+c           --- and for hbor2, bpush, mugradbpush, epush for 1/2 dt.
+c           --- Use hbor1 to push from a half step to an integer step; hbor2
+c           --- to push from integer to half.
+c           --- with full-v steps except when initalizing, which is
+c           --- optionally taken care of by "hbor2" option
+c           --- The hbor1 option does 1st half of a Boris step,
+c           --- hbor2 does 2nd half.
+            if (boost_gamma==1.) then
+c             --- Obtain bend radii and residence factors
+              call getbend(ip,ip,pgroup%zp(i1:i2),pgroup%uzp(i1:i2),
+     &                     pgroup%gaminv(i1:i2),
+     &                     bendres,bendradi,0.,halfdt_s,.false.)
+c             --- Correct Ez_self for warped mesh effect
+              call bendez3d(ip,pgroup%xp(i1:i2),pgroup%zp(i1:i2),ez(i1:i2),
+     &                      bendres,bendradi,bends,bnezflag,linbend)
+c             --- Add in Ez from axially-smoothed gaps
+              call gapfield(ip,pgroup%zp(i1:i2),ez(i1:i2),zbeam,zzmin,egap(0),dzz)
+c             --- Add in ears and uniform focusing E field pieces
+              call othere3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),
+     &                      zbeam,zimax,zimin,straight,ifeears,eears,
+     &                      eearsofz,dzzi,nzzarr,zzmin,dedr,dexdx,deydy,dbdr,dbxdy,dbydx,
+     &                      ex(i1:i2),ey(i1:i2),ez(i1:i2),
+     &                      bx(i1:i2),by(i1:i2),bz(i1:i2))
+c             --- Set quad, dipole E and B; All: Bz
+              call exteb3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),uzp(i1:i2),
+     &                     gaminv(i1:i2),0.,halfdt_s,
+     &                     bx(i1:i2),by(i1:i2),bz(i1:i2),
+     &                     ex(i1:i2),ey(i1:i2),ez(i1:i2),sm(is),sq(is),
+     &                     bendres,bendradi,fulldt_s)
+            else
+              uzboost=clight*sqrt(boost_gamma*boost_gamma-1.)
+              exlab(1:ip)=0.;eylab(1:ip)=0.;ezlab(1:ip)=0.
+              bxlab(1:ip)=0.;bylab(1:ip)=0.;bzlab(1:ip)=0.
+              zlab(1:ip) = boost_gamma*zp(i1:i2)+uzboost*time
+              uxlab(1:ip) = uxp(i1:i2)
+              uylab(1:ip) = uyp(i1:i2)
+              uzlab(1:ip) = uzp(i1:i2)
+              ginvlab(1:ip) = gaminv(i1:i2)
+              call setu_in_uzboosted_frame3d(ip,uxlab(1),uylab(1),uzlab(1),ginvlab(1),-uzboost,boost_gamma)
+              tstart(1:ip) = boost_gamma*time+uzboost*zp(i1:i2)*invclightsq
+              tend  (1:ip) = boost_gamma*(time+halfdt_s)+uzboost*(zp(i1:i2)
+     &                     + uzp(i1:i2)*gaminv(i1:i2)*halfdt_s)*invclightsq
+              ! this is an attempt to fool exteb3d. Normally, each particle should have its
+              ! own dt, but this would require to modify all the routines called by exteb3d.
+              ! We are assuming that ginvlab will always be multiplied by dt in its
+              ! usage in the routines called by exteb3d. If this is not the case, then the
+              ! kludge will fail.
+              ginvlab(1:ip) = ginvlab(1:ip)*(tend(1:ip)-tstart(1:ip))/halfdt_s
+c             --- Obtain bend radii and residence factors
+              call getbend(ip,ip,zlab(1),uzlab(1),
+     &                     ginvlab(1),
+     &                     bendres,bendradi,0.,halfdt_s,.false.)
+c             --- Correct Ez_self for warped mesh effect
+              call bendez3d(ip,pgroup%xp(i1:i2),zlab(1),ezlab(1),
+     &                      bendres,bendradi,bends,bnezflag,linbend)
+c             --- Add in Ez from axially-smoothed gaps
+              call gapfield(ip,zlab(1),ezlab(1),zbeam,zzmin,egap(0),dzz)
+c             --- Add in ears and uniform focusing E field pieces
+              call othere3d(ip,xp(i1:i2),yp(i1:i2),zlab(1),
+     &                      zbeam*boost_gamma+uzboost*time,
+     &                      zimax,zimin,straight,ifeears,eears,
+     &                      eearsofz,dzzi,nzzarr,zzmin,dedr,dexdx,deydy,dbdr,dbxdy,dbydx,
+     &                      exlab(1),eylab(1),ezlab(1),
+     &                      bxlab(1),bylab(1),bzlab(1))
+c             --- Set quad, dipole E and B; All: Bz
+              call exteb3d(ip,xp(i1:i2),yp(i1:i2),zlab(1),uzlab(1),
+     &                     ginvlab(1),0.,halfdt_s,
+     &                     bxlab(1),bylab(1),bzlab(1),
+     &                     exlab(1),eylab(1),ezlab(1),sm(is),sq(is),
+     &                     bendres,bendradi,fulldt_s)
+              call seteb_in_boosted_frame(ip,exlab(1),eylab(1),ezlab(1),
+     &                                       bxlab(1),bylab(1),bzlab(1),
+     &                                       0.,0.,uzboost,boost_gamma)
+              ex(i1:i2)=ex(i1:i2)+exlab(1:ip)
+              ey(i1:i2)=ey(i1:i2)+eylab(1:ip)
+              ez(i1:i2)=ez(i1:i2)+ezlab(1:ip)
+              bx(i1:i2)=bx(i1:i2)+bxlab(1:ip)
+              by(i1:i2)=by(i1:i2)+bylab(1:ip)
+              bz(i1:i2)=bz(i1:i2)+bzlab(1:ip)
+            endif
+c           --- Correction to z on entry/exit to accelerator gap
+            call zgapcorr(ip,zp(i1:i2),xp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                    0., halfdt_s, fulldt_s, sm(1), sq(1), time)
+c           --- Magnetic field increment to momenta
+c               Only do a vpush for ipredcor = 0.  But will still
+c               need to calculate gradB for ipredcor = 1; this is
+c               part of mugrdbpush.
+            if (ipredcor == 0 .or. pgroup%limplicit(isid-1)) then
+              if (pgroup%lebcancel_pusher) then
+                call ebcancelpush3d(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                                 ex(i1:i2),ey(i1:i2),ez(i1:i2),
+     &                                 bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),fulldt_s,2)
+              else
+                if (interpdk(isid) .ne. 0) then
+                  call bpush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                          bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),
+     &                          fulldt_s,1,dummy,.false.,pgroup%lparaxial(is),-1)
+c                 --- If interpolating with drift kinetics, must do
+c                 ---  a mu grad B correction.  Since may be calling
+c                 ---  this on first timestep, must make sure grad B's are
+c                 ---  calculated, so last arg = 1.
+                   call mugrdbpush(pgroup,ip,is,ipmin,halfdt_s,fulldt_s,1)
+                else
+                  call bpush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                          bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),
+     &                          halfdt_s,1,dummy,.false.,pgroup%lparaxial(is),ibpush)
+                endif
+c               --- Final half-electric field increment to momenta
+                call epush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                        ex(i1:i2),ey(i1:i2),ez(i1:i2),sq(is),sm(is),
+     &                        halfdt_s,1,dummy,.false.,pgroup%lparaxial(is))
+c             end of predictor-only loop
+              endif
+            endif
+
+c           --- apply linear maps
+            if (pgroup%l_maps(is-1)) then
+              if (boost_gamma==1.) then
+                zbeamend_maps(1:ip) = zbeam+vbeam*fulldt_s
+                zbeam_maps(1:ip) = zbeam
+                dtmaps(1:ip) = fulldt_s
+                call applylmap(ip,xp(i1:i2),yp(i1:i2),uxp(i1:i2),uyp(i1:i2),
+     &                         ip,zp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                         vbeam,gammabar,zbeam_maps(1),zbeamend_maps(1),lmappid)
+                if (lmapfillz) then
+                  dtmaps(1:ip) = (zend(1:ip)-zp(i1:i2))/(uzp(i1:i2)*gaminv(i1:i2))
+                  call xpusht3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),dtmaps(1))
+                endif
+               else
+                uzboost = clight*sqrt(boost_gamma*boost_gamma-1.)
+                vzboost = uzboost/boost_gamma
+
+c               --- get time step in lab frame
+                dtmaps(1:ip) = fulldt_s*gammabar_lab/gammabar
+
+c               --- get time for each particle in lab frame
+                tlab(1:ip) = time*gammabar_lab/gammabar
+
+c               --- get particles position in lab frame
+                zbeamend_maps(1:ip) = vbeam*time+boost_z0
+                zp(i1:i2) = zp(i1:i2)-zbeamend_maps(1:ip)   ! z*  -> dz*
+                zp(i1:i2) = zp(i1:i2)/gammabar_lab*gammabar ! dz* -> dz
+
+c               --- get zbeam for each particle in lab frame
+                zbeam_maps(1:ip) = vbeam_lab*tlab(1:ip)+boost_z0*gammabar/gammabar_lab
+                zbeamend_maps(1:ip) = zbeam_maps(1:ip) + dtmaps(1:ip)*vbeam_lab
+                zp(i1:i2)=zp(i1:i2)+zbeam_maps(1:ip)         ! dz=>z
+
+c               --- get particles momenta in lab frame
+                call setu_in_uzboosted_frame3d(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),-uzboost,boost_gamma)
+c               --- apply maps in lab frame
+                call applylmap(ip,xp(i1:i2),yp(i1:i2),uxp(i1:i2),uyp(i1:i2),
+     &                         ip,zp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                         vbeam_lab,gammabar_lab,zbeam_maps(1),zbeamend_maps(1),
+     &                         lmappid)
+                if (lmapfillz) then
+                  dtmaps(1:ip) = (zend(1:ip)-zp(i1:i2))/(uzp(i1:i2)*gaminv(i1:i2))
+                  call xpusht3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),dtmaps(1))
+                endif
+
+c               --- get particles momenta in boosted frame
+                call setu_in_uzboosted_frame3d(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),uzboost,boost_gamma)
+c               --- get particles position in boosted frame
+                zp(i1:i2)=zp(i1:i2)-zbeamend_maps(1:ip)   ! z  -> dz
+                zp(i1:i2)=zp(i1:i2)*gammabar_lab/gammabar ! dz -> dz*
+                zbeamend_maps(1:ip) = vbeam*(time+fulldt_s)+boost_z0
+                zp(i1:i2)=zp(i1:i2)+zbeamend_maps(1:ip)
+              end if
+            end if
+
+c           --- Position advance
+            if (center .ne. "hbor2") then
+
+c             --- Grab particles that cross user specified z locations.
+              call getcrossingparticles(ipmin,ip,pgroup,fulldt_s,isid,
+     &                                  time,zbeam)
+
+c             --- Calculate the grid crossing moments
+              call gridcrossingmoments(is,isid,ipmin,ip,pgroup,fulldt_s,time)
+
+c             --- hbor2 just does a v advance, no x push
+              call positionadvance3d(pgroup,is,ip,ipmin,interpdk(isid),
+     &                               fulldt_s,bendres,bendradi,vbeam)
+            endif
+
+c         --- SYNCHV or GEN
+c         Double "if" follows so that moments are calculated
+c         for center = "synchv" or "gen" regardless of interpdk,
+c         but the vpush is only done for interpdk=1 if allspecl=1.
+          elseif (center == "synchv" .or. center == "gen"
+     &            .or. center == "hbor1") then
+
+c           --- Copy 'old' velocity into uxpo, uypo, and uzpo
+c           --- This is needed for the call to getzmmnt below.
+c           --- gaminvo is saved so it can be restored below
+c           --- during a gen step.
+            if (center == "gen" .or. center == "synchv") then
+              do i=1,ip
+                uxpo(i) = uxp(ipmin+i-1)
+                uypo(i) = uyp(ipmin+i-1)
+                uzpo(i) = uzp(ipmin+i-1)
+                gaminvo(i) = gaminv(ipmin+i-1)
+              enddo
+            endif
+            if ((center == "synchv" .and. (interpdk(isid) == 0
+     &          .or. allspecl))
+     &          .or. center == "gen" .or. (center == "hbor1"
+     &          .and. interpdk(isid) .ne. 0)) then
+c             --- drift-kinetic-interpolated species are always treated
+c             --- with full-v steps except in initial setup, when we want
+c             --- a half-v step packwards.  center = "hbor2" provides
+c             --- the latter capability with dt set to be negative.
+c             --- Exception, if allspecl = 1, then we synchronize every
+c             --- step, using half Boris if interpdk = 1.
+c             --- More generally hbor1 provides 1st half of a Boris
+c             --- step, hbor2 provides 2nd half.
+
+              if (boost_gamma==1.) then
+c               --- Obtain bend radii and residence factors
+                call getbend(ip,ip,pgroup%zp(i1:i2),pgroup%uzp(i1:i2),
+     &                       pgroup%gaminv(i1:i2),bendres,
+     &                       bendradi,-halfdt_s,0.,.false.)
+c               --- Correct Ez_self for warped mesh effect
+                call bendez3d(ip,pgroup%xp(i1:i2),pgroup%zp(i1:i2),ez(i1:i2),
+     &                       bendres,bendradi,bends,bnezflag,linbend)
+c               --- Add in Ez from axially-smoothed gaps
+                call gapfield(ip,pgroup%zp(i1:i2),ez(i1:i2),zbeam,zzmin,egap(0),dzz)
+c               --- Add in ears and uniform focusing E field pieces
+                call othere3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),
+     &                        zbeam,zimax,zimin,straight,ifeears,eears,
+     &                        eearsofz,dzzi,nzzarr,zzmin,dedr,dexdx,deydy,dbdr,dbxdy,dbydx,
+     &                        ex(i1:i2),ey(i1:i2),ez(i1:i2),
+     &                        bx(i1:i2),by(i1:i2),bz(i1:i2))
+c               --- Set quad, dipole E and B; All: Bz
+                call exteb3d(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),uzp(i1:i2),
+     &                       gaminv(i1:i2),-halfdt_s,0.,
+     &                       bx(i1:i2),by(i1:i2),bz(i1:i2),
+     &                       ex(i1:i2),ey(i1:i2),ez(i1:i2),sm(is),sq(is),
+     &                       bendres,bendradi,fulldt_s)
+              else
+                uzboost=clight*sqrt(boost_gamma*boost_gamma-1.)
+                exlab(1:ip)=0.;eylab(1:ip)=0.;ezlab(1:ip)=0.
+                bxlab(1:ip)=0.;bylab(1:ip)=0.;bzlab(1:ip)=0.
+                zlab(1:ip) = boost_gamma*zp(i1:i2)+uzboost*time
+                uxlab(1:ip) = uxp(i1:i2)
+                uylab(1:ip) = uyp(i1:i2)
+                uzlab(1:ip) = uzp(i1:i2)
+                ginvlab(1:ip) = gaminv(i1:i2)
+                call setu_in_uzboosted_frame3d(ip,uxlab(1),uylab(1),uzlab(1),ginvlab(1),-uzboost,boost_gamma)
+                tstart(1:ip) = boost_gamma*time+uzboost*zp(i1:i2)*invclightsq
+                tend  (1:ip) = boost_gamma*(time+halfdt_s)+uzboost*(zp(i1:i2)
+     &                       + uzp(i1:i2)*gaminv(i1:i2)*halfdt_s)*invclightsq
+                ! this is an attempt to fool exteb3d. Normally, each particle should have its
+                ! own dt, but this would require to modify all the routines called by exteb3d.
+                ! We are assuming that ginvlab will always be multiplied by dt in its
+                ! usage in the routines called by exteb3d. If this is not the case, then the
+                ! kludge will fail.
+                ginvlab(1:ip) = ginvlab(1:ip)*(tend(1:ip)-tstart(1:ip))/halfdt_s
+c               --- Obtain bend radii and residence factors
+                call getbend(ip,ip,zlab(1),uzlab(1),
+     &                       ginvlab(1),bendres,
+     &                       bendradi,-halfdt_s,0.,.false.)
+c               --- Correct Ez_self for warped mesh effect
+                call bendez3d(ip,pgroup%xp(i1:i2),zlab(1),ezlab(1),
+     &                       bendres,bendradi,bends,bnezflag,linbend)
+c               --- Add in Ez from axially-smoothed gaps
+                call gapfield(ip,zlab(1),ezlab(1),zbeam,zzmin,egap(0),dzz)
+c               --- Add in ears and uniform focusing E field pieces
+                call othere3d(ip,xp(i1:i2),yp(i1:i2),zlab(1),
+     &                        zbeam*boost_gamma+uzboost*time,
+     &                        zimax,zimin,straight,ifeears,eears,
+     &                        eearsofz,dzzi,nzzarr,zzmin,dedr,dexdx,deydy,dbdr,dbxdy,dbydx,
+     &                        exlab(1),eylab(1),ezlab(1),
+     &                        bxlab(1),bylab(1),bzlab(1))
+c               --- Set quad, dipole E and B; All: Bz
+                call exteb3d(ip,xp(i1:i2),yp(i1:i2),zlab(1),uzlab(1),
+     &                       ginvlab(1),-halfdt_s,0.,
+     &                       bxlab(1),bylab(1),bzlab(1),
+     &                       exlab(1),eylab(1),ezlab(1),sm(is),sq(is),
+     &                       bendres,bendradi,fulldt_s)
+                call seteb_in_boosted_frame(ip,exlab(1),eylab(1),ezlab(1),
+     &                                      bxlab(1),bylab(1),bzlab(1),
+     &                                      0.,0.,uzboost,boost_gamma)
+                ex(i1:i2)=ex(i1:i2)+exlab(1:ip)
+                ey(i1:i2)=ey(i1:i2)+eylab(1:ip)
+                ez(i1:i2)=ez(i1:i2)+ezlab(1:ip)
+                bx(i1:i2)=bx(i1:i2)+bxlab(1:ip)
+                by(i1:i2)=by(i1:i2)+bylab(1:ip)
+                bz(i1:i2)=bz(i1:i2)+bzlab(1:ip)
+              endif
+              if (pgroup%lebcancel_pusher) then
+                call ebcancelpush3d(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                                 ex(i1:i2),ey(i1:i2),ez(i1:i2),
+     &                                 bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),fulldt_s,1)
+              else
+c               --- Half electric field increment to momenta
+                call epush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                        ex(i1:i2),ey(i1:i2),ez(i1:i2),sq(is),sm(is),
+     &                        halfdt_s,1,dummy,.false.,pgroup%lparaxial(is))
+c               --- If interpolating with drift kinetics, must do half
+c               ---  a mu grad B correction
+c               --- Half magnetic field increment to momenta
+                if (interpdk(isid) .ne. 0) then
+                  call mugrdbpush(pgroup,ip,is,ipmin,halfdt_s,fulldt_s,1)
+                  call bpush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                          bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),
+     &                          fulldt_s,1,dummy,.false.,pgroup%lparaxial(is),-1)
+c                 Half a Boris push
+                else
+                  call bpush(ip,uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),gaminv(i1:i2),
+     &                          bx(i1:i2),by(i1:i2),bz(i1:i2),sq(is),sm(is),
+     &                          halfdt_s,1,dummy,.false.,pgroup%lparaxial(is),ibpush)
+                endif
+              endif
+              if (center == "gen") then
+c               --- Reset uxp to uxpo, set uxpo to half step backward
+c               --- for interpolation in moments calculation
+c               --- Don't do this if we're doing drift-kinetic interp
+                do i=1,ip
+                  uxpadv = uxp(ipmin+i-1)
+                  uxp(ipmin+i-1) = uxpo(i)
+                  uxpo(i) = uxp(ipmin+i-1) - (uxpadv - uxp(ipmin+i-1))
+                  uypadv = uyp(ipmin+i-1)
+                  uyp(ipmin+i-1) = uypo(i)
+                  uypo(i) = uyp(ipmin+i-1) - (uypadv - uyp(ipmin+i-1))
+                  uzpadv = uzp(ipmin+i-1)
+                  uzp(ipmin+i-1) = uzpo(i)
+                  uzpo(i) = uzp(ipmin+i-1) - (uzpadv - uzp(ipmin+i-1))
+                  gaminv(ipmin+i-1) = gaminvo(i)
+                enddo
+              endif
+            endif
+c           --- Calculate moments over particles, now that we're sync'd
+c           --- THIS IS NOT DONE FOR center = hbor1.
+            if (center == "gen" .or. center == "synchv") then
+              if(wpid==0) then
+               call getzmmnt(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),
+     &                       uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),
+     &                       gaminv(i1:i2),sq(is),sm(is),sw(is),
+     &                       halfdt_s,dtscale(is),2,nplive,uxpo,uypo,uzpo,
+     &                       is,isid,ismax,
+     &                       maxp,minp,zmmnts0,zmmnts)
+              else
+               call getzmmnt_weights(ip,xp(i1:i2),yp(i1:i2),zp(i1:i2),
+     &                       uxp(i1:i2),uyp(i1:i2),uzp(i1:i2),
+     &                       gaminv(i1:i2),pid(i1:i2,wpid),
+     &                       sq(is),sm(is),sw(is),halfdt_s,dtscale(is),
+     &                       2,nplive,uxpo,uypo,uzpo,
+     &                       is,isid,ismax,
+     &                       maxp,minp,zmmnts0,zmmnts)
+              endif
+              call getextrapolatedparticles(ipmin,ip,pgroup,pgroup%npid,
+     &                                      halfdt_s,uxpo,uypo,uzpo,
+     &                                      isid,time,zbeam)
+            endif
+            if(center == "synchv" .and. chdtspid > 0 .and. it>1) then
+              call check_cc3d(pgroup,is,ipmin,ip,exo,eyo,ezo,bxo,byo,bzo)
+            endif
+         endif
+
+c       --- End of loop over particle blocks for cache
+        enddo
+!$OMP END DO
+
+c     --- End of loop over species.
+      enddo
+
+#ifdef _OPENMP
+      if (center == "synchv" .or. center == "gen") then
+        ithread = omp_get_thread_num() + 1
+        nthread = omp_get_num_threads()
+!$OMP SINGLE
+        allocate(threadmaxp(6,0:nszmmnt,nthread),
+     &           threadminp(6,0:nszmmnt,nthread),
+     &           threadzmmnts0(NUMZMMNT,0:nszmmnt,nthread),
+     &           threadzmmnts(0:nzmmnt,NUMZMMNT,0:nszmmnt,nthread),
+     &           stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:padvnc3d: threadmaxp et al could not allocate to shape ",nszmmnt,nthread
+          stop
+        endif
+!$OMP END SINGLE
+        threadmaxp(:,:,ithread) = maxp
+        threadminp(:,:,ithread) = minp
+        threadzmmnts0(:,:,ithread) = zmmnts0
+        threadzmmnts(:,:,:,ithread) = zmmnts
+        deallocate(maxp,minp,zmmnts0,zmmnts)
+      endif
+#endif
+
+      if (any(pgroup%l_maps)) deallocate(zbeam_maps,zbeamend_maps,dtmaps,zend)
+      if (boost_gamma>1.) then
+        deallocate(exlab,eylab,ezlab)
+        deallocate(bxlab,bylab,bzlab)
+        deallocate(zlab,uxlab,uylab,uzlab,ginvlab,tlab,tstart,tend)
+      endif
+      if (center == "synchv" .and. chdtspid>0) then
+        deallocate(exo,eyo,ezo)
+        deallocate(bxo,byo,bzo)
+      endif
+      deallocate(uxpo,uypo,uzpo)
+      deallocate(gaminvo)
+      deallocate(bendres, bendradi)
+
+!$OMP END PARALLEL
+
+c----------------------------------------------------------------------------
+c     ---  Do final stuff for moments calculation
+      if (center == "synchv" .or. center == "gen") then
+#ifdef _OPENMP
+        tempmaxp = max(tempmaxp,maxval(threadmaxp(:,1:nthread),3))
+        tempminp = min(tempminp,minval(threadminp(:,1:nthread),3))
+        tempzmmnts0 = tempzmmnts0 + sum(threadzmmnts0(:,1:nthread),3)
+        tempzmmnts = tempzmmnts + sum(threadzmmnts(:,:,1:nthread),4)
+        deallocate(threadmaxp,threadminp,threadzmmnts0,threadzmmnts)
+#endif
+      endif
+
+      if (lsetcurr .and. (center == "synchv" .or. center == "gen" .or. ifgap)) then
+
+c       --- Calculate current
+        call setcurr(pgroup,zbeam,ismax,wpid,lspeciesmoments,
+     &               .not. laccumulate_rho,lfinalize_rho,bound0)
+
+      endif
+c----------------------------------------------------------------------------
+      if (center == 'synchv') then
+
+c       --- Rearrange particles group/species according to Courant condition.
+        if(chdtspid > 0) then
+          call chgparticlesdts(pgroup)
+
+c         --- Recollect charge density and current
+c         --- Temporarily increment 'it' as if this was the start of the next
+c         --- fullv or halfv step.
+          it = it + 1
+          call setuppadvncsubcyclingaveraging(it,'halfv',pgroup)
+          it = it - 1
+          call loadrho3d(pgroup,-1,-1,-1,.not. laccumulate_rho,lfinalize_rho)
+          call loadj3d(pgroup,-1,-1,-1,.not. laccumulate_rho,lfinalize_rho)
+          call setuppadvncsubcyclingaveraging(it,center,pgroup)
+
+        endif
+
+      endif
+c----------------------------------------------------------------------------
+
+      call printexiting("padvnc3d", 1)
+!$OMP MASTER
+      if (lw3dtimesubs) timepadvnc3d = timepadvnc3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine getextpart(pgroup)
+      use Subtimersw3d
+      use ParticleGroupmodule
+      use GlobalVars
+      use InGen
+      use InPart
+      use Picglb
+      type(ParticleGroup):: pgroup
+
+      integer(ISZ):: is,ip,ipmin,i1,i2
+      real(kind=8):: fulldt_s,halfdt_s
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      do is=1,pgroup%ns
+
+c       --- Get the extrpolated particles for the species.
+c       --- This is only done after the positions have been advanced,
+c       --- in which case ldts will be true.
+c       --- Include time step size scaling for steady-state and slice modes.
+        if (pgroup%ldts(is-1)) then
+          fulldt_s = dt*pgroup%ndts(is-1)*pgroup%dtscale(is)
+          halfdt_s = 0.5*fulldt_s
+
+          ipmin = pgroup%ins(is)
+          i1 = ipmin
+          i2 = ipmin + pgroup%nps(is) - 1
+          call getextrapolatedparticles(pgroup%ins(is),pgroup%nps(is),pgroup,
+     &               pgroup%npid,halfdt_s,
+     &               pgroup%uxp(i1:i2),pgroup%uyp(i1:i2),pgroup%uzp(i1:i2),
+     &               pgroup%sid(is-1)+1,time,zbeam)
+         endif
+       enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timegetextpart = timegetextpart + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine perphi3d()
+      use Subtimersw3d
+      use InGen3d
+      use InMesh3d
+
+c  Sets the slices on the exterior of phi for periodicity
+c  sets slice at -1 equal to the slice at nzlocal-1
+c  sets slice at nzlocal+1 equal to the slice at 1
+
+      integer(ISZ):: ix,iy
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom) then
+        call perphirz()
+        return
+      end if
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeperphi3d = timeperphi3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine setboundsfromflags(bounds,boundxy,bound0,boundnz,
+     &                              l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: bounds(0:5)
+      integer(ISZ):: boundxy,bound0,boundnz
+      logical(ISZ):: l2symtry,l4symtry
+
+c     --- copy boundary positions from bound0, boundnz, and boundxy
+      bounds(0) = boundxy
+      bounds(1) = boundxy
+      bounds(2) = boundxy
+      bounds(3) = boundxy
+      bounds(4) = bound0
+      bounds(5) = boundnz
+      if (l2symtry) then
+        bounds(2) = neumann
+        if (boundxy == 2) bounds(3) = neumann
+      else if (l4symtry) then
+        bounds(0) = neumann
+        bounds(2) = neumann
+        if (boundxy == 2) bounds(1) = neumann
+        if (boundxy == 2) bounds(3) = neumann
+      endif
+
+      return
+      end
+c=============================================================================
+      subroutine applyrhoboundaryconditions()
+      use GlobalVars
+      use Subtimersw3d
+      use InGen,Only: fstype
+      use InGen3d
+      use InMesh3d
+      use Fields3dSolver,Only: rho
+      use GridBoundary3d
+      use DebugFlags,Only: debug
+#ifdef MPIPARALLEL
+      use Parallel,Only: fsdecomp
+#endif
+
+c  Sums the first and last slices of rho for periodicity
+c  and puts the result into both slices.
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (fstype == 12) return
+      if (solvergeom==AMRgeom) return
+
+c     --- Do some error checking
+      if (.not. associated(rho)) then
+        call kaboom("applyrhoboundaryconditions: rho not allocated")
+        return
+      endif
+      if (debug) then
+        if (LBOUND(rho,1) .ne. -nxguardrho .or.
+     &      UBOUND(rho,1) .ne. nxlocal+nxguardrho .or.
+     &      LBOUND(rho,2) .ne. -nyguardrho .or.
+     &      UBOUND(rho,2) .ne. nylocal+nyguardrho .or.
+     &      LBOUND(rho,3) .ne. -nzguardrho .or.
+     &      UBOUND(rho,3) .ne. nzlocal+nzguardrho) then
+          print*,"rho shape = ",LBOUND(rho),UBOUND(rho)
+          call kaboom("applyrhoboundaryconditions: rho has wrong shape")
+        endif
+      endif
+
+c  Distribute rho for 2d solver
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom .or.
+     &   solvergeom==XYgeom .or. solvergeom==Zgeom) then
+        call distribute_rho_rz()
+      end if
+
+c  Enforce longitudinal periodicity.
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom .or. solvergeom==XYgeom) then
+        call rhobndrz()
+#ifdef MPIPARALLEL
+        if(bound0==periodic) call perrhorz()
+#endif
+      end if
+
+c  Copy charge density from frz.basegrid to w3d.rho
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom) then
+        call get_rho_rz(rho,nx,nzlocal,1,0)
+      else if(solvergeom==XYgeom) then
+        call get_rho_rz(rho,nxlocal,nylocal,1,0)
+      else if(solvergeom==Zgeom) then
+        call get_rho_z(rho,nzlocal,1,0)
+      else if(solvergeom==Rgeom) then
+        call get_rho_r(rho,nx,1,0)
+      end if
+
+      if (solvergeom==XYZgeom) then
+
+c       --- Make sure the bounds array is up to date with any changes in the
+c       --- flags.
+        call setboundsfromflags(bounds,boundxy,bound0,boundnz,l2symtry,l4symtry)
+
+#ifdef MPIPARALLEL
+        call applyrhoboundaryconditions3d(1,nxlocal,nylocal,nzlocal,
+     &                                    nxguardrho,nyguardrho,nzguardrho,
+     &                                    rho,
+     &                                    bounds,fsdecomp,solvergeom==RZgeom)
+#else
+        if (bounds(0) == periodic .or. bounds(1) == periodic) then
+          rho(:nxguardrho,:,:) = rho(:nxguardrho,:,:) + rho(nx-nxguardrho:,:,:)
+          rho(nx-nxguardrho:,:,:) = rho(:nxguardrho,:,:)
+        endif
+        if (bounds(2) == periodic .or. bounds(3) == periodic) then
+          rho(:,:nyguardrho,:) = rho(:,:nyguardrho,:) + rho(:,ny-nyguardrho:,:)
+          rho(:,ny-nyguardrho:,:) = rho(:,:nyguardrho,:)
+        endif
+        if (bounds(4)==periodic .or. bounds(5) == periodic) then
+          rho(:,:,:nzguardrho) = rho(:,:,:nzguardrho) + rho(:,:,nz-nzguardrho:)
+          rho(:,:,nz-nzguardrho:) = rho(:,:,:nzguardrho)
+        endif
+        if (bounds(0) == neumann .and. solvergeom .ne. RZgeom) then
+          rho(:nxguardrho,:,:) = rho(:nxguardrho,:,:) + rho(nxguardrho:-nxguardrho:-1,:,:)
+        endif
+        if (bounds(1) == neumann) then
+          rho(nx-nxguardrho:,:,:) = rho(nx-nxguardrho:,:,:) + rho(nx+nxguardrho:nx-nxguardrho:-1,:,:)
+        endif
+        if (bounds(2) == neumann) then
+          rho(:,:nyguardrho,:) = rho(:,:nyguardrho,:) + rho(:,nyguardrho:-nyguardrho:-1,:)
+        endif
+        if (bounds(3) == neumann) then
+          rho(:,ny-nyguardrho:,:) = rho(:,ny-nyguardrho:,:) + rho(:,ny+nyguardrho:ny-nyguardrho:-1,:)
+        endif
+        if (bounds(4) == neumann) then
+          rho(:,:,:nzguardrho) = rho(:,:,:nzguardrho) + rho(:,:,nzguardrho:-nzguardrho:-1)
+        endif
+        if (bounds(5) == neumann) then
+          rho(:,:,nz-nzguardrho:) = rho(:,:,nz-nzguardrho:) + rho(:,:,nz+nzguardrho:nz-nzguardrho:-1)
+        endif
+#endif
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeapplyrhoboundaryconditions = timeapplyrhoboundaryconditions + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine applyrhoboundaryconditions3d(nc,nxlocal,nylocal,nzlocal,
+     &                                        nxguardrho,nyguardrho,nzguardrho,
+     &                                        rho,bounds,fsdecomp,lrz)
+      use GlobalVars
+      use Subtimersw3d
+      use Decompositionmodule
+      integer(ISZ):: nc,nxlocal,nylocal,nzlocal
+      integer(ISZ):: nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: rho(0:nc-1,-nxguardrho:nxlocal+nxguardrho,
+     &                          -nyguardrho:nylocal+nyguardrho,
+     &                          -nzguardrho:nzlocal+nzguardrho)
+      integer(ISZ):: bounds(0:5)
+      type(Decomposition):: fsdecomp
+      logical(ISZ):: lrz
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (nxlocal > 0) then
+        if ((bounds(0) == neumann) .and. fsdecomp%ixproc == 0 .and.
+     &        .not. lrz) then
+          rho(:,:nxguardrho,:,:) = rho(:,:nxguardrho,:,:) + rho(:,nxguardrho:-nxguardrho:-1,:,:)
+        endif
+        if (bounds(1) == neumann .and.
+     &      fsdecomp%ixproc == fsdecomp%nxprocs-1) then
+          rho(:,nxlocal-nxguardrho:,:,:) = rho(:,nxlocal-nxguardrho:,:,:) + rho(:,nxlocal+nxguardrho:nxlocal-nxguardrho:-1,:,:)
+        endif
+        if (bounds(0) == periodic .or. bounds(1) == periodic) then
+          if (fsdecomp%nxprocs == 1) then
+            rho(:,:nxguardrho,:,:) = rho(:,:nxguardrho,:,:) + rho(:,nxlocal-nxguardrho:,:,:)
+            rho(:,nxlocal-nxguardrho:,:,:) = rho(:,:nxguardrho,:,:)
+#ifdef MPIPARALLEL
+          else
+            call makesourceperiodic_slave_work(0,rho,nc,nxlocal,nylocal,nzlocal,
+     &                    nxguardrho,nyguardrho,nzguardrho,
+     &                    fsdecomp%nxprocs,fsdecomp%ixproc,fsdecomp%mpi_comm_x)
+#endif
+          endif
+        endif
+      endif
+
+      if (nylocal > 0) then
+        if ((bounds(2) == neumann) .and. fsdecomp%iyproc == 0) then
+          rho(:,:,:nyguardrho,:) = rho(:,:,:nyguardrho,:) + rho(:,:,nyguardrho:-nyguardrho:-1,:)
+        endif
+        if (bounds(3) == neumann .and.
+     &      fsdecomp%iyproc == fsdecomp%nyprocs-1) then
+          rho(:,:,nylocal-nyguardrho:,:) = rho(:,:,nylocal-nyguardrho:,:) + rho(:,:,nylocal+nyguardrho:nylocal-nyguardrho:-1,:)
+        endif
+        if (bounds(2) == periodic .or. bounds(3) == periodic) then
+          if (fsdecomp%nyprocs == 1) then
+            rho(:,:,:nyguardrho,:) = rho(:,:,:nyguardrho,:) + rho(:,:,nylocal-nyguardrho:,:)
+            rho(:,:,nylocal-nyguardrho:,:) = rho(:,:,:nyguardrho,:)
+#ifdef MPIPARALLEL
+          else
+            call makesourceperiodic_slave_work(1,rho,nc,nxlocal,nylocal,nzlocal,
+     &                    nxguardrho,nyguardrho,nzguardrho,
+     &                    fsdecomp%nyprocs,fsdecomp%iyproc,fsdecomp%mpi_comm_y)
+#endif
+          endif
+        endif
+      endif
+
+      if (nzlocal > 0) then
+        if (bounds(4) == neumann .and. fsdecomp%izproc == 0) then
+          rho(:,:,:,:nzguardrho) = rho(:,:,:,:nzguardrho) + rho(:,:,:,nzguardrho:-nzguardrho:-1)
+        endif
+        if (bounds(5) == neumann .and.
+     &      fsdecomp%izproc == fsdecomp%nzprocs-1) then
+          rho(:,:,:,nzlocal-nzguardrho:) = rho(:,:,:,nzlocal-nzguardrho:) + rho(:,:,:,nzlocal+nzguardrho:nzlocal-nzguardrho:-1)
+        endif
+        if (bounds(4)==periodic .or. bounds(5) == periodic) then
+          if (fsdecomp%nzprocs == 1) then
+            rho(:,:,:,:nzguardrho) = rho(:,:,:,:nzguardrho) + rho(:,:,:,nzlocal-nzguardrho:)
+            rho(:,:,:,nzlocal-nzguardrho:) = rho(:,:,:,:nzguardrho)
+#ifdef MPIPARALLEL
+          else
+            call makesourceperiodic_slave_work(2,rho,nc,nxlocal,nylocal,nzlocal,
+     &                    nxguardrho,nyguardrho,nzguardrho,
+     &                    fsdecomp%nzprocs,fsdecomp%izproc,fsdecomp%mpi_comm_z)
+#endif
+          endif
+        endif
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeapplyrhoboundaryconditions3d =
+     &            timeapplyrhoboundaryconditions3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine epush3d(np,uxp,uyp,uzp,ex,ey,ez,q,m,ddt)
+      use Subtimersw3d
+      integer(ISZ):: np
+      real(kind=8):: uxp(np),uyp(np),uzp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      real(kind=8):: q,m,ddt
+
+c  Push the particle velocity with E field
+
+      integer(ISZ):: ip
+      real(kind=8):: const
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      const = q*ddt/m
+
+      do ip=1,np
+        uxp(ip) = uxp(ip) + ex(ip)*const
+        uyp(ip) = uyp(ip) + ey(ip)*const
+        uzp(ip) = uzp(ip) + ez(ip)*const
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeepush3d = timeepush3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine epush2d(np,uxp,uyp,ex,ey,q,m,ddt)
+      use Subtimersw3d
+      integer(ISZ):: np
+      real(kind=8):: uxp(np),uyp(np)
+      real(kind=8):: ex(np),ey(np)
+      real(kind=8):: q,m,ddt
+
+c  Push the particle velocity with E field
+
+      integer(ISZ):: ip
+      real(kind=8):: const
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      const = q*ddt/m
+
+      do ip=1,np
+        uxp(ip) = uxp(ip) + ex(ip)*const
+        uyp(ip) = uyp(ip) + ey(ip)*const
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeepush3d = timeepush3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine epusht3d(np,uxp,uyp,uzp,ex,ey,ez,q,m,dtp,fdt)
+      use Subtimersw3d
+      integer(ISZ):: np
+      real(kind=8):: uxp(np),uyp(np),uzp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      real(kind=8):: dtp(np)
+      real(kind=8):: q,m,fdt
+
+c Push the particle velocity with E field using a different time step for
+c each particle.
+
+      integer(ISZ):: ip
+      real(kind=8):: const
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      const = q*fdt/m
+
+      do ip=1,np
+        uxp(ip) = uxp(ip) + ex(ip)*const*dtp(ip)
+        uyp(ip) = uyp(ip) + ey(ip)*const*dtp(ip)
+        uzp(ip) = uzp(ip) + ez(ip)*const*dtp(ip)
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeepusht3d = timeepusht3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine bpush3d(np,uxp,uyp,uzp,gaminv,bx,by,bz,q,m,ddt,ibpush)
+      use Subtimersw3d
+      integer(ISZ):: np,ibpush
+      real(kind=8):: uxp(np),uyp(np),uzp(np),gaminv(np)
+      real(kind=8):: bx(np),by(np),bz(np)
+      real(kind=8):: q,m,ddt
+
+c  Push the particle velocity with B field
+
+      integer(ISZ):: ip
+      real(kind=8):: btot,btotinv,tanalphab
+      real(kind=8):: tx,ty,tz,tsqi,sx,sy,sz,uxppr,uyppr,uzppr
+      real(kind=8):: const,t,tiny,const1
+      real(kind=8):: substarttime,wtime
+
+      if (lw3dtimesubs) substarttime = wtime()
+      const = q*ddt*0.5/m
+      if (ibpush == 1 .or. ibpush == 3) then
+c        --- fast b-field rotation algorithm
+c        --- ibpush = 3 uses this also for fullv but this routine is
+c        --- called with ibpush = -1 for halfv or synchv
+         do ip=1,np
+            tx = gaminv(ip)*bx(ip)*const
+            ty = gaminv(ip)*by(ip)*const
+            tz = gaminv(ip)*bz(ip)*const
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+            uzp(ip) = uzp(ip) + uxppr*sy - uyppr*sx
+         enddo
+      elseif (ibpush == 2) then
+c        --- tan(alpha) / alpha algorithm
+         do ip=1,np
+            btot = sqrt(bx(ip)**2 + by(ip)**2 + bz(ip)**2)
+            if (btot == 0.) cycle
+            tanalphab = tan(gaminv(ip)*btot*const)/btot
+            tx = bx(ip)*tanalphab
+            ty = by(ip)*tanalphab
+            tz = bz(ip)*tanalphab
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+            uzp(ip) = uzp(ip) + uxppr*sy - uyppr*sx
+         enddo
+      elseif (ibpush == -1) then
+c        --- fast b-field rotation algorithm with half Boris angle
+         tiny = 1.e-20
+         do ip=1,np
+            btot = sqrt(bx(ip)**2 + by(ip)**2 + bz(ip)**2)
+            t=gaminv(ip)*btot*const
+            if (btot == 0 .or. t == 0.) cycle
+            btot=max(btot,tiny)
+            const1=(sqrt(1.+t*t)-1.)/(t*btot)
+            tx = bx(ip)*const1
+            ty = by(ip)*const1
+            tz = bz(ip)*const1
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+            uzp(ip) = uzp(ip) + uxppr*sy - uyppr*sx
+         enddo
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timebpush3d = timebpush3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine bpush2d(np,uxp,uyp,uzp,gaminv,bx,by,bz,q,m,ddt,ibpush)
+      use Subtimersw3d
+      integer(ISZ):: np,ibpush
+      real(kind=8):: uxp(np),uyp(np),uzp(np),gaminv(np)
+      real(kind=8):: bx(np),by(np),bz(np)
+      real(kind=8):: q,m,ddt
+
+c  Push the particle velocity with B field
+
+      integer(ISZ):: ip
+      real(kind=8):: btot,btotinv,tanalphab
+      real(kind=8):: tx,ty,tz,tsqi,sx,sy,sz,uxppr,uyppr,uzppr
+      real(kind=8):: const,t,tiny,const1
+      real(kind=8):: substarttime,wtime
+
+      if (lw3dtimesubs) substarttime = wtime()
+      const = q*ddt*0.5/m
+      if (ibpush == 1 .or. ibpush == 3) then
+c        --- fast b-field rotation algorithm
+c        --- ibpush = 3 uses this also for fullv but this routine is
+c        --- called with ibpush = -1 for halfv or synchv
+         do ip=1,np
+            tx = gaminv(ip)*bx(ip)*const
+            ty = gaminv(ip)*by(ip)*const
+            tz = gaminv(ip)*bz(ip)*const
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+         enddo
+      elseif (ibpush == 2) then
+c        --- tan(alpha) / alpha algorithm
+         do ip=1,np
+            btot = sqrt(bx(ip)**2 + by(ip)**2 + bz(ip)**2)
+            if (btot == 0.) cycle
+            tanalphab = tan(gaminv(ip)*btot*const)/btot
+            tx = bx(ip)*tanalphab
+            ty = by(ip)*tanalphab
+            tz = bz(ip)*tanalphab
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+         enddo
+      elseif (ibpush == -1) then
+c        --- fast b-field rotation algorithm with half Boris angle
+         tiny = 1.e-20
+         do ip=1,np
+            btot = sqrt(bx(ip)**2 + by(ip)**2 + bz(ip)**2)
+            t=gaminv(ip)*btot*const
+            if (btot == 0 .or. t == 0.) cycle
+            btot=max(btot,tiny)
+            const1=(sqrt(1.+t*t)-1.)/(t*btot)
+            tx = bx(ip)*const1
+            ty = by(ip)*const1
+            tz = bz(ip)*const1
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+         enddo
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timebpush3d = timebpush3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine bpusht3d(np,uxp,uyp,uzp,gaminv,bx,by,bz,q,m,dtp,fdt,ibpush)
+      use Subtimersw3d
+      integer(ISZ):: np,ibpush
+      real(kind=8):: uxp(np),uyp(np),uzp(np),gaminv(np)
+      real(kind=8):: bx(np),by(np),bz(np)
+      real(kind=8):: dtp(np)
+      real(kind=8):: q,m,fdt
+
+c Push the particle velocity with B field using a different time step
+c for each particle.
+
+      integer(ISZ):: ip
+      real(kind=8):: btot,btotinv,tanalpha
+      real(kind=8):: tx,ty,tz,tsqi,sx,sy,sz,uxppr,uyppr,uzppr
+      real(kind=8):: const
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      const = q*fdt*0.5/m
+
+      if (ibpush == 1) then
+c        --- fast b-field rotation algorithm
+         do ip=1,np
+            tx = gaminv(ip)*bx(ip)*const*dtp(ip)
+            ty = gaminv(ip)*by(ip)*const*dtp(ip)
+            tz = gaminv(ip)*bz(ip)*const*dtp(ip)
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+            uzp(ip) = uzp(ip) + uxppr*sy - uyppr*sx
+         enddo
+      elseif (ibpush == 2) then
+c        --- tan(alpha) / alpha algorithm
+         do ip=1,np
+            btot = sqrt(bx(ip)**2 + by(ip)**2 + bz(ip)**2)
+            if (btot == 0.) cycle
+            btotinv = 1./btot
+            tanalpha = tan(gaminv(ip)*btot*const*dtp(ip))
+            tx = bx(ip)*tanalpha*btotinv
+            ty = by(ip)*tanalpha*btotinv
+            tz = bz(ip)*tanalpha*btotinv
+            tsqi = 2./(1. + tx**2 + ty**2 + tz**2)
+            sx = tx*tsqi
+            sy = ty*tsqi
+            sz = tz*tsqi
+            uxppr = uxp(ip) + uyp(ip)*tz - uzp(ip)*ty
+            uyppr = uyp(ip) + uzp(ip)*tx - uxp(ip)*tz
+            uzppr = uzp(ip) + uxp(ip)*ty - uyp(ip)*tx
+            uxp(ip) = uxp(ip) + uyppr*sz - uzppr*sy
+            uyp(ip) = uyp(ip) + uzppr*sx - uxppr*sz
+            uzp(ip) = uzp(ip) + uxppr*sy - uyppr*sx
+         enddo
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timebpusht3d = timebpusht3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine xpush3d(np,xp,yp,zp,uxp,uyp,uzp,gaminv,dtp)
+      use Subtimersw3d
+      integer(ISZ):: np
+      real(kind=8):: xp(np),yp(np),zp(np),uxp(np),uyp(np),uzp(np),gaminv(np)
+      real(kind=8):: dtp
+
+c  Advance particle positions
+
+      integer(ISZ):: ip
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      do ip=1,np
+        xp(ip) = xp(ip) + uxp(ip)*gaminv(ip)*dtp
+        yp(ip) = yp(ip) + uyp(ip)*gaminv(ip)*dtp
+        zp(ip) = zp(ip) + uzp(ip)*gaminv(ip)*dtp
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timexpusht3d = timexpusht3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine xpusht3d(np,xp,yp,zp,uxp,uyp,uzp,gaminv,dtp)
+      use Subtimersw3d
+      integer(ISZ):: np
+      real(kind=8):: xp(np),yp(np),zp(np),uxp(np),uyp(np),uzp(np),gaminv(np)
+      real(kind=8):: dtp(np)
+
+c  Advance particle positions
+
+      integer(ISZ):: ip
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      do ip=1,np
+        xp(ip) = xp(ip) + uxp(ip)*gaminv(ip)*dtp(ip)
+        yp(ip) = yp(ip) + uyp(ip)*gaminv(ip)*dtp(ip)
+        zp(ip) = zp(ip) + uzp(ip)*gaminv(ip)*dtp(ip)
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timexpusht3d = timexpusht3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine ebcancelpush3d(np,uxp,uyp,uzp,gi,exp,eyp,ezp,bxp,byp,bzp,q,m,dt,which)
+      use Subtimersw3d
+      use Constant
+      integer(ISZ):: np,which
+      real(kind=8):: uxp(np),uyp(np),uzp(np),gi(np)
+      real(kind=8):: exp(np),eyp(np),ezp(np),bxp(np),byp(np),bzp(np)
+      real(kind=8):: q,m,dt
+
+c Push the particle velocity with E and B fields, assuming Vmid = 0.5*(Vold+Vnew),
+c solving directly for the new gamma.
+c This offers better cancellation of E+VxB than the Boris velocity push.
+c Question: should we recompute gamma from the new u, in order to prevent roundoff errors
+c to create mismatched values of u and gamma?
+
+      integer(ISZ):: ip
+      real(kind=8):: const,bconst,s,gisq,invclight,invclightsq,gprsq
+      real(kind=8):: tx,ty,tz,tu,uxpr,uypr,uzpr,bg,vx,vy,vz
+      real(kind=8):: taux,tauy,tauz,tausq,ust,sigma
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      invclight   = 1./clight
+      invclightsq = 1./(clight*clight)
+
+      if(which==0) then
+!     --- full push
+       const = q*dt/m
+       bconst = 0.5*const
+       do ip=1,np
+!       --- get tau
+        taux = bconst*bxp(ip)
+        tauy = bconst*byp(ip)
+        tauz = bconst*bzp(ip)
+        tausq = taux*taux+tauy*tauy+tauz*tauz
+!       --- get U',gamma'^2
+        uxpr = uxp(ip) + const*exp(ip) + (uyp(ip)*tauz-uzp(ip)*tauy)*gi(ip)
+        uypr = uyp(ip) + const*eyp(ip) + (uzp(ip)*taux-uxp(ip)*tauz)*gi(ip)
+        uzpr = uzp(ip) + const*ezp(ip) + (uxp(ip)*tauy-uyp(ip)*taux)*gi(ip)
+        gprsq = (1.+(uxpr*uxpr+uypr*uypr+uzpr*uzpr)*invclightsq)
+!       --- get u*
+        ust = (uxpr*taux+uypr*tauy+uzpr*tauz)*invclight
+!       --- get new gamma
+        sigma = gprsq-tausq
+        gisq = 2./(sigma+sqrt(sigma*sigma+4.*(tausq+ust*ust)))
+        gi(ip) = sqrt(gisq)
+!       --- get t,s
+        bg = bconst*sqrt(gisq)
+        tx = bg*bxp(ip)
+        ty = bg*byp(ip)
+        tz = bg*bzp(ip)
+        s = 1./(1.+tausq*gisq)
+!       --- get t.u'
+        tu = tx*uxpr+ty*uypr+tz*uzpr
+!       --- get new U
+        uxp(ip) = s*(uxpr+tx*tu+uypr*tz-uzpr*ty)
+        uyp(ip) = s*(uypr+ty*tu+uzpr*tx-uxpr*tz)
+        uzp(ip) = s*(uzpr+tz*tu+uxpr*ty-uypr*tx)
+       enddo
+      else if(which==1) then
+!     --- first half push
+       const = 0.5*q*dt/m
+       do ip=1,np
+!     --- get new U
+        vx = uxp(ip)*gi(ip)
+        vy = uyp(ip)*gi(ip)
+        vz = uzp(ip)*gi(ip)
+        uxp(ip) = uxp(ip) + const*( exp(ip) + vy*bzp(ip)-vz*byp(ip) )
+        uyp(ip) = uyp(ip) + const*( eyp(ip) + vz*bxp(ip)-vx*bzp(ip) )
+        uzp(ip) = uzp(ip) + const*( ezp(ip) + vx*byp(ip)-vy*bxp(ip) )
+        gi(ip) = 1./sqrt(1.+(uxp(ip)*uxp(ip)+uyp(ip)*uyp(ip)+uzp(ip)*uzp(ip))*invclightsq)
+       enddo
+      else if(which==2) then
+!     --- second half push
+       const = 0.5*q*dt/m
+       bconst = const
+       do ip=1,np
+!     --- get U'
+        uxpr = uxp(ip) + const*exp(ip)
+        uypr = uyp(ip) + const*eyp(ip)
+        uzpr = uzp(ip) + const*ezp(ip)
+        gprsq = (1.+(uxpr*uxpr+uypr*uypr+uzpr*uzpr)*invclightsq)
+!       --- get tau
+        taux = bconst*bxp(ip)
+        tauy = bconst*byp(ip)
+        tauz = bconst*bzp(ip)
+        tausq = taux*taux+tauy*tauy+tauz*tauz
+!       --- get u*
+        ust = (uxpr*taux+uypr*tauy+uzpr*tauz)*invclight
+!       --- get new gamma
+        sigma = gprsq-tausq
+        gisq = 2./(sigma+sqrt(sigma*sigma+4.*(tausq+ust*ust)))
+        gi(ip) = sqrt(gisq)
+!       --- get t,s
+        bg = bconst*sqrt(gisq)
+        tx = bg*bxp(ip)
+        ty = bg*byp(ip)
+        tz = bg*bzp(ip)
+        s = 1./(1.+tausq*gisq)
+!       --- get t.u'
+        tu = tx*uxpr+ty*uypr+tz*uzpr
+!       --- get new U
+        uxp(ip) = s*(uxpr+tx*tu+uypr*tz-uzpr*ty)
+        uyp(ip) = s*(uypr+ty*tu+uzpr*tx-uxpr*tz)
+        uzp(ip) = s*(uzpr+tz*tu+uxpr*ty-uypr*tx)
+       enddo
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeebcancelpush3d = timeebcancelpush3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine ebcancelpush3dt(np,uxp,uyp,uzp,gi,exp,eyp,ezp,bxp,byp,bzp,q,m,dt,which)
+      use Subtimersw3d
+      use Constant
+      integer(ISZ):: np,which
+      real(kind=8):: uxp(np),uyp(np),uzp(np),gi(np)
+      real(kind=8):: exp(np),eyp(np),ezp(np),bxp(np),byp(np),bzp(np),dt(np)
+      real(kind=8):: q,m
+
+c Push the particle velocity with E and B fields, assuming Vmid = 0.5*(Vold+Vnew),
+c solving directly for the new gamma.
+c This offers better cancellation of E+VxB than the Boris velocity push.
+c Question: should we recompute gamma from the new u, in order to prevent roundoff errors
+c to create mismatched values of u and gamma?
+
+      integer(ISZ):: ip
+      real(kind=8):: const,bconst,s,gisq,invclight,invclightsq,gprsq
+      real(kind=8):: tx,ty,tz,tu,uxpr,uypr,uzpr,bg,vx,vy,vz
+      real(kind=8):: taux,tauy,tauz,tausq,ust,sigma
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      invclight   = 1./clight
+      invclightsq = 1./(clight*clight)
+
+      if(which==0) then
+!     --- full push
+       do ip=1,np
+        const = q*dt(ip)/m
+        bconst = 0.5*const
+!       --- get tau
+        taux = bconst*bxp(ip)
+        tauy = bconst*byp(ip)
+        tauz = bconst*bzp(ip)
+        tausq = taux*taux+tauy*tauy+tauz*tauz
+!       --- get U',gamma'^2
+        uxpr = uxp(ip) + const*exp(ip) + (uyp(ip)*tauz-uzp(ip)*tauy)*gi(ip)
+        uypr = uyp(ip) + const*eyp(ip) + (uzp(ip)*taux-uxp(ip)*tauz)*gi(ip)
+        uzpr = uzp(ip) + const*ezp(ip) + (uxp(ip)*tauy-uyp(ip)*taux)*gi(ip)
+        gprsq = (1.+(uxpr*uxpr+uypr*uypr+uzpr*uzpr)*invclightsq)
+!       --- get u*
+        ust = (uxpr*taux+uypr*tauy+uzpr*tauz)*invclight
+!       --- get new gamma
+        sigma = gprsq-tausq
+        gisq = 2./(sigma+sqrt(sigma*sigma+4.*(tausq+ust*ust)))
+        gi(ip) = sqrt(gisq)
+!       --- get t,s
+        bg = bconst*sqrt(gisq)
+        tx = bg*bxp(ip)
+        ty = bg*byp(ip)
+        tz = bg*bzp(ip)
+        s = 1./(1.+tausq*gisq)
+!       --- get t.u'
+        tu = tx*uxpr+ty*uypr+tz*uzpr
+!       --- get new U
+        uxp(ip) = s*(uxpr+tx*tu+uypr*tz-uzpr*ty)
+        uyp(ip) = s*(uypr+ty*tu+uzpr*tx-uxpr*tz)
+        uzp(ip) = s*(uzpr+tz*tu+uxpr*ty-uypr*tx)
+       enddo
+      else if(which==1) then
+!     --- first half push
+       do ip=1,np
+        const = 0.5*q*dt(ip)/m
+!     --- get new U
+        vx = uxp(ip)*gi(ip)
+        vy = uyp(ip)*gi(ip)
+        vz = uzp(ip)*gi(ip)
+        uxp(ip) = uxp(ip) + const*( exp(ip) + vy*bzp(ip)-vz*byp(ip) )
+        uyp(ip) = uyp(ip) + const*( eyp(ip) + vz*bxp(ip)-vx*bzp(ip) )
+        uzp(ip) = uzp(ip) + const*( ezp(ip) + vx*byp(ip)-vy*bxp(ip) )
+        gi(ip) = 1./sqrt(1.+(uxp(ip)*uxp(ip)+uyp(ip)*uyp(ip)+uzp(ip)*uzp(ip))*invclightsq)
+       enddo
+      else if(which==2) then
+!     --- second half push
+       do ip=1,np
+        const = 0.5*q*dt(ip)/m
+        bconst = const
+!     --- get U'
+        uxpr = uxp(ip) + const*exp(ip)
+        uypr = uyp(ip) + const*eyp(ip)
+        uzpr = uzp(ip) + const*ezp(ip)
+        gprsq = (1.+(uxpr*uxpr+uypr*uypr+uzpr*uzpr)*invclightsq)
+!       --- get tau
+        taux = bconst*bxp(ip)
+        tauy = bconst*byp(ip)
+        tauz = bconst*bzp(ip)
+        tausq = taux*taux+tauy*tauy+tauz*tauz
+!       --- get u*
+        ust = (uxpr*taux+uypr*tauy+uzpr*tauz)*invclight
+!       --- get new gamma
+        sigma = gprsq-tausq
+        gisq = 2./(sigma+sqrt(sigma*sigma+4.*(tausq+ust*ust)))
+        gi(ip) = sqrt(gisq)
+!       --- get t,s
+        bg = bconst*sqrt(gisq)
+        tx = bg*bxp(ip)
+        ty = bg*byp(ip)
+        tz = bg*bzp(ip)
+        s = 1./(1.+tausq*gisq)
+!       --- get t.u'
+        tu = tx*uxpr+ty*uypr+tz*uzpr
+!       --- get new U
+        uxp(ip) = s*(uxpr+tx*tu+uypr*tz-uzpr*ty)
+        uyp(ip) = s*(uypr+ty*tu+uzpr*tx-uxpr*tz)
+        uzp(ip) = s*(uzpr+tz*tu+uxpr*ty-uypr*tx)
+       enddo
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeebcancelpush3d = timeebcancelpush3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine check_cc3d(pgroup,is,ipmin,np,exo,eyo,ezo,bxo,byo,bzo)
+      use Constant
+      use InGen
+      use Subtimersw3d
+      use Beam_acc
+      use Picglb, only: time,zgrid
+      use Picglb3d
+      use InGen3d
+      use InMesh3d
+      use ParticleGroupmodule
+      use Particles, toppgroup => pgroup
+      use Fields3dParticles, only: nxc,nyc,nzc,isnearbycond
+      implicit none
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: np,is,ipmin
+      real(kind=8):: exo(np),eyo(np),ezo(np),bxo(np),byo(np),bzo(np)
+
+c Check if particle is under or over the Courant condition limits (ccmin and ccmax)
+c and register the ones that fall outside the limits for change to group (or species)
+c with appropriate time step.
+
+      integer(ISZ):: ip0,ips,i1,i2
+      real(kind=8):: tdx,tdy,tdz
+      real(kind=8):: dd,denorm,dbnorm,denorm_up,dbnorm_up,dex,dey,dez,dbx,dby,dbz
+      integer(ISZ),allocatable::pisnearbycond(:)
+      logical(ISZ):: ldfield_below_threshold,ldfield_below_threshold_up,l_pisnearbycond
+      integer(ISZ):: ip,ndtsmax
+      real(kind=8):: substarttime,wtime,ddx,ddy,ddz,dtgaminv
+      logical(ISZ):: ldownOK,lupOK
+      integer:: alloc_status
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Set the flags saying whether particles of this species can move
+c     --- up or down to the next species. First, assume that they can.
+      ldownOK = .true.
+      lupOK = .true.
+c     --- Also, assume that the max ndts is the value of the this species
+      ndtsmax = pgroup%ndts(is-1)
+c     --- First, check if there are any more species above or below. If not,
+c     --- then set the flags appropriately.
+      if (is == 1) ldownOK = .false.
+      if (is == pgroup%ns) lupOK = .false.
+c     --- Now, check if the species below and above are the same species
+c     --- but with only ndts changed by a factor or 2.
+      if (ldownOK) then
+        if (pgroup%sq(is) /= pgroup%sq(is-1) .or.
+     &      pgroup%sm(is) /= pgroup%sm(is-1) .or.
+     &      pgroup%sw(is) /= pgroup%sw(is-1) .or.
+     &      pgroup%ndts(is-1) /= 2*pgroup%ndts(is-2)) then
+          ldownOK = .false.
+        endif
+      endif
+      if (lupOK) then
+c       --- Only allow particles to move up when the velocities and positions
+c       --- of the slower particles have been synchronized.
+        lupOK = pgroup%lvdts(is-1+1)
+        if (pgroup%sq(is) /= pgroup%sq(is+1) .or.
+     &      pgroup%sm(is) /= pgroup%sm(is+1) .or.
+     &      pgroup%sw(is) /= pgroup%sw(is+1) .or.
+     &      2*pgroup%ndts(is-1) /= pgroup%ndts(is)) then
+          lupOK = .false.
+        endif
+c       --- Since there is another slower species, reset ndtsmax.
+        if (lupOK) ndtsmax = pgroup%ndts(is)
+      endif
+
+c     --- Do nothing if both flags are false
+      if (.not. ldownOK .and. .not. lupOK) return
+
+      tdx = dx
+      tdy = dy
+      tdz = dz
+      if (nxc>0) then
+        allocate(pisnearbycond(np), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:check_cc3d: pisnearbycond could not be allocated"
+          stop
+        endif
+        i1 = ipmin
+        i2 = ipmin + np - 1
+        call getgridngp3di(np,pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                     pgroup%zp(i1:i2),
+     &                     pisnearbycond,nxc,nyc,nzc,isnearbycond,
+     &                     xmminlocal,xmmaxlocal,ymminlocal,ymmaxlocal,
+     &                     zmminlocal,zmmaxlocal,zgrid,
+     &                     l2symtry,l4symtry)
+      else
+        l_pisnearbycond=.false.
+      end if
+      do ip=1,np
+        ip0 = ipmin - 1 + ip
+        if(tbirthpid>0) then
+          if ((time-pgroup%pid(ip0,tbirthpid))<ndtsmax*dt) cycle
+        endif
+        if (dxpid > 0 .and. dypid > 0 .and. dzpid > 0) then
+          tdx = pgroup%pid(ip0,dxpid)
+          tdy = pgroup%pid(ip0,dypid)
+          tdz = pgroup%pid(ip0,dzpid)
+        endif
+        ddx=abs(pgroup%xp(ip0)-pgroup%pid(ip0,xoldpid))/tdx
+        ddy=abs(pgroup%yp(ip0)-pgroup%pid(ip0,yoldpid))/tdy
+        ddz=abs(pgroup%zp(ip0)-pgroup%pid(ip0,zoldpid))/tdz
+        dex=abs(pgroup%ex(ip0)-exo(ip))
+        dey=abs(pgroup%ey(ip0)-eyo(ip))
+        dez=abs(pgroup%ez(ip0)-ezo(ip))
+        dbx=abs(pgroup%bx(ip0)-bxo(ip))
+        dby=abs(pgroup%by(ip0)-byo(ip))
+        dbz=abs(pgroup%bz(ip0)-bzo(ip))
+        denorm = defieldmax*sqrt(exo(ip)*exo(ip)+eyo(ip)*eyo(ip)+ezo(ip)*ezo(ip))
+        dbnorm = dbfieldmax*sqrt(bxo(ip)*bxo(ip)+byo(ip)*byo(ip)+bzo(ip)*bzo(ip))
+        ldfield_below_threshold = dex<=denorm .and. dey<=denorm .and. dez<=denorm .and.
+     &                            dbx<=dbnorm .and. dby<=dbnorm .and. dbz<=dbnorm
+        if (lupOK) then
+c         --- the threshold on field change is lower for increasing time step in order to
+c         --- minimize particles changing time steps back and forth due to constant crossing of threshold
+          denorm_up = denorm*real(pgroup%ndts(is-1))/pgroup%ndts(is+1-1)
+          dbnorm_up = dbnorm*real(pgroup%ndts(is-1))/pgroup%ndts(is+1-1)
+          ldfield_below_threshold_up = dex<=denorm_up .and. dey<=denorm_up .and. dez<=denorm_up .and.
+     &                                 dbx<=dbnorm_up .and. dby<=dbnorm_up .and. dbz<=dbnorm_up
+        endif
+        if (nxc>0) then
+          if (pisnearbycond(ip)>0) then
+            l_pisnearbycond=.true.
+          else
+            l_pisnearbycond=.false.
+          endif
+        end if
+        dd = max(ddx,ddy,ddz)
+c       --- if dd<ccmin or dd>ccmax, register particle for move to group/species with
+c       --- appropriate time step
+        if(ldownOK .and. (dd>courantmax .or. (.not. ldfield_below_threshold) .or. l_pisnearbycond)) then
+c         --- flag to move to group with smaller time step
+          pgroup%pid(ip0,chdtspid) = -1.
+        elseif(lupOK .and. (dd<courantmin .or. (.not. ldfield_below_threshold_up) .or. l_pisnearbycond)) then
+c         --- flag to move to group with larger time step
+          pgroup%pid(ip0,chdtspid) = +1.
+        endif
+      enddo
+
+      if (nxc>0) deallocate(pisnearbycond)
+
+!$OMP MASTER
+      if (lw3dtimesubs) timecheck_cc3d = timecheck_cc3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c============================================================================
+      subroutine sete3d_relativity(np,ex,ey,vbeam)
+      use Subtimersw3d
+      use Constant
+      integer(ISZ):: np
+      real(kind=8):: ex(np),ey(np)
+      real(kind=8):: vbeam
+c Applies the first order relativistic correction to the self E-field.
+
+      real(kind=8):: gammabarisq
+      integer(ISZ):: ip
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      gammabarisq = 1. -  (vbeam/clight)**2
+
+      do ip=1,np
+        ex(ip) = ex(ip)*gammabarisq
+        ey(ip) = ey(ip)*gammabarisq
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timesete3d_relativity = timesete3d_relativity + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c============================================================================
+      subroutine edamp(eomdamp,it,itdamp,center,np,
+     &                 ex,ey,ez,exold,eyold,ezold,exlag,eylag,ezlag)
+      use Subtimersw3d
+      real(kind=8):: eomdamp
+      integer(ISZ):: it,itdamp,np
+      real(kind=8):: ex(np), ey(np), ez(np), exold(np), eyold(np), ezold(np)
+      real(kind=8):: exlag(np), eylag(np), ezlag(np)
+      character(*):: center
+
+c  Computes modified electric field to apply "adjustably damped" mover.
+c  Updates "old" and "lag" qtys only after "fullv" or "halfv" advance,
+c    never after "synchv" since they are needed by the "halfv" to come.
+
+      integer(ISZ):: ip
+      real(kind=8):: exip,eyip,ezip
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (eomdamp == 0.) then
+!$OMP MASTER
+        if (lw3dtimesubs) timeedamp = timeedamp + wtime() - substarttime
+!$OMP END MASTER
+        return
+      endif
+
+c  Protect against doing algebra on garbage; give lag qtys a good start.
+
+      if (it == 1) then
+         do ip = 1, np
+            exold(ip) = ex(ip)
+            eyold(ip) = ey(ip)
+            ezold(ip) = ez(ip)
+            exlag(ip) = ex(ip)
+            eylag(ip) = ey(ip)
+            ezlag(ip) = ez(ip)
+         enddo
+      endif
+
+c  Main loop to set e, and perhaps update old and lag qtys
+
+      if (center == "synchv") then
+c        --- only modify e if late enough that lags are well established
+         if (it >= itdamp) then
+            if (eomdamp > 0.) then
+c              --- second order scheme
+               do ip = 1, np
+                  ex(ip) = 0.5 * ( (2.+0.5*eomdamp)*ex(ip) - exold(ip)
+     &                     + (1. - 0.5*eomdamp)*exlag(ip) )
+                  ey(ip) = 0.5 * ( (2.+0.5*eomdamp)*ey(ip) - eyold(ip)
+     &                     + (1. - 0.5*eomdamp)*eylag(ip) )
+                  ez(ip) = 0.5 * ( (2.+0.5*eomdamp)*ez(ip) - ezold(ip)
+     &                     + (1. - 0.5*eomdamp)*ezlag(ip) )
+               enddo
+            else
+c              --- first order backward biased scheme
+               do ip = 1, np
+                  ex(ip) = (1.-eomdamp)*ex(ip) + eomdamp*exold(ip)
+                  ey(ip) = (1.-eomdamp)*ey(ip) + eomdamp*eyold(ip)
+                  ez(ip) = (1.-eomdamp)*ez(ip) + eomdamp*ezold(ip)
+               enddo
+            endif
+         endif
+      else
+c        --- modify e and update old and lag qtys
+         if (eomdamp > 0.) then
+c           --- second order scheme
+            do ip = 1, np
+               exip = ex(ip)
+               eyip = ey(ip)
+               ezip = ez(ip)
+               ex(ip) = 0.5 * ( (2.+0.5*eomdamp)*ex(ip) - exold(ip)
+     &                  + (1. - 0.5*eomdamp)*exlag(ip) )
+               ey(ip) = 0.5 * ( (2.+0.5*eomdamp)*ey(ip) - eyold(ip)
+     &                  + (1. - 0.5*eomdamp)*eylag(ip) )
+               ez(ip) = 0.5 * ( (2.+0.5*eomdamp)*ez(ip) - ezold(ip)
+     &                  + (1. - 0.5*eomdamp)*ezlag(ip) )
+               exold(ip) = exip
+               eyold(ip) = eyip
+               ezold(ip) = ezip
+               exlag(ip) = (1.-0.5*eomdamp)*exip + 0.5*eomdamp*exlag(ip)
+               eylag(ip) = (1.-0.5*eomdamp)*eyip + 0.5*eomdamp*eylag(ip)
+               ezlag(ip) = (1.-0.5*eomdamp)*ezip + 0.5*eomdamp*ezlag(ip)
+            enddo
+         else
+c           --- first order backward biased scheme
+            do ip = 1, np
+               exip = ex(ip)
+               eyip = ey(ip)
+               ezip = ez(ip)
+               ex(ip) = (1.-eomdamp)*ex(ip) + eomdamp*exold(ip)
+               ey(ip) = (1.-eomdamp)*ey(ip) + eomdamp*eyold(ip)
+               ez(ip) = (1.-eomdamp)*ez(ip) + eomdamp*ezold(ip)
+               exold(ip) = exip
+               eyold(ip) = eyip
+               ezold(ip) = ezip
+            enddo
+         endif
+c        --- don't use modified field if too early in run
+         if (it < itdamp+1) then
+            do ip = 1, np
+               ex(ip) = exold(ip)
+               ey(ip) = eyold(ip)
+               ez(ip) = ezold(ip)
+            enddo
+         endif
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeedamp = timeedamp + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c============================================================================
+      subroutine bendez3d(np,xp,zp,ez,bendres,bendradi,bends,bnezflag,linbend)
+      use Subtimersw3d
+      integer(ISZ):: np
+      real(kind=8):: xp(np), zp(np), ez(np), bendres(np), bendradi(np)
+      logical(ISZ):: bends, bnezflag, linbend
+
+c  Corrects axial electric field at particle position for warped geometry
+c  via multiplying by r_star/r = 1 - x/r, in a residence-corrected way;
+c  at smaller radii, zones are closer together, so field is larger.
+
+      integer(ISZ):: ip
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (.not. (bends.and.bnezflag) .or. .not. linbend) then
+!$OMP MASTER
+        if (lw3dtimesubs) timebendez3d = timebendez3d + wtime() - substarttime
+!$OMP END MASTER
+        return
+      endif
+
+      do ip=1,np
+         ez(ip) = ez(ip)*(1. - bendres(ip)*xp(ip)/(bendradi(ip) + xp(ip)))
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timebendez3d = timebendez3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine sete3d(phi1d,selfe,np,xp,yp,zp,zgrid,xmmin,ymmin,zmmin,
+     &                  dx,dy,dz,nx,ny,nz,nxguardphi,nyguardphi,nzguardphi,
+     &                  nxguarde,nyguarde,nzguarde,
+     &                  efetch,depos_order,ex,ey,ez,l2symtry,l4symtry,
+     &                  lcylindrical)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,ny,nz
+      integer(ISZ):: nxguardphi,nyguardphi,nzguardphi
+      integer(ISZ):: nxguarde,nyguarde,nzguarde
+      real(kind=8):: zgrid,xmmin,ymmin,zmmin,dx,dy,dz
+      real(kind=8):: phi1d(0:*)
+      real(kind=8):: selfe(3,-nxguarde:nx+nxguarde,
+     &                       -nyguarde:ny+nyguarde,
+     &                       -nzguarde:nz+nzguarde)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      integer(ISZ):: efetch,depos_order(0:2)
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c Gets self electric field for particles
+c Calls the appropriate routine based on the values of depos_order
+c efetch, and ny.
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (ALL(depos_order == 1)) then
+
+        if (efetch == 1 .or. efetch == 6) then
+
+          if (ny == 0) then
+            call sete_from_phi_linear2d(phi1d,np,xp,yp,zp,zgrid,xmmin,zmmin,
+     &                                  dx,dz,nx,nz,nxguardphi,nzguardphi,
+     &                                  ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+          else
+            call sete_from_phi_linear3d(phi1d,np,xp,yp,zp,zgrid,
+     &                                  xmmin,ymmin,zmmin,
+     &                                  dx,dy,dz,nx,ny,nz,
+     &                                  nxguardphi,nyguardphi,nzguardphi,
+     &                                  ex,ey,ez,l2symtry,l4symtry)
+          endif
+
+        elseif (efetch == 2) then
+
+          call kaboom("sete3d: ERROR: efetch=2 is no longer supported")
+
+        elseif (efetch == 3) then
+c         --- This uses the precalculated selfe instead of doing
+c         --- the finite differences here.
+          if (ny == 0) then
+            call sete_from_e_linear2d(selfe,np,xp,yp,zp,zgrid,xmmin,zmmin,
+     &                                dx,dz,nx,nz,nxguarde,nzguarde,
+     &                                ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+          else
+            call sete_from_e_linear3d(selfe,np,xp,yp,zp,zgrid,xmmin,ymmin,zmmin,
+     &                                dx,dy,dz,nx,ny,nz,
+     &                                nxguarde,nyguarde,nzguarde,
+     &                                ex,ey,ez,l2symtry,l4symtry)
+          endif
+
+        elseif (efetch == 4) then
+c       --- Energy conserving
+          if (ny == 0) then
+            call sete_from_phi_linearenergyconserving2d(phi1d,np,xp,yp,zp,
+     &                                  zgrid,xmmin,zmmin,
+     &                                  dx,dz,nx,nz,nxguardphi,nzguardphi,
+     &                                  ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+          else
+            call sete_from_phi_linearenergyconserving3d(phi1d,np,xp,yp,zp,zgrid,
+     &                                        xmmin,ymmin,zmmin,
+     &                                        dx,dy,dz,nx,ny,nz,
+     &                                        nxguardphi,nyguardphi,nzguardphi,
+     &                                        ex,ey,ez,l2symtry,l4symtry)
+          endif
+        endif
+
+      else if (ALL(depos_order == 2)) then
+
+c       --- Fetch with a 2nd order spline
+        if (efetch == 4) then
+          if (ny == 0) then
+            call sete_from_e_order2_energyconserving2d(phi1d,np,xp,yp,zp,zgrid,
+     &                                 xmmin,zmmin,
+     &                                 dx,dz,nx,nz,
+     &                                 nxguardphi,nzguardphi,
+     &                                 ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+          else
+            call sete_from_e_order2_energyconserving3d(phi1d,np,xp,yp,zp,zgrid,
+     &                                 xmmin,ymmin,zmmin,
+     &                                 dx,dy,dz,nx,ny,nz,
+     &                                 nxguardphi,nyguardphi,nzguardphi,
+     &                                 ex,ey,ez,l2symtry,l4symtry)
+          endif
+
+        else
+
+c         --- All other values of efetch use the momentum conserving version.
+          if (ny == 0) then
+            call sete_from_e_order2_2d(selfe,np,xp,yp,zp,zgrid,xmmin,zmmin,
+     &                                 dx,dz,nx,nz,
+     &                                 nxguarde,nzguarde,
+     &                                 ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+          else
+            call sete_from_e_order2_3d(selfe,np,xp,yp,zp,zgrid,
+     &                                 xmmin,ymmin,zmmin,
+     &                                 dx,dy,dz,nx,ny,nz,
+     &                                 nxguarde,nyguarde,nzguarde,
+     &                                 ex,ey,ez,l2symtry,l4symtry)
+          endif
+
+        endif
+
+      else
+        call kaboom('sete3d: depos_order value not supported with electrostatic solver')
+        return
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timesete3d = timesete3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine sete_from_phi_linear2d(phi1d,np,xp,yp,zp,zgrid,xmmin,zmmin,
+     &                                  dx,dz,nx,nz,nxguardphi,nzguardphi,
+     &                                  ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+      integer(ISZ):: np,nx,nz
+      integer(ISZ):: nxguardphi,nzguardphi
+      real(kind=8):: zgrid,xmmin,zmmin,dx,dz
+      real(kind=8):: phi1d(0:*)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c Gets self electric field for particles
+c The field is obtained from directly finite differencing phi for each
+c particle, using linear weighting.
+
+c Note that the phi1d passed in is assumed to start at phi(-1,-1,-1).
+
+c Algorithm notes: phi array is dimensioned (-1:nx+1,-1:ny+1,-1:nz+1) outside,
+c but is made one dimensional in this routine
+c so cell index into 1d phi array for vectorized deposition is:
+c    i + j*(nx+1) + k*(nx+1)*(ny+1)
+c The field is:
+c    Ex = u0*w0*ex(i  ,k)
+c       + u1*w0*ex(i+1,k)
+c       + ...
+c where:
+c    ex(i,k) = (phi(i-1,k) - phi(i+1,k))/(2*dx)
+
+      integer(ISZ):: nnx,ip,i,k,ind0,inext,knext
+      real(kind=8):: dxi,dzi,tdxi,tdzi,u0,u1,w0,w1,xsign
+      integer(ISZ):: ox,sox
+      real(kind=8):: sx,ext,eyt,ezt
+      real(kind=8):: x,xnext
+      integer(ISZ):: noff(32)
+      save noff
+
+      nnx  = nx + 1 + 2*nxguardphi
+
+c  nnx is added to all offsets to account for
+c  the fact that the phi1d passed begins at phi(0,0,-1), so the location
+c  of phi(0,0,0) is equivalent to phi1d(nnx).
+
+      noff = 0
+      noff(1)  = - nnx
+      noff(2)  = - nnx   + 1
+      noff(7)  =                  - 1
+      noff(8)  =                  + 0
+      noff(9)  =                  + 1
+      noff(10) =                  + 2
+      noff(19) = + nnx            - 1
+      noff(20) = + nnx
+      noff(21) = + nnx            + 1
+      noff(22) = + nnx            + 2
+      noff(29) = + 2*nnx
+      noff(30) = + 2*nnx          + 1
+
+      noff = noff + nxguardphi + nnx*nzguardphi
+
+c  Evaluation of E, vectorized over particles
+      tdxi = 1. / (2.*dx)
+      tdzi = 1. / (2.*dz)
+      dxi = 1./dx
+      dzi = 1./dz
+      eyt = 0.
+
+      if ((.not. (l2symtry .or. l4symtry)) .or. lcylindrical) then
+        if (lcylindrical) then
+          xnext = sqrt(xp(1)**2 + yp(1)**2)
+        else
+          xnext = xp(1)
+        endif
+        inext = (xnext - xmmin)*dxi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          x = xnext
+          if (ip < np) then
+            if (lcylindrical) then
+              xnext = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+            else
+              xnext = xp(ip+1)
+            endif
+            inext = (xnext    - xmmin)*dxi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + k*nnx
+
+          u1 = (x      - xmmin)*dxi - i
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          w0 = 1. - w1
+
+          ext=tdxi*(u0*w0*(phi1d(noff( 7)+ind0) - phi1d(noff( 9)+ind0))
+     &            + u1*w0*(phi1d(noff( 8)+ind0) - phi1d(noff(10)+ind0))
+     &            + u0*w1*(phi1d(noff(19)+ind0) - phi1d(noff(21)+ind0))
+     &            + u1*w1*(phi1d(noff(20)+ind0) - phi1d(noff(22)+ind0)))
+
+          ezt=tdzi*(u0*w0*(phi1d(noff( 1)+ind0) - phi1d(noff(20)+ind0))
+     &            + u1*w0*(phi1d(noff( 2)+ind0) - phi1d(noff(21)+ind0))
+     &            + u0*w1*(phi1d(noff( 8)+ind0) - phi1d(noff(29)+ind0))
+     &            + u1*w1*(phi1d(noff( 9)+ind0) - phi1d(noff(30)+ind0)))
+
+          if (lcylindrical) then
+            if (x > 0.) then
+              eyt = ext*yp(ip)/x
+              ext = ext*xp(ip)/x
+            else
+              ext = ext
+              eyt = 0.
+            endif
+          endif
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set offsets for indices on axis of symmetry.  The offsets change
+c       --- the sign of the grid cells which are on the negative side
+c       --- of the axis of symmetry.
+        sox = 0
+        if (l4symtry) sox = 2
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = (abs(xp(1) - xmmin))*dxi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          if (ip < np) then
+            inext = (abs(xp(ip+1) - xmmin))*dxi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + k*nnx
+
+          u1 = (abs(xp(ip) - xmmin))*dxi - i
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          w0 = 1. - w1
+
+c         --- Set offsets for points on symmetry axis of grid.  The offset
+c         --- for points off the axis is zero.
+          ox = 0
+          if (i == 0 .and. xmmin == 0.) ox = sox
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = tdxi
+          if (xp(ip) < 0.) xsign = sx*tdxi
+          ext=xsign*(u0*w0*(phi1d(noff( 7)+ind0+ox)-phi1d(noff( 9)+ind0))
+     &             + u1*w0*(phi1d(noff( 8)+ind0   )-phi1d(noff(10)+ind0))
+     &             + u0*w1*(phi1d(noff(19)+ind0+ox)-phi1d(noff(21)+ind0))
+     &             + u1*w1*(phi1d(noff(20)+ind0   )-phi1d(noff(22)+ind0)))
+
+          ezt=tdzi*(u0*w0*(phi1d(noff( 1)+ind0) - phi1d(noff(20)+ind0))
+     &            + u1*w0*(phi1d(noff( 2)+ind0) - phi1d(noff(21)+ind0))
+     &            + u0*w1*(phi1d(noff( 8)+ind0) - phi1d(noff(29)+ind0))
+     &            + u1*w1*(phi1d(noff( 9)+ind0) - phi1d(noff(30)+ind0)))
+
+          ex(ip) = ex(ip) + ext
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_phi_linear3d(phi1d,np,xp,yp,zp,zgrid,
+     &                                  xmmin,ymmin,zmmin,
+     &                                  dx,dy,dz,nx,ny,nz,
+     &                                  nxguardphi,nyguardphi,nzguardphi,
+     &                                  ex,ey,ez,l2symtry,l4symtry)
+      integer(ISZ):: np,nx,ny,nz
+      integer(ISZ):: nxguardphi,nyguardphi,nzguardphi
+      real(kind=8):: zgrid,xmmin,ymmin,zmmin,dx,dy,dz
+      real(kind=8):: phi1d(0:*)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry
+
+c Gets self electric field for particles
+c The field is obtained from directly finite differencing phi for each
+c particle, using linear weighting.
+
+c Note that the phi1d passed in is assumed to start at phi(-1,-1,-1).
+
+c Algorithm notes: phi array is dimensioned (-1:nx+1,-1:ny+1,-1:nz+1) outside,
+c but is made one dimensional in this routine
+c so cell index into 1d phi array for vectorized deposition is:
+c    i + j*(nx+1) + k*(nx+1)*(ny+1)
+c The field is:
+c    Ex = u0*v0*w0*ex(i  ,j  ,k  )
+c       + u1*v0*w0*ex(i+1,j  ,k  )
+c       + u0*v1*w0*ex(i  ,j+1,k  )
+c       + ...
+c where:
+c    ex(i,j,k) = (phi(i-1,j,k) - phi(i+1,j,k))/(2*dx)
+
+      integer(ISZ):: nnx,nnxy,ip,i,j,k,ind0,inext,jnext,knext
+      real(kind=8):: dxi,dyi,dzi,tdxi,tdyi,tdzi,u0,u1,v0,v1,w0,w1,ysign,xsign
+      integer(ISZ):: ox,oy,sox,soy
+      real(kind=8):: sx,sy,ext,eyt,ezt
+      integer(ISZ):: noff(32)
+
+      nnx  = nx + 1 + 2*nxguardphi
+      nnxy = (nx + 1 + 2*nxguardphi)*(ny + 1 + 2*nyguardphi)
+
+c  nnxy is added to all offsets to account for
+c  the fact that the phi1d passed begins at phi(0,0,-1), so the location
+c  of phi(0,0,0) is equivalent to phi1d(nnxy).
+
+      noff(1)  = - nnxy
+      noff(2)  = - nnxy   + 1
+      noff(3)  = - nnxy   + nnx
+      noff(4)  = - nnxy   + nnx   + 1
+      noff(5)  =          - nnx
+      noff(6)  =          - nnx   + 1
+      noff(7)  =                  - 1
+      noff(8)  =                  + 0
+      noff(9)  =                  + 1
+      noff(10) =                  + 2
+      noff(11) =          + nnx   - 1
+      noff(12) =          + nnx
+      noff(13) =          + nnx   + 1
+      noff(14) =          + nnx   + 2
+      noff(15) =          + 2*nnx
+      noff(16) =          + 2*nnx + 1
+      noff(17) = + nnxy   - nnx
+      noff(18) = + nnxy   - nnx   + 1
+      noff(19) = + nnxy           - 1
+      noff(20) = + nnxy
+      noff(21) = + nnxy           + 1
+      noff(22) = + nnxy           + 2
+      noff(23) = + nnxy   + nnx   - 1
+      noff(24) = + nnxy   + nnx
+      noff(25) = + nnxy   + nnx   + 1
+      noff(26) = + nnxy   + nnx   + 2
+      noff(27) = + nnxy   + 2*nnx
+      noff(28) = + nnxy   + 2*nnx + 1
+      noff(29) = + 2*nnxy
+      noff(30) = + 2*nnxy         + 1
+      noff(31) = + 2*nnxy + nnx
+      noff(32) = + 2*nnxy + nnx   + 1
+
+      noff = noff + nxguardphi + nnx*nyguardphi + nnxy*nzguardphi
+
+c  Evaluation of E, vectorized over particles
+      tdxi = 1. / (2.*dx)
+      tdyi = 1. / (2.*dy)
+      tdzi = 1. / (2.*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (.not. (l2symtry .or. l4symtry)) then
+        inext = (xp(1) - xmmin)*dxi
+        jnext = (yp(1) - ymmin)*dyi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = (xp(ip+1) - xmmin)*dxi
+            jnext = (yp(ip+1) - ymmin)*dyi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + j*nnx + k*nnxy
+
+          u1 = (xp(ip) - xmmin)*dxi - i
+          v1 = (yp(ip) - ymmin)*dyi - j
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+
+          ext=tdxi*(u0*v0*w0*(phi1d(noff( 7)+ind0) - phi1d(noff( 9)+ind0))
+     &            + u1*v0*w0*(phi1d(noff( 8)+ind0) - phi1d(noff(10)+ind0))
+     &            + u0*v1*w0*(phi1d(noff(11)+ind0) - phi1d(noff(13)+ind0))
+     &            + u1*v1*w0*(phi1d(noff(12)+ind0) - phi1d(noff(14)+ind0))
+     &            + u0*v0*w1*(phi1d(noff(19)+ind0) - phi1d(noff(21)+ind0))
+     &            + u1*v0*w1*(phi1d(noff(20)+ind0) - phi1d(noff(22)+ind0))
+     &            + u0*v1*w1*(phi1d(noff(23)+ind0) - phi1d(noff(25)+ind0))
+     &            + u1*v1*w1*(phi1d(noff(24)+ind0) - phi1d(noff(26)+ind0)))
+
+          eyt=tdyi*(u0*v0*w0*(phi1d(noff( 5)+ind0) - phi1d(noff(12)+ind0))
+     &            + u1*v0*w0*(phi1d(noff( 6)+ind0) - phi1d(noff(13)+ind0))
+     &            + u0*v1*w0*(phi1d(noff( 8)+ind0) - phi1d(noff(15)+ind0))
+     &            + u1*v1*w0*(phi1d(noff( 9)+ind0) - phi1d(noff(16)+ind0))
+     &            + u0*v0*w1*(phi1d(noff(17)+ind0) - phi1d(noff(24)+ind0))
+     &            + u1*v0*w1*(phi1d(noff(18)+ind0) - phi1d(noff(25)+ind0))
+     &            + u0*v1*w1*(phi1d(noff(20)+ind0) - phi1d(noff(27)+ind0))
+     &            + u1*v1*w1*(phi1d(noff(21)+ind0) - phi1d(noff(28)+ind0)))
+
+          ezt=tdzi*(u0*v0*w0*(phi1d(noff( 1)+ind0) - phi1d(noff(20)+ind0))
+     &            + u1*v0*w0*(phi1d(noff( 2)+ind0) - phi1d(noff(21)+ind0))
+     &            + u0*v1*w0*(phi1d(noff( 3)+ind0) - phi1d(noff(24)+ind0))
+     &            + u1*v1*w0*(phi1d(noff( 4)+ind0) - phi1d(noff(25)+ind0))
+     &            + u0*v0*w1*(phi1d(noff( 8)+ind0) - phi1d(noff(29)+ind0))
+     &            + u1*v0*w1*(phi1d(noff( 9)+ind0) - phi1d(noff(30)+ind0))
+     &            + u0*v1*w1*(phi1d(noff(12)+ind0) - phi1d(noff(31)+ind0))
+     &            + u1*v1*w1*(phi1d(noff(13)+ind0) - phi1d(noff(32)+ind0)))
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set offsets for indices on axis of symmetry.  The offsets change
+c       --- the sign of the grid cells which are on the negative side
+c       --- of the axis of symmetry.
+        soy = 2*nnx
+        sox = 0
+        if (l4symtry) sox = 2
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sy = -1.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = (abs(xp(1) - xmmin))*dxi
+        jnext = (abs(yp(1) - ymmin))*dyi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = (abs(xp(ip+1) - xmmin))*dxi
+            jnext = (abs(yp(ip+1) - ymmin))*dyi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + j*nnx + k*nnxy
+
+          u1 = (abs(xp(ip) - xmmin))*dxi - i
+          v1 = (abs(yp(ip) - ymmin))*dyi - j
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+
+c         --- Set offsets for points on symmetry axis of grid.  The offset
+c         --- for points off the axis is zero.
+          ox = 0
+          oy = 0
+          if (i == 0 .and. xmmin == 0.) ox = sox
+          if (j == 0 .and. ymmin == 0.) oy = soy
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = tdxi
+          ysign = tdyi
+          if (xp(ip) < 0.) xsign = sx*tdxi
+          if (yp(ip) < 0.) ysign = sy*tdyi
+          ext=xsign*(u0*v0*w0*(phi1d(noff( 7)+ind0+ox)-phi1d(noff( 9)+ind0))
+     &             + u1*v0*w0*(phi1d(noff( 8)+ind0   )-phi1d(noff(10)+ind0))
+     &             + u0*v1*w0*(phi1d(noff(11)+ind0+ox)-phi1d(noff(13)+ind0))
+     &             + u1*v1*w0*(phi1d(noff(12)+ind0   )-phi1d(noff(14)+ind0))
+     &             + u0*v0*w1*(phi1d(noff(19)+ind0+ox)-phi1d(noff(21)+ind0))
+     &             + u1*v0*w1*(phi1d(noff(20)+ind0   )-phi1d(noff(22)+ind0))
+     &             + u0*v1*w1*(phi1d(noff(23)+ind0+ox)-phi1d(noff(25)+ind0))
+     &             + u1*v1*w1*(phi1d(noff(24)+ind0   )-phi1d(noff(26)+ind0)))
+
+          eyt=ysign*(u0*v0*w0*(phi1d(noff( 5)+ind0+oy)-phi1d(noff(12)+ind0))
+     &             + u1*v0*w0*(phi1d(noff( 6)+ind0+oy)-phi1d(noff(13)+ind0))
+     &             + u0*v1*w0*(phi1d(noff( 8)+ind0   )-phi1d(noff(15)+ind0))
+     &             + u1*v1*w0*(phi1d(noff( 9)+ind0   )-phi1d(noff(16)+ind0))
+     &             + u0*v0*w1*(phi1d(noff(17)+ind0+oy)-phi1d(noff(24)+ind0))
+     &             + u1*v0*w1*(phi1d(noff(18)+ind0+oy)-phi1d(noff(25)+ind0))
+     &             + u0*v1*w1*(phi1d(noff(20)+ind0   )-phi1d(noff(27)+ind0))
+     &             + u1*v1*w1*(phi1d(noff(21)+ind0   )-phi1d(noff(28)+ind0)))
+
+          ezt=tdzi*(u0*v0*w0*(phi1d(noff( 1)+ind0) - phi1d(noff(20)+ind0))
+     &            + u1*v0*w0*(phi1d(noff( 2)+ind0) - phi1d(noff(21)+ind0))
+     &            + u0*v1*w0*(phi1d(noff( 3)+ind0) - phi1d(noff(24)+ind0))
+     &            + u1*v1*w0*(phi1d(noff( 4)+ind0) - phi1d(noff(25)+ind0))
+     &            + u0*v0*w1*(phi1d(noff( 8)+ind0) - phi1d(noff(29)+ind0))
+     &            + u1*v0*w1*(phi1d(noff( 9)+ind0) - phi1d(noff(30)+ind0))
+     &            + u0*v1*w1*(phi1d(noff(12)+ind0) - phi1d(noff(31)+ind0))
+     &            + u1*v1*w1*(phi1d(noff(13)+ind0) - phi1d(noff(32)+ind0)))
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_e_linear2d(selfe,np,xp,yp,zp,zgrid,xmmin,zmmin,
+     &                                dx,dz,nx,nz,nxguarde,nzguarde,
+     &                                ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,nz
+      integer(ISZ):: nxguarde,nzguarde
+      real(kind=8):: zgrid,xmmin,zmmin,dx,dz
+      real(kind=8):: selfe(3,-nxguarde:nx+nxguarde,
+     &                       -nzguarde:nz+nzguarde)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c Gets self electric field for particles
+c The field is obtained from linear interpolation from selfe.
+
+c The field is:
+c    Ex = u0*w0*ex(i  ,k  )
+c       + u1*w0*ex(i+1,k  )
+c       + ...
+
+      integer(ISZ):: ip,i,k,inext,knext
+      real(kind=8):: dxi,dzi,tdxi,tdzi,u0,u1,w0,w1,xsign
+      integer(ISZ):: ox,sox
+      real(kind=8):: sx,ext,eyt,ezt
+      real(kind=8):: xi,zk,xinext,zknext
+      real(kind=8):: x,xnext
+
+c  Evaluation of E, vectorized over particles
+      tdxi = 1. / (2.*dx)
+      tdzi = 1. / (2.*dz)
+      dxi = 1./dx
+      dzi = 1./dz
+      eyt = 0.
+
+c     --- This uses the precalculated selfe instead of doing
+c     --- the finite differences here..
+
+      if ((.not. (l2symtry .or. l4symtry)) .or. lcylindrical) then
+        if (lcylindrical) then
+          xnext = sqrt(xp(1)**2 + yp(1)**2)
+        else
+          xnext = xp(1)
+        endif
+        xinext = (xnext - xmmin)*dxi
+        zknext = (zp(1) - zgrid - zmmin)*dzi
+        inext = xinext
+        knext = zknext
+
+        do ip = 1, np
+
+          x = xnext
+          xi = xinext
+          zk = zknext
+          i = inext
+          k = knext
+          if (ip < np) then
+            if (lcylindrical) then
+              xnext = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+            else
+              xnext = xp(ip+1)
+            endif
+            xinext = (xnext - xmmin)*dxi
+            zknext = (zp(ip+1) - zgrid - zmmin)*dzi
+            inext = xinext
+            knext = zknext
+          endif
+
+          if (xi < 0. .or. xi > nx .or.
+     &        zk < 0. .or. zk > nz) cycle
+
+          u1 = xi - i
+          w1 = zk - k
+
+          u0 = 1. - u1
+          w0 = 1. - w1
+
+          ext = u0*w0*selfe(1,i  ,k  )
+     &        + u1*w0*selfe(1,i+1,k  )
+     &        + u0*w1*selfe(1,i  ,k+1)
+     &        + u1*w1*selfe(1,i+1,k+1)
+
+          ezt = u0*w0*selfe(3,i  ,k  )
+     &        + u1*w0*selfe(3,i+1,k  )
+     &        + u0*w1*selfe(3,i  ,k+1)
+     &        + u1*w1*selfe(3,i+1,k+1)
+
+          if (lcylindrical) then
+            if (x > 0.) then
+              eyt = ext*yp(ip)/x
+              ext = ext*xp(ip)/x
+            else
+              ext = ext
+              eyt = 0.
+            endif
+          endif
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        xinext = (abs(xp(1) - xmmin))*dxi
+        zknext = (zp(1) - zgrid - zmmin)*dzi
+        inext = xinext
+        knext = zknext
+
+        do ip = 1, np
+
+          xi = xinext
+          zk = zknext
+          i = inext
+          k = knext
+
+          if (ip < np) then
+            xinext = (abs(xp(ip+1) - xmmin))*dxi
+            zknext = (zp(ip+1) - zgrid - zmmin)*dzi
+            inext = xinext
+            knext = zknext
+          endif
+
+          if (xi < 0. .or. xi > nx .or.
+     &        zk < 0. .or. zk > nz) cycle
+
+          u1 = xi - i
+          w1 = zk - k
+
+          u0 = 1. - u1
+          w0 = 1. - w1
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = +1.
+          if (xp(ip) < 0.) xsign = sx
+
+          ext = u0*w0*selfe(1,i  ,k  )
+     &        + u1*w0*selfe(1,i+1,k  )
+     &        + u0*w1*selfe(1,i  ,k+1)
+     &        + u1*w1*selfe(1,i+1,k+1)
+
+          ezt = u0*w0*selfe(3,i  ,k  )
+     &        + u1*w0*selfe(3,i+1,k  )
+     &        + u0*w1*selfe(3,i  ,k+1)
+     &        + u1*w1*selfe(3,i+1,k+1)
+
+          ex(ip) = ex(ip) + ext*xsign
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_e_linear3d(selfe,np,xp,yp,zp,zgrid,xmmin,ymmin,zmmin,
+     &                                dx,dy,dz,nx,ny,nz,
+     &                                nxguarde,nyguarde,nzguarde,
+     &                                ex,ey,ez,l2symtry,l4symtry)
+      integer(ISZ):: np,nx,ny,nz
+      integer(ISZ):: nxguarde,nyguarde,nzguarde
+      real(kind=8):: zgrid,xmmin,ymmin,zmmin,dx,dy,dz
+      real(kind=8):: selfe(3,-nxguarde:nx+nxguarde,
+     &                       -nyguarde:ny+nyguarde,
+     &                       -nzguarde:nz+nzguarde)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry
+
+c Gets self electric field for particles
+c The field is obtained from linear interpolation from selfe.
+
+c The field is:
+c    Ex = u0*v0*w0*ex(i  ,j  ,k  )
+c       + u1*v0*w0*ex(i+1,j  ,k  )
+c       + u0*v1*w0*ex(i  ,j+1,k  )
+c       + ...
+
+      integer(ISZ):: ip,i,j,k,inext,jnext,knext
+      real(kind=8):: dxi,dyi,dzi,tdxi,tdyi,tdzi,u0,u1,v0,v1,w0,w1,ysign,xsign
+      integer(ISZ):: ox,oy,sox,soy
+      real(kind=8):: sx,sy,ext,eyt,ezt
+      real(kind=8):: xi,yj,zk,xinext,yjnext,zknext
+
+c  Evaluation of E, vectorized over particles
+      tdxi = 1. / (2.*dx)
+      tdyi = 1. / (2.*dy)
+      tdzi = 1. / (2.*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+c     --- This uses the precalculated selfe instead of doing
+c     --- the finite differences here..
+
+      if (.not. (l2symtry .or. l4symtry)) then
+        xinext = (xp(1) - xmmin)*dxi
+        yjnext = (yp(1) - ymmin)*dyi
+        zknext = (zp(1) - zgrid - zmmin)*dzi
+        inext = xinext
+        jnext = yjnext
+        knext = zknext
+
+        do ip = 1, np
+
+          xi = xinext
+          yj = yjnext
+          zk = zknext
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            xinext = (xp(ip+1) - xmmin)*dxi
+            yjnext = (yp(ip+1) - ymmin)*dyi
+            zknext = (zp(ip+1) - zgrid - zmmin)*dzi
+            inext = xinext
+            jnext = yjnext
+            knext = zknext
+          endif
+
+          if (xi < 0. .or. xi > nx .or.
+     &        yj < 0. .or. yj > ny .or.
+     &        zk < 0. .or. zk > nz) cycle
+
+          u1 = xi - i
+          v1 = yj - j
+          w1 = zk - k
+
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+
+          ext = u0*v0*w0*selfe(1,i  ,j  ,k  )
+     &        + u1*v0*w0*selfe(1,i+1,j  ,k  )
+     &        + u0*v1*w0*selfe(1,i  ,j+1,k  )
+     &        + u1*v1*w0*selfe(1,i+1,j+1,k  )
+     &        + u0*v0*w1*selfe(1,i  ,j  ,k+1)
+     &        + u1*v0*w1*selfe(1,i+1,j  ,k+1)
+     &        + u0*v1*w1*selfe(1,i  ,j+1,k+1)
+     &        + u1*v1*w1*selfe(1,i+1,j+1,k+1)
+
+          eyt = u0*v0*w0*selfe(2,i  ,j  ,k  )
+     &        + u1*v0*w0*selfe(2,i+1,j  ,k  )
+     &        + u0*v1*w0*selfe(2,i  ,j+1,k  )
+     &        + u1*v1*w0*selfe(2,i+1,j+1,k  )
+     &        + u0*v0*w1*selfe(2,i  ,j  ,k+1)
+     &        + u1*v0*w1*selfe(2,i+1,j  ,k+1)
+     &        + u0*v1*w1*selfe(2,i  ,j+1,k+1)
+     &        + u1*v1*w1*selfe(2,i+1,j+1,k+1)
+
+          ezt = u0*v0*w0*selfe(3,i  ,j  ,k  )
+     &        + u1*v0*w0*selfe(3,i+1,j  ,k  )
+     &        + u0*v1*w0*selfe(3,i  ,j+1,k  )
+     &        + u1*v1*w0*selfe(3,i+1,j+1,k  )
+     &        + u0*v0*w1*selfe(3,i  ,j  ,k+1)
+     &        + u1*v0*w1*selfe(3,i+1,j  ,k+1)
+     &        + u0*v1*w1*selfe(3,i  ,j+1,k+1)
+     &        + u1*v1*w1*selfe(3,i+1,j+1,k+1)
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sy = -1.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        xinext = (abs(xp(1) - xmmin))*dxi
+        yjnext = (abs(yp(1) - ymmin))*dyi
+        zknext = (zp(1) - zgrid - zmmin)*dzi
+        inext = xinext
+        jnext = yjnext
+        knext = zknext
+
+        do ip = 1, np
+
+          xi = xinext
+          yj = yjnext
+          zk = zknext
+          i = inext
+          j = jnext
+          k = knext
+
+          if (ip < np) then
+            xinext = (abs(xp(ip+1) - xmmin))*dxi
+            yjnext = (abs(yp(ip+1) - ymmin))*dyi
+            zknext = (zp(ip+1) - zgrid - zmmin)*dzi
+            inext = xinext
+            jnext = yjnext
+            knext = zknext
+          endif
+
+          if (xi < 0. .or. xi > nx .or.
+     &        yj < 0. .or. yj > ny .or.
+     &        zk < 0. .or. zk > nz) cycle
+
+          u1 = xi - i
+          v1 = yj - j
+          w1 = zk - k
+
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = +1.
+          ysign = +1.
+          if (xp(ip) < 0.) xsign = sx
+          if (yp(ip) < 0.) ysign = sy
+
+          ext = xsign*(u0*v0*w0*selfe(1,i  ,j  ,k  )
+     &               + u1*v0*w0*selfe(1,i+1,j  ,k  )
+     &               + u0*v1*w0*selfe(1,i  ,j+1,k  )
+     &               + u1*v1*w0*selfe(1,i+1,j+1,k  )
+     &               + u0*v0*w1*selfe(1,i  ,j  ,k+1)
+     &               + u1*v0*w1*selfe(1,i+1,j  ,k+1)
+     &               + u0*v1*w1*selfe(1,i  ,j+1,k+1)
+     &               + u1*v1*w1*selfe(1,i+1,j+1,k+1))
+
+          eyt = ysign*(u0*v0*w0*selfe(2,i  ,j  ,k  )
+     &               + u1*v0*w0*selfe(2,i+1,j  ,k  )
+     &               + u0*v1*w0*selfe(2,i  ,j+1,k  )
+     &               + u1*v1*w0*selfe(2,i+1,j+1,k  )
+     &               + u0*v0*w1*selfe(2,i  ,j  ,k+1)
+     &               + u1*v0*w1*selfe(2,i+1,j  ,k+1)
+     &               + u0*v1*w1*selfe(2,i  ,j+1,k+1)
+     &               + u1*v1*w1*selfe(2,i+1,j+1,k+1))
+
+          ezt =        u0*v0*w0*selfe(3,i  ,j  ,k  )
+     &               + u1*v0*w0*selfe(3,i+1,j  ,k  )
+     &               + u0*v1*w0*selfe(3,i  ,j+1,k  )
+     &               + u1*v1*w0*selfe(3,i+1,j+1,k  )
+     &               + u0*v0*w1*selfe(3,i  ,j  ,k+1)
+     &               + u1*v0*w1*selfe(3,i+1,j  ,k+1)
+     &               + u0*v1*w1*selfe(3,i  ,j+1,k+1)
+     &               + u1*v1*w1*selfe(3,i+1,j+1,k+1)
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_phi_linearenergyconserving2d(phi1d,np,xp,yp,zp,
+     &                                  zgrid,xmmin,zmmin,
+     &                                  dx,dz,nx,nz,nxguardphi,nzguardphi,
+     &                                  ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,nz
+      integer(ISZ):: nxguardphi,nzguardphi
+      real(kind=8):: zgrid,xmmin,zmmin,dx,dz
+      real(kind=8):: phi1d(0:*)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c Gets self electric field for particles
+c The field is obtained from directly finite differencing phi for each
+c particle. NGP weighting is used along the field diretion, otherwise
+c linear weighting is used. This gives energy conservation.
+
+c Note that the phi1d passed in is assumed to start at phi(-1,-1,-1).
+
+      integer(ISZ):: nnx,ip,i,k,ind0,inext,knext
+      real(kind=8):: dxi,dzi,tdxi,tdzi,u0,u1,w0,w1,xsign
+      integer(ISZ):: ox,sox
+      real(kind=8):: sx,ext,eyt,ezt
+      real(kind=8):: xi,zk,xinext,zknext
+      real(kind=8):: x,xnext
+      integer(ISZ):: noff(32)
+
+      nnx  = nx + 1 + 2*nxguardphi
+
+c  nnx is added to all offsets to account for
+c  the fact that the phi1d passed begins at phi(0,0,-1), so the location
+c  of phi(0,0,0) is equivalent to phi1d(nnx).
+
+      noff = 0
+      noff(1)  = - nnx
+      noff(2)  = - nnx   + 1
+      noff(7)  =                  - 1
+      noff(8)  =                  + 0
+      noff(9)  =                  + 1
+      noff(10) =                  + 2
+      noff(19) = + nnx            - 1
+      noff(20) = + nnx
+      noff(21) = + nnx            + 1
+      noff(22) = + nnx            + 2
+      noff(29) = + 2*nnx
+      noff(30) = + 2*nnx          + 1
+
+      noff = noff + nxguardphi + nnx*nzguardphi
+
+c  Evaluation of E, vectorized over particles
+      tdxi = 1. / (2.*dx)
+      tdzi = 1. / (2.*dz)
+      dxi = 1./dx
+      dzi = 1./dz
+      eyt = 0.
+
+      if ((.not. (l2symtry .or. l4symtry)) .or. lcylindrical) then
+        if (lcylindrical) then
+          xnext = sqrt(xp(1)**2 + yp(1)**2)
+        else
+          xnext = xp(1)
+        endif
+        inext = (xnext - xmmin)*dxi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          x = xnext
+          if (ip < np) then
+            if (lcylindrical) then
+              xnext = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+            else
+              xnext = xp(ip+1)
+            endif
+            inext = (xnext    - xmmin)*dxi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + k*nnx
+
+          u1 = (x      - xmmin)*dxi - i
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          w0 = 1. - w1
+
+          ext=dxi*(+w0*phi1d(noff( 8)+ind0)
+     &             -w0*phi1d(noff( 9)+ind0)
+     &             +w1*phi1d(noff(20)+ind0)
+     &             -w1*phi1d(noff(21)+ind0))
+
+          ezt=dzi*(+u0*phi1d(noff( 8)+ind0)
+     &             +u1*phi1d(noff( 9)+ind0)
+     &             -u0*phi1d(noff(20)+ind0)
+     &             -u1*phi1d(noff(21)+ind0))
+
+          if (lcylindrical) then
+            if (x > 0.) then
+              eyt = ext*yp(ip)/x
+              ext = ext*xp(ip)/x
+            else
+              ext = ext
+              eyt = 0.
+            endif
+          endif
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = (abs(xp(1) - xmmin))*dxi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          if (ip < np) then
+            inext = (abs(xp(ip+1) - xmmin))*dxi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + k*nnx
+
+          u1 = (abs(xp(ip) - xmmin))*dxi - i
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          w0 = 1. - w1
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = dxi
+          if (xp(ip) < 0.) xsign = sx*dxi
+
+          ext=xsign*(+w0*phi1d(noff( 8)+ind0)
+     &               -w0*phi1d(noff( 9)+ind0)
+     &               +w1*phi1d(noff(20)+ind0)
+     &               -w1*phi1d(noff(21)+ind0))
+
+          ezt = dzi*(+u0*phi1d(noff( 8)+ind0)
+     &               +u1*phi1d(noff( 9)+ind0)
+     &               -u0*phi1d(noff(20)+ind0)
+     &               -u1*phi1d(noff(21)+ind0))
+
+          ex(ip) = ex(ip) + ext
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_phi_linearenergyconserving3d(phi1d,np,xp,yp,zp,zgrid,
+     &                                        xmmin,ymmin,zmmin,
+     &                                        dx,dy,dz,nx,ny,nz,
+     &                                        nxguardphi,nyguardphi,nzguardphi,
+     &                                        ex,ey,ez,l2symtry,l4symtry)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,ny,nz
+      integer(ISZ):: nxguardphi,nyguardphi,nzguardphi
+      real(kind=8):: zgrid,xmmin,ymmin,zmmin,dx,dy,dz
+      real(kind=8):: phi1d(0:*)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry
+
+c Gets self electric field for particles
+c The field is obtained from directly finite differencing phi for each
+c particle. NGP weighting is used along the field diretion, otherwise
+c linear weighting is used. This gives energy conservation.
+
+      integer(ISZ):: nnx,nnxy,ip,i,j,k,ind0,inext,jnext,knext
+      real(kind=8):: dxi,dyi,dzi,tdxi,tdyi,tdzi,u0,u1,v0,v1,w0,w1,ysign,xsign
+      integer(ISZ):: ox,oy,sox,soy
+      real(kind=8):: sx,sy,ext,eyt,ezt
+      real(kind=8):: xi,yj,zk,xinext,yjnext,zknext
+      integer(ISZ):: noff(32)
+      save noff
+
+      nnx  = nx + 1 + 2*nxguardphi
+      nnxy = (nx + 1 + 2*nxguardphi)*(ny + 1 + 2*nyguardphi)
+
+c  nnxy is added to all offsets to account for
+c  the fact that the phi1d passed begins at phi(0,0,-1), so the location
+c  of phi(0,0,0) is equivalent to phi1d(nnxy).
+
+      noff(8)  =                  + 0
+      noff(9)  =                  + 1
+      noff(12) =          + nnx
+      noff(13) =          + nnx   + 1
+      noff(20) = + nnxy
+      noff(21) = + nnxy           + 1
+      noff(24) = + nnxy   + nnx
+      noff(25) = + nnxy   + nnx   + 1
+
+      noff = noff + nxguardphi + nnx*nyguardphi + nnxy*nzguardphi
+
+c  Evaluation of E, vectorized over particles
+      tdxi = 1. / (2.*dx)
+      tdyi = 1. / (2.*dy)
+      tdzi = 1. / (2.*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (.not. (l2symtry .or. l4symtry)) then
+        inext = (xp(1) - xmmin)*dxi
+        jnext = (yp(1) - ymmin)*dyi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = (xp(ip+1)    - xmmin)*dxi
+            jnext = (yp(ip+1)    - ymmin)*dyi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + j*nnx + k*nnxy
+
+          u1 = (xp(ip) - xmmin)*dxi - i
+          v1 = (yp(ip) - ymmin)*dyi - j
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+
+          ext=dxi*(+v0*w0*phi1d(noff( 8)+ind0)
+     &             -v0*w0*phi1d(noff( 9)+ind0)
+     &             +v1*w0*phi1d(noff(12)+ind0)
+     &             -v1*w0*phi1d(noff(13)+ind0)
+     &             +v0*w1*phi1d(noff(20)+ind0)
+     &             -v0*w1*phi1d(noff(21)+ind0)
+     &             +v1*w1*phi1d(noff(24)+ind0)
+     &             -v1*w1*phi1d(noff(25)+ind0))
+
+          eyt=dyi*(+u0*w0*phi1d(noff( 8)+ind0)
+     &             +u1*w0*phi1d(noff( 9)+ind0)
+     &             -u0*w0*phi1d(noff(12)+ind0)
+     &             -u1*w0*phi1d(noff(13)+ind0)
+     &             +u0*w1*phi1d(noff(20)+ind0)
+     &             +u1*w1*phi1d(noff(21)+ind0)
+     &             -u0*w1*phi1d(noff(24)+ind0)
+     &             -u1*w1*phi1d(noff(25)+ind0))
+
+          ezt=dzi*(+u0*v0*phi1d(noff( 8)+ind0)
+     &             +u1*v0*phi1d(noff( 9)+ind0)
+     &             +u0*v1*phi1d(noff(12)+ind0)
+     &             +u1*v1*phi1d(noff(13)+ind0)
+     &             -u0*v0*phi1d(noff(20)+ind0)
+     &             -u1*v0*phi1d(noff(21)+ind0)
+     &             -u0*v1*phi1d(noff(24)+ind0)
+     &             -u1*v1*phi1d(noff(25)+ind0))
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sy = -1.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = (abs(xp(1) - xmmin))*dxi
+        jnext = (abs(yp(1) - ymmin))*dyi
+        knext = (zp(1) - zgrid - zmmin)*dzi
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = (abs(xp(ip+1) - xmmin))*dxi
+            jnext = (abs(yp(ip+1) - ymmin))*dyi
+            knext = (zp(ip+1) - zgrid - zmmin)*dzi
+          endif
+
+          ind0 = i + j*nnx + k*nnxy
+
+          u1 = (abs(xp(ip) - xmmin))*dxi - i
+          v1 = (abs(yp(ip) - ymmin))*dyi - j
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = dxi
+          ysign = dyi
+          if (xp(ip) < 0.) xsign = sx*dxi
+          if (yp(ip) < 0.) ysign = sy*dyi
+
+          ext=xsign*(+v0*w0*phi1d(noff( 8)+ind0)
+     &               -v0*w0*phi1d(noff( 9)+ind0)
+     &               +v1*w0*phi1d(noff(12)+ind0)
+     &               -v1*w0*phi1d(noff(13)+ind0)
+     &               +v0*w1*phi1d(noff(20)+ind0)
+     &               -v0*w1*phi1d(noff(21)+ind0)
+     &               +v1*w1*phi1d(noff(24)+ind0)
+     &               -v1*w1*phi1d(noff(25)+ind0))
+
+          eyt=ysign*(+u0*w0*phi1d(noff( 8)+ind0)
+     &               +u1*w0*phi1d(noff( 9)+ind0)
+     &               -u0*w0*phi1d(noff(12)+ind0)
+     &               -u1*w0*phi1d(noff(13)+ind0)
+     &               +u0*w1*phi1d(noff(20)+ind0)
+     &               +u1*w1*phi1d(noff(21)+ind0)
+     &               -u0*w1*phi1d(noff(24)+ind0)
+     &               -u1*w1*phi1d(noff(25)+ind0))
+
+          ezt = dzi*(+u0*v0*phi1d(noff( 8)+ind0)
+     &               +u1*v0*phi1d(noff( 9)+ind0)
+     &               +u0*v1*phi1d(noff(12)+ind0)
+     &               +u1*v1*phi1d(noff(13)+ind0)
+     &               -u0*v0*phi1d(noff(20)+ind0)
+     &               -u1*v0*phi1d(noff(21)+ind0)
+     &               -u0*v1*phi1d(noff(24)+ind0)
+     &               -u1*v1*phi1d(noff(25)+ind0))
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_e_order2_2d(selfe,np,xp,yp,zp,zgrid,
+     &                                 xmmin,zmmin,
+     &                                 dx,dz,nx,nz,
+     &                                 nxguarde,nzguarde,
+     &                                 ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,nz
+      integer(ISZ):: nxguarde,nzguarde
+      real(kind=8):: zgrid,xmmin,zmmin,dx,dz
+      real(kind=8):: selfe(3,-nxguarde:nx+nxguarde,
+     &                       -nzguarde:nz+nzguarde)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c Gets self electric field for particles
+c Fetch the E fields using 2nd order splines
+
+      integer(ISZ):: ip,i,k,inext,knext
+      real(kind=8):: dxi,dzi
+      real(kind=8):: wx,wz,u0,u1,u2,w0,w1,w2,xsign
+      real(kind=8):: sx,ext,eyt,ezt
+      real(kind=8):: x,xnext
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      if (lcylindrical) then
+
+        xnext = sqrt(xp(1)**2 + yp(1)**2)
+        inext = nint((xnext - xmmin)*dxi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          x = xnext
+          if (ip < np) then
+            xnext = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+            inext = nint((xnext    - xmmin)*dxi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (x      - xmmin)*dxi - i
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          ext = u0*w0*selfe(1,i-1,k-1)
+     &        + u1*w0*selfe(1,i  ,k-1)
+     &        + u2*w0*selfe(1,i+1,k-1)
+
+     &        + u0*w1*selfe(1,i-1,k  )
+     &        + u1*w1*selfe(1,i  ,k  )
+     &        + u2*w1*selfe(1,i+1,k  )
+
+     &        + u0*w2*selfe(1,i-1,k+1)
+     &        + u1*w2*selfe(1,i  ,k+1)
+     &        + u2*w2*selfe(1,i+1,k+1)
+
+          eyt = u0*w0*selfe(2,i-1,k-1)
+     &        + u1*w0*selfe(2,i  ,k-1)
+     &        + u2*w0*selfe(2,i+1,k-1)
+
+     &        + u0*w1*selfe(2,i-1,k  )
+     &        + u1*w1*selfe(2,i  ,k  )
+     &        + u2*w1*selfe(2,i+1,k  )
+
+     &        + u0*w2*selfe(2,i-1,k+1)
+     &        + u1*w2*selfe(2,i  ,k+1)
+     &        + u2*w2*selfe(2,i+1,k+1)
+
+          ezt = u0*w0*selfe(3,i-1,k-1)
+     &        + u1*w0*selfe(3,i  ,k-1)
+     &        + u2*w0*selfe(3,i+1,k-1)
+
+     &        + u0*w1*selfe(3,i-1,k  )
+     &        + u1*w1*selfe(3,i  ,k  )
+     &        + u2*w1*selfe(3,i+1,k  )
+
+     &        + u0*w2*selfe(3,i-1,k+1)
+     &        + u1*w2*selfe(3,i  ,k+1)
+     &        + u2*w2*selfe(3,i+1,k+1)
+
+          if (x > 0.) then
+            eyt = ext*yp(ip)/x
+            ext = ext*xp(ip)/x
+          else
+            ext = ext
+            eyt = 0.
+          endif
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else if (.not. (l2symtry .or. l4symtry)) then
+
+        inext = nint((xp(1) - xmmin)*dxi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          if (ip < np) then
+            inext = nint((xp(ip+1) - xmmin)*dxi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (xp(ip) - xmmin)*dxi - i
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          ext = u0*w0*selfe(1,i-1,k-1)
+     &        + u1*w0*selfe(1,i  ,k-1)
+     &        + u2*w0*selfe(1,i+1,k-1)
+
+     &        + u0*w1*selfe(1,i-1,k  )
+     &        + u1*w1*selfe(1,i  ,k  )
+     &        + u2*w1*selfe(1,i+1,k  )
+
+     &        + u0*w2*selfe(1,i-1,k+1)
+     &        + u1*w2*selfe(1,i  ,k+1)
+     &        + u2*w2*selfe(1,i+1,k+1)
+
+          eyt = u0*w0*selfe(2,i-1,k-1)
+     &        + u1*w0*selfe(2,i  ,k-1)
+     &        + u2*w0*selfe(2,i+1,k-1)
+
+     &        + u0*w1*selfe(2,i-1,k  )
+     &        + u1*w1*selfe(2,i  ,k  )
+     &        + u2*w1*selfe(2,i+1,k  )
+
+     &        + u0*w2*selfe(2,i-1,k+1)
+     &        + u1*w2*selfe(2,i  ,k+1)
+     &        + u2*w2*selfe(2,i+1,k+1)
+
+          ezt = u0*w0*selfe(3,i-1,k-1)
+     &        + u1*w0*selfe(3,i  ,k-1)
+     &        + u2*w0*selfe(3,i+1,k-1)
+
+     &        + u0*w1*selfe(3,i-1,k  )
+     &        + u1*w1*selfe(3,i  ,k  )
+     &        + u2*w1*selfe(3,i+1,k  )
+
+     &        + u0*w2*selfe(3,i-1,k+1)
+     &        + u1*w2*selfe(3,i  ,k+1)
+     &        + u2*w2*selfe(3,i+1,k+1)
+
+          ex(ip) = ex(ip) + ext
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = nint((abs(xp(1) - xmmin))*dxi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          if (ip < np) then
+            inext = nint((abs(xp(ip+1) - xmmin))*dxi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (xp(ip) - xmmin)*dxi - i
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = 1.
+          if (xp(ip) < 0.) xsign = sx
+
+          ext = u0*w0*selfe(1,i-1,k-1)
+     &        + u1*w0*selfe(1,i  ,k-1)
+     &        + u2*w0*selfe(1,i+1,k-1)
+
+     &        + u0*w1*selfe(1,i-1,k  )
+     &        + u1*w1*selfe(1,i  ,k  )
+     &        + u2*w1*selfe(1,i+1,k  )
+
+     &        + u0*w2*selfe(1,i-1,k+1)
+     &        + u1*w2*selfe(1,i  ,k+1)
+     &        + u2*w2*selfe(1,i+1,k+1)
+
+          eyt = u0*w0*selfe(2,i-1,k-1)
+     &        + u1*w0*selfe(2,i  ,k-1)
+     &        + u2*w0*selfe(2,i+1,k-1)
+
+     &        + u0*w1*selfe(2,i-1,k  )
+     &        + u1*w1*selfe(2,i  ,k  )
+     &        + u2*w1*selfe(2,i+1,k  )
+
+     &        + u0*w2*selfe(2,i-1,k+1)
+     &        + u1*w2*selfe(2,i  ,k+1)
+     &        + u2*w2*selfe(2,i+1,k+1)
+
+          ezt = u0*w0*selfe(3,i-1,k-1)
+     &        + u1*w0*selfe(3,i  ,k-1)
+     &        + u2*w0*selfe(3,i+1,k-1)
+
+     &        + u0*w1*selfe(3,i-1,k  )
+     &        + u1*w1*selfe(3,i  ,k  )
+     &        + u2*w1*selfe(3,i+1,k  )
+
+     &        + u0*w2*selfe(3,i-1,k+1)
+     &        + u1*w2*selfe(3,i  ,k+1)
+     &        + u2*w2*selfe(3,i+1,k+1)
+
+          ex(ip) = ex(ip) + ext*xsign
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_e_order2_3d(selfe,np,xp,yp,zp,zgrid,
+     &                                 xmmin,ymmin,zmmin,
+     &                                 dx,dy,dz,nx,ny,nz,
+     &                                 nxguarde,nyguarde,nzguarde,
+     &                                 ex,ey,ez,l2symtry,l4symtry)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,ny,nz
+      integer(ISZ):: nxguarde,nyguarde,nzguarde
+      real(kind=8):: zgrid,xmmin,ymmin,zmmin,dx,dy,dz
+      real(kind=8):: selfe(3,-nxguarde:nx+nxguarde,
+     &                       -nyguarde:ny+nyguarde,
+     &                       -nzguarde:nz+nzguarde)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry
+
+c Gets self electric field for particles
+c Fetch the E fields using 2nd order splines
+
+      integer(ISZ):: ip,i,j,k,inext,jnext,knext
+      real(kind=8):: dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz,u0,u1,u2,v0,v1,v2,w0,w1,w2,ysign,xsign
+      real(kind=8):: sx,sy,ext,eyt,ezt
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (.not. (l2symtry .or. l4symtry)) then
+
+        inext = nint((xp(1) - xmmin)*dxi)
+        jnext = nint((yp(1) - ymmin)*dyi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = nint((xp(ip+1) - xmmin)*dxi)
+            jnext = nint((yp(ip+1) - ymmin)*dyi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (xp(ip) - xmmin)*dxi - i
+          wy = (yp(ip) - ymmin)*dyi - j
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          ext = u0*v0*w0*selfe(1,i-1,j-1,k-1)
+     &        + u1*v0*w0*selfe(1,i  ,j-1,k-1)
+     &        + u2*v0*w0*selfe(1,i+1,j-1,k-1)
+     &        + u0*v1*w0*selfe(1,i-1,j  ,k-1)
+     &        + u1*v1*w0*selfe(1,i  ,j  ,k-1)
+     &        + u2*v1*w0*selfe(1,i+1,j  ,k-1)
+     &        + u0*v2*w0*selfe(1,i-1,j+1,k-1)
+     &        + u1*v2*w0*selfe(1,i  ,j+1,k-1)
+     &        + u2*v2*w0*selfe(1,i+1,j+1,k-1)
+
+     &        + u0*v0*w1*selfe(1,i-1,j-1,k  )
+     &        + u1*v0*w1*selfe(1,i  ,j-1,k  )
+     &        + u2*v0*w1*selfe(1,i+1,j-1,k  )
+     &        + u0*v1*w1*selfe(1,i-1,j  ,k  )
+     &        + u1*v1*w1*selfe(1,i  ,j  ,k  )
+     &        + u2*v1*w1*selfe(1,i+1,j  ,k  )
+     &        + u0*v2*w1*selfe(1,i-1,j+1,k  )
+     &        + u1*v2*w1*selfe(1,i  ,j+1,k  )
+     &        + u2*v2*w1*selfe(1,i+1,j+1,k  )
+
+     &        + u0*v0*w2*selfe(1,i-1,j-1,k+1)
+     &        + u1*v0*w2*selfe(1,i  ,j-1,k+1)
+     &        + u2*v0*w2*selfe(1,i+1,j-1,k+1)
+     &        + u0*v1*w2*selfe(1,i-1,j  ,k+1)
+     &        + u1*v1*w2*selfe(1,i  ,j  ,k+1)
+     &        + u2*v1*w2*selfe(1,i+1,j  ,k+1)
+     &        + u0*v2*w2*selfe(1,i-1,j+1,k+1)
+     &        + u1*v2*w2*selfe(1,i  ,j+1,k+1)
+     &        + u2*v2*w2*selfe(1,i+1,j+1,k+1)
+
+          eyt = u0*v0*w0*selfe(2,i-1,j-1,k-1)
+     &        + u1*v0*w0*selfe(2,i  ,j-1,k-1)
+     &        + u2*v0*w0*selfe(2,i+1,j-1,k-1)
+     &        + u0*v1*w0*selfe(2,i-1,j  ,k-1)
+     &        + u1*v1*w0*selfe(2,i  ,j  ,k-1)
+     &        + u2*v1*w0*selfe(2,i+1,j  ,k-1)
+     &        + u0*v2*w0*selfe(2,i-1,j+1,k-1)
+     &        + u1*v2*w0*selfe(2,i  ,j+1,k-1)
+     &        + u2*v2*w0*selfe(2,i+1,j+1,k-1)
+
+     &        + u0*v0*w1*selfe(2,i-1,j-1,k  )
+     &        + u1*v0*w1*selfe(2,i  ,j-1,k  )
+     &        + u2*v0*w1*selfe(2,i+1,j-1,k  )
+     &        + u0*v1*w1*selfe(2,i-1,j  ,k  )
+     &        + u1*v1*w1*selfe(2,i  ,j  ,k  )
+     &        + u2*v1*w1*selfe(2,i+1,j  ,k  )
+     &        + u0*v2*w1*selfe(2,i-1,j+1,k  )
+     &        + u1*v2*w1*selfe(2,i  ,j+1,k  )
+     &        + u2*v2*w1*selfe(2,i+1,j+1,k  )
+
+     &        + u0*v0*w2*selfe(2,i-1,j-1,k+1)
+     &        + u1*v0*w2*selfe(2,i  ,j-1,k+1)
+     &        + u2*v0*w2*selfe(2,i+1,j-1,k+1)
+     &        + u0*v1*w2*selfe(2,i-1,j  ,k+1)
+     &        + u1*v1*w2*selfe(2,i  ,j  ,k+1)
+     &        + u2*v1*w2*selfe(2,i+1,j  ,k+1)
+     &        + u0*v2*w2*selfe(2,i-1,j+1,k+1)
+     &        + u1*v2*w2*selfe(2,i  ,j+1,k+1)
+     &        + u2*v2*w2*selfe(2,i+1,j+1,k+1)
+
+          ezt = u0*v0*w0*selfe(3,i-1,j-1,k-1)
+     &        + u1*v0*w0*selfe(3,i  ,j-1,k-1)
+     &        + u2*v0*w0*selfe(3,i+1,j-1,k-1)
+     &        + u0*v1*w0*selfe(3,i-1,j  ,k-1)
+     &        + u1*v1*w0*selfe(3,i  ,j  ,k-1)
+     &        + u2*v1*w0*selfe(3,i+1,j  ,k-1)
+     &        + u0*v2*w0*selfe(3,i-1,j+1,k-1)
+     &        + u1*v2*w0*selfe(3,i  ,j+1,k-1)
+     &        + u2*v2*w0*selfe(3,i+1,j+1,k-1)
+
+     &        + u0*v0*w1*selfe(3,i-1,j-1,k  )
+     &        + u1*v0*w1*selfe(3,i  ,j-1,k  )
+     &        + u2*v0*w1*selfe(3,i+1,j-1,k  )
+     &        + u0*v1*w1*selfe(3,i-1,j  ,k  )
+     &        + u1*v1*w1*selfe(3,i  ,j  ,k  )
+     &        + u2*v1*w1*selfe(3,i+1,j  ,k  )
+     &        + u0*v2*w1*selfe(3,i-1,j+1,k  )
+     &        + u1*v2*w1*selfe(3,i  ,j+1,k  )
+     &        + u2*v2*w1*selfe(3,i+1,j+1,k  )
+
+     &        + u0*v0*w2*selfe(3,i-1,j-1,k+1)
+     &        + u1*v0*w2*selfe(3,i  ,j-1,k+1)
+     &        + u2*v0*w2*selfe(3,i+1,j-1,k+1)
+     &        + u0*v1*w2*selfe(3,i-1,j  ,k+1)
+     &        + u1*v1*w2*selfe(3,i  ,j  ,k+1)
+     &        + u2*v1*w2*selfe(3,i+1,j  ,k+1)
+     &        + u0*v2*w2*selfe(3,i-1,j+1,k+1)
+     &        + u1*v2*w2*selfe(3,i  ,j+1,k+1)
+     &        + u2*v2*w2*selfe(3,i+1,j+1,k+1)
+
+          ex(ip) = ex(ip) + ext
+          ey(ip) = ey(ip) + eyt
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sy = -1.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = nint((abs(xp(1) - xmmin))*dxi)
+        jnext = nint((abs(yp(1) - ymmin))*dyi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = nint((abs(xp(ip+1) - xmmin))*dxi)
+            jnext = nint((abs(yp(ip+1) - ymmin))*dyi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = abs(xp(ip) - xmmin)*dxi - i
+          wy = abs(yp(ip) - ymmin)*dyi - j
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = 1.
+          ysign = 1.
+          if (xp(ip) < 0.) xsign = sx
+          if (yp(ip) < 0.) ysign = sy
+
+          ext = u0*v0*w0*selfe(1,i-1,j-1,k-1)
+     &        + u1*v0*w0*selfe(1,i  ,j-1,k-1)
+     &        + u2*v0*w0*selfe(1,i+1,j-1,k-1)
+     &        + u0*v1*w0*selfe(1,i-1,j  ,k-1)
+     &        + u1*v1*w0*selfe(1,i  ,j  ,k-1)
+     &        + u2*v1*w0*selfe(1,i+1,j  ,k-1)
+     &        + u0*v2*w0*selfe(1,i-1,j+1,k-1)
+     &        + u1*v2*w0*selfe(1,i  ,j+1,k-1)
+     &        + u2*v2*w0*selfe(1,i+1,j+1,k-1)
+
+     &        + u0*v0*w1*selfe(1,i-1,j-1,k  )
+     &        + u1*v0*w1*selfe(1,i  ,j-1,k  )
+     &        + u2*v0*w1*selfe(1,i+1,j-1,k  )
+     &        + u0*v1*w1*selfe(1,i-1,j  ,k  )
+     &        + u1*v1*w1*selfe(1,i  ,j  ,k  )
+     &        + u2*v1*w1*selfe(1,i+1,j  ,k  )
+     &        + u0*v2*w1*selfe(1,i-1,j+1,k  )
+     &        + u1*v2*w1*selfe(1,i  ,j+1,k  )
+     &        + u2*v2*w1*selfe(1,i+1,j+1,k  )
+
+     &        + u0*v0*w2*selfe(1,i-1,j-1,k+1)
+     &        + u1*v0*w2*selfe(1,i  ,j-1,k+1)
+     &        + u2*v0*w2*selfe(1,i+1,j-1,k+1)
+     &        + u0*v1*w2*selfe(1,i-1,j  ,k+1)
+     &        + u1*v1*w2*selfe(1,i  ,j  ,k+1)
+     &        + u2*v1*w2*selfe(1,i+1,j  ,k+1)
+     &        + u0*v2*w2*selfe(1,i-1,j+1,k+1)
+     &        + u1*v2*w2*selfe(1,i  ,j+1,k+1)
+     &        + u2*v2*w2*selfe(1,i+1,j+1,k+1)
+
+          eyt = u0*v0*w0*selfe(2,i-1,j-1,k-1)
+     &        + u1*v0*w0*selfe(2,i  ,j-1,k-1)
+     &        + u2*v0*w0*selfe(2,i+1,j-1,k-1)
+     &        + u0*v1*w0*selfe(2,i-1,j  ,k-1)
+     &        + u1*v1*w0*selfe(2,i  ,j  ,k-1)
+     &        + u2*v1*w0*selfe(2,i+1,j  ,k-1)
+     &        + u0*v2*w0*selfe(2,i-1,j+1,k-1)
+     &        + u1*v2*w0*selfe(2,i  ,j+1,k-1)
+     &        + u2*v2*w0*selfe(2,i+1,j+1,k-1)
+
+     &        + u0*v0*w1*selfe(2,i-1,j-1,k  )
+     &        + u1*v0*w1*selfe(2,i  ,j-1,k  )
+     &        + u2*v0*w1*selfe(2,i+1,j-1,k  )
+     &        + u0*v1*w1*selfe(2,i-1,j  ,k  )
+     &        + u1*v1*w1*selfe(2,i  ,j  ,k  )
+     &        + u2*v1*w1*selfe(2,i+1,j  ,k  )
+     &        + u0*v2*w1*selfe(2,i-1,j+1,k  )
+     &        + u1*v2*w1*selfe(2,i  ,j+1,k  )
+     &        + u2*v2*w1*selfe(2,i+1,j+1,k  )
+
+     &        + u0*v0*w2*selfe(2,i-1,j-1,k+1)
+     &        + u1*v0*w2*selfe(2,i  ,j-1,k+1)
+     &        + u2*v0*w2*selfe(2,i+1,j-1,k+1)
+     &        + u0*v1*w2*selfe(2,i-1,j  ,k+1)
+     &        + u1*v1*w2*selfe(2,i  ,j  ,k+1)
+     &        + u2*v1*w2*selfe(2,i+1,j  ,k+1)
+     &        + u0*v2*w2*selfe(2,i-1,j+1,k+1)
+     &        + u1*v2*w2*selfe(2,i  ,j+1,k+1)
+     &        + u2*v2*w2*selfe(2,i+1,j+1,k+1)
+
+          ezt = u0*v0*w0*selfe(3,i-1,j-1,k-1)
+     &        + u1*v0*w0*selfe(3,i  ,j-1,k-1)
+     &        + u2*v0*w0*selfe(3,i+1,j-1,k-1)
+     &        + u0*v1*w0*selfe(3,i-1,j  ,k-1)
+     &        + u1*v1*w0*selfe(3,i  ,j  ,k-1)
+     &        + u2*v1*w0*selfe(3,i+1,j  ,k-1)
+     &        + u0*v2*w0*selfe(3,i-1,j+1,k-1)
+     &        + u1*v2*w0*selfe(3,i  ,j+1,k-1)
+     &        + u2*v2*w0*selfe(3,i+1,j+1,k-1)
+
+     &        + u0*v0*w1*selfe(3,i-1,j-1,k  )
+     &        + u1*v0*w1*selfe(3,i  ,j-1,k  )
+     &        + u2*v0*w1*selfe(3,i+1,j-1,k  )
+     &        + u0*v1*w1*selfe(3,i-1,j  ,k  )
+     &        + u1*v1*w1*selfe(3,i  ,j  ,k  )
+     &        + u2*v1*w1*selfe(3,i+1,j  ,k  )
+     &        + u0*v2*w1*selfe(3,i-1,j+1,k  )
+     &        + u1*v2*w1*selfe(3,i  ,j+1,k  )
+     &        + u2*v2*w1*selfe(3,i+1,j+1,k  )
+
+     &        + u0*v0*w2*selfe(3,i-1,j-1,k+1)
+     &        + u1*v0*w2*selfe(3,i  ,j-1,k+1)
+     &        + u2*v0*w2*selfe(3,i+1,j-1,k+1)
+     &        + u0*v1*w2*selfe(3,i-1,j  ,k+1)
+     &        + u1*v1*w2*selfe(3,i  ,j  ,k+1)
+     &        + u2*v1*w2*selfe(3,i+1,j  ,k+1)
+     &        + u0*v2*w2*selfe(3,i-1,j+1,k+1)
+     &        + u1*v2*w2*selfe(3,i  ,j+1,k+1)
+     &        + u2*v2*w2*selfe(3,i+1,j+1,k+1)
+
+          ex(ip) = ex(ip) + ext*xsign
+          ey(ip) = ey(ip) + eyt*ysign
+          ez(ip) = ez(ip) + ezt
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_e_order2_energyconserving2d(phi,np,xp,yp,zp,zgrid,
+     &                                 xmmin,zmmin,
+     &                                 dx,dz,nx,nz,
+     &                                 nxguardphi,nzguardphi,
+     &                                 ex,ey,ez,l2symtry,l4symtry,lcylindrical)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,nz
+      integer(ISZ):: nxguardphi,nzguardphi
+      real(kind=8):: zgrid,xmmin,zmmin,dx,dz
+      real(kind=8):: phi(-nxguardphi:nx+nxguardphi,
+     &                   -nzguardphi:nz+nzguardphi)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c Gets self electric field for particles
+c Fetch the E fields using 2nd order splines, with linear weigthing used
+c along the field direction. This gives energy conservation.
+
+      integer(ISZ):: ip,i,k,inext,knext
+      real(kind=8):: dxi,dzi
+      real(kind=8):: wx,wz
+      real(kind=8):: u10,u11,u12,w10,w11,w12
+      real(kind=8):: u20,u21,u22,w20,w21,w22
+      real(kind=8):: ext,eyt,ezt
+      real(kind=8):: sx,xsign
+      real(kind=8):: x,xnext
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      if (lcylindrical) then
+
+        xnext = sqrt(xp(1)**2 + yp(1)**2)
+        inext = nint((xnext - xmmin)*dxi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          x = xnext
+          if (ip < np) then
+            xnext = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+            inext = nint((xnext    - xmmin)*dxi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (x      - xmmin)*dxi - i
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u10 = wx - 0.5
+          u11 = - 2*wx
+          u12 = 0.5 + wx
+          w10 = wz - 0.5
+          w11 = - 2*wz
+          w12 = 0.5 + wz
+
+          u20 = 0.5*(0.5 - wx)**2
+          u21 = (0.75 - wx**2)
+          u22 = 0.5*(0.5 + wx)**2
+          w20 = 0.5*(0.5 - wz)**2
+          w21 = (0.75 - wz**2)
+          w22 = 0.5*(0.5 + wz)**2
+
+          ext = + u10*w20*phi(i-1,k-1)
+     &          + u11*w20*phi(i  ,k-1)
+     &          + u12*w20*phi(i+1,k-1)
+
+     &          + u10*w21*phi(i-1,k  )
+     &          + u11*w21*phi(i  ,k  )
+     &          + u12*w21*phi(i+1,k  )
+
+     &          + u10*w22*phi(i-1,k+1)
+     &          + u11*w22*phi(i  ,k+1)
+     &          + u12*w22*phi(i+1,k+1)
+
+          ezt = + u20*w10*phi(i-1,k-1)
+     &          + u21*w10*phi(i  ,k-1)
+     &          + u22*w10*phi(i+1,k-1)
+
+     &          + u20*w11*phi(i-1,k  )
+     &          + u21*w11*phi(i  ,k  )
+     &          + u22*w11*phi(i+1,k  )
+
+     &          + u20*w12*phi(i-1,k+1)
+     &          + u21*w12*phi(i  ,k+1)
+     &          + u22*w12*phi(i+1,k+1)
+
+          if (x > 0.) then
+            eyt = ext*yp(ip)/x
+            ext = ext*xp(ip)/x
+          else
+            ext = ext
+            eyt = 0.
+          endif
+
+          ex(ip) = ex(ip) - ext*dxi
+          ey(ip) = ey(ip) - eyt*dxi
+          ez(ip) = ez(ip) - ezt*dzi
+
+        enddo
+
+      else if (.not. (l2symtry .or. l4symtry)) then
+
+        inext = nint((xp(1) - xmmin)*dxi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          if (ip < np) then
+            inext = nint((xp(ip+1) - xmmin)*dxi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (xp(ip) - xmmin)*dxi - i
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u10 = wx - 0.5
+          u11 = - 2*wx
+          u12 = 0.5 + wx
+          w10 = wz - 0.5
+          w11 = - 2*wz
+          w12 = 0.5 + wz
+
+          u20 = 0.5*(0.5 - wx)**2
+          u21 = (0.75 - wx**2)
+          u22 = 0.5*(0.5 + wx)**2
+          w20 = 0.5*(0.5 - wz)**2
+          w21 = (0.75 - wz**2)
+          w22 = 0.5*(0.5 + wz)**2
+
+          ext = + u10*w20*phi(i-1,k-1)
+     &          + u11*w20*phi(i  ,k-1)
+     &          + u12*w20*phi(i+1,k-1)
+
+     &          + u10*w21*phi(i-1,k  )
+     &          + u11*w21*phi(i  ,k  )
+     &          + u12*w21*phi(i+1,k  )
+
+     &          + u10*w22*phi(i-1,k+1)
+     &          + u11*w22*phi(i  ,k+1)
+     &          + u12*w22*phi(i+1,k+1)
+
+          ezt = + u20*w10*phi(i-1,k-1)
+     &          + u21*w10*phi(i  ,k-1)
+     &          + u22*w10*phi(i+1,k-1)
+
+     &          + u20*w11*phi(i-1,k  )
+     &          + u21*w11*phi(i  ,k  )
+     &          + u22*w11*phi(i+1,k  )
+
+     &          + u20*w12*phi(i-1,k+1)
+     &          + u21*w12*phi(i  ,k+1)
+     &          + u22*w12*phi(i+1,k+1)
+
+          ex(ip) = ex(ip) - ext*dxi
+          ez(ip) = ez(ip) - ezt*dzi
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = nint((abs(xp(1) - xmmin))*dxi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+
+        do ip = 1, np
+
+          i = inext
+          k = knext
+          if (ip < np) then
+            inext = nint((abs(xp(ip+1) - xmmin))*dxi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (xp(ip) - xmmin)*dxi - i
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u10 = wx - 0.5
+          u11 = - 2*wx
+          u12 = 0.5 + wx
+          w10 = wz - 0.5
+          w11 = - 2*wz
+          w12 = 0.5 + wz
+
+          u20 = 0.5*(0.5 - wx)**2
+          u21 = (0.75 - wx**2)
+          u22 = 0.5*(0.5 + wx)**2
+          w20 = 0.5*(0.5 - wz)**2
+          w21 = (0.75 - wz**2)
+          w22 = 0.5*(0.5 + wz)**2
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = 1.
+          if (xp(ip) < 0.) xsign = sx
+
+          ext = + u10*w20*phi(i-1,k-1)
+     &          + u11*w20*phi(i  ,k-1)
+     &          + u12*w20*phi(i+1,k-1)
+
+     &          + u10*w21*phi(i-1,k  )
+     &          + u11*w21*phi(i  ,k  )
+     &          + u12*w21*phi(i+1,k  )
+
+     &          + u10*w22*phi(i-1,k+1)
+     &          + u11*w22*phi(i  ,k+1)
+     &          + u12*w22*phi(i+1,k+1)
+
+          ezt = + u20*w10*phi(i-1,k-1)
+     &          + u21*w10*phi(i  ,k-1)
+     &          + u22*w10*phi(i+1,k-1)
+
+     &          + u20*w11*phi(i-1,k  )
+     &          + u21*w11*phi(i  ,k  )
+     &          + u22*w11*phi(i+1,k  )
+
+     &          + u20*w12*phi(i-1,k+1)
+     &          + u21*w12*phi(i  ,k+1)
+     &          + u22*w12*phi(i+1,k+1)
+
+          ex(ip) = ex(ip) - ext*dxi*xsign
+          ez(ip) = ez(ip) - ezt*dzi
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete_from_e_order2_energyconserving3d(phi,np,xp,yp,zp,zgrid,
+     &                                 xmmin,ymmin,zmmin,
+     &                                 dx,dy,dz,nx,ny,nz,
+     &                                 nxguardphi,nyguardphi,nzguardphi,
+     &                                 ex,ey,ez,l2symtry,l4symtry)
+      use Subtimersw3d
+      integer(ISZ):: np,nx,ny,nz
+      integer(ISZ):: nxguardphi,nyguardphi,nzguardphi
+      real(kind=8):: zgrid,xmmin,ymmin,zmmin,dx,dy,dz
+      real(kind=8):: phi(-nxguardphi:nx+nxguardphi,
+     &                   -nyguardphi:ny+nyguardphi,
+     &                   -nzguardphi:nz+nzguardphi)
+      real(kind=8):: xp(np),yp(np),zp(np)
+      real(kind=8):: ex(np),ey(np),ez(np)
+      logical(ISZ):: l2symtry,l4symtry
+
+c Gets self electric field for particles
+c Fetch the E fields using 2nd order splines, with linear weigthing used
+c along the field direction. This gives energy conservation.
+
+      integer(ISZ):: ip,i,j,k,inext,jnext,knext
+      real(kind=8):: dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: u10,u11,u12,v10,v11,v12,w10,w11,w12
+      real(kind=8):: u20,u21,u22,v20,v21,v22,w20,w21,w22
+      real(kind=8):: ysign,xsign
+      real(kind=8):: sx,sy,ext,eyt,ezt
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (.not. (l2symtry .or. l4symtry)) then
+
+        inext = nint((xp(1) - xmmin)*dxi)
+        jnext = nint((yp(1) - ymmin)*dyi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = nint((xp(ip+1) - xmmin)*dxi)
+            jnext = nint((yp(ip+1) - ymmin)*dyi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = (xp(ip) - xmmin)*dxi - i
+          wy = (yp(ip) - ymmin)*dyi - j
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u10 = wx - 0.5
+          u11 = - 2*wx
+          u12 = 0.5 + wx
+          v10 = wy - 0.5
+          v11 = - 2*wy
+          v12 = 0.5 + wy
+          w10 = wz - 0.5
+          w11 = - 2*wz
+          w12 = 0.5 + wz
+
+          u20 = 0.5*(0.5 - wx)**2
+          u21 = (0.75 - wx**2)
+          u22 = 0.5*(0.5 + wx)**2
+          v20 = 0.5*(0.5 - wy)**2
+          v21 = (0.75 - wy**2)
+          v22 = 0.5*(0.5 + wy)**2
+          w20 = 0.5*(0.5 - wz)**2
+          w21 = (0.75 - wz**2)
+          w22 = 0.5*(0.5 + wz)**2
+
+          ext = u10*v20*w20*phi(i-1,j-1,k-1)
+     &        + u11*v20*w20*phi(i  ,j-1,k-1)
+     &        + u12*v20*w20*phi(i+1,j-1,k-1)
+     &        + u10*v21*w20*phi(i-1,j  ,k-1)
+     &        + u11*v21*w20*phi(i  ,j  ,k-1)
+     &        + u12*v21*w20*phi(i+1,j  ,k-1)
+     &        + u10*v22*w20*phi(i-1,j+1,k-1)
+     &        + u11*v22*w20*phi(i  ,j+1,k-1)
+     &        + u12*v22*w20*phi(i+1,j+1,k-1)
+
+     &        + u10*v20*w21*phi(i-1,j-1,k  )
+     &        + u11*v20*w21*phi(i  ,j-1,k  )
+     &        + u12*v20*w21*phi(i+1,j-1,k  )
+     &        + u10*v21*w21*phi(i-1,j  ,k  )
+     &        + u11*v21*w21*phi(i  ,j  ,k  )
+     &        + u12*v21*w21*phi(i+1,j  ,k  )
+     &        + u10*v22*w21*phi(i-1,j+1,k  )
+     &        + u11*v22*w21*phi(i  ,j+1,k  )
+     &        + u12*v22*w21*phi(i+1,j+1,k  )
+
+     &        + u10*v20*w22*phi(i-1,j-1,k+1)
+     &        + u11*v20*w22*phi(i  ,j-1,k+1)
+     &        + u12*v20*w22*phi(i+1,j-1,k+1)
+     &        + u10*v21*w22*phi(i-1,j  ,k+1)
+     &        + u11*v21*w22*phi(i  ,j  ,k+1)
+     &        + u12*v21*w22*phi(i+1,j  ,k+1)
+     &        + u10*v22*w22*phi(i-1,j+1,k+1)
+     &        + u11*v22*w22*phi(i  ,j+1,k+1)
+     &        + u12*v22*w22*phi(i+1,j+1,k+1)
+
+          eyt = u20*v10*w20*phi(i-1,j-1,k-1)
+     &        + u21*v10*w20*phi(i  ,j-1,k-1)
+     &        + u22*v10*w20*phi(i+1,j-1,k-1)
+     &        + u20*v11*w20*phi(i-1,j  ,k-1)
+     &        + u21*v11*w20*phi(i  ,j  ,k-1)
+     &        + u22*v11*w20*phi(i+1,j  ,k-1)
+     &        + u20*v12*w20*phi(i-1,j+1,k-1)
+     &        + u21*v12*w20*phi(i  ,j+1,k-1)
+     &        + u22*v12*w20*phi(i+1,j+1,k-1)
+
+     &        + u20*v10*w21*phi(i-1,j-1,k  )
+     &        + u21*v10*w21*phi(i  ,j-1,k  )
+     &        + u22*v10*w21*phi(i+1,j-1,k  )
+     &        + u20*v11*w21*phi(i-1,j  ,k  )
+     &        + u21*v11*w21*phi(i  ,j  ,k  )
+     &        + u22*v11*w21*phi(i+1,j  ,k  )
+     &        + u20*v12*w21*phi(i-1,j+1,k  )
+     &        + u21*v12*w21*phi(i  ,j+1,k  )
+     &        + u22*v12*w21*phi(i+1,j+1,k  )
+
+     &        + u20*v10*w22*phi(i-1,j-1,k+1)
+     &        + u21*v10*w22*phi(i  ,j-1,k+1)
+     &        + u22*v10*w22*phi(i+1,j-1,k+1)
+     &        + u20*v11*w22*phi(i-1,j  ,k+1)
+     &        + u21*v11*w22*phi(i  ,j  ,k+1)
+     &        + u22*v11*w22*phi(i+1,j  ,k+1)
+     &        + u20*v12*w22*phi(i-1,j+1,k+1)
+     &        + u21*v12*w22*phi(i  ,j+1,k+1)
+     &        + u22*v12*w22*phi(i+1,j+1,k+1)
+
+          ezt = u20*v20*w10*phi(i-1,j-1,k-1)
+     &        + u21*v20*w10*phi(i  ,j-1,k-1)
+     &        + u22*v20*w10*phi(i+1,j-1,k-1)
+     &        + u20*v21*w10*phi(i-1,j  ,k-1)
+     &        + u21*v21*w10*phi(i  ,j  ,k-1)
+     &        + u22*v21*w10*phi(i+1,j  ,k-1)
+     &        + u20*v22*w10*phi(i-1,j+1,k-1)
+     &        + u21*v22*w10*phi(i  ,j+1,k-1)
+     &        + u22*v22*w10*phi(i+1,j+1,k-1)
+
+     &        + u20*v20*w11*phi(i-1,j-1,k  )
+     &        + u21*v20*w11*phi(i  ,j-1,k  )
+     &        + u22*v20*w11*phi(i+1,j-1,k  )
+     &        + u20*v21*w11*phi(i-1,j  ,k  )
+     &        + u21*v21*w11*phi(i  ,j  ,k  )
+     &        + u22*v21*w11*phi(i+1,j  ,k  )
+     &        + u20*v22*w11*phi(i-1,j+1,k  )
+     &        + u21*v22*w11*phi(i  ,j+1,k  )
+     &        + u22*v22*w11*phi(i+1,j+1,k  )
+
+     &        + u20*v20*w12*phi(i-1,j-1,k+1)
+     &        + u21*v20*w12*phi(i  ,j-1,k+1)
+     &        + u22*v20*w12*phi(i+1,j-1,k+1)
+     &        + u20*v21*w12*phi(i-1,j  ,k+1)
+     &        + u21*v21*w12*phi(i  ,j  ,k+1)
+     &        + u22*v21*w12*phi(i+1,j  ,k+1)
+     &        + u20*v22*w12*phi(i-1,j+1,k+1)
+     &        + u21*v22*w12*phi(i  ,j+1,k+1)
+     &        + u22*v22*w12*phi(i+1,j+1,k+1)
+
+          ex(ip) = ex(ip) - ext*dxi
+          ey(ip) = ey(ip) - eyt*dyi
+          ez(ip) = ez(ip) - ezt*dzi
+
+        enddo
+
+      else
+
+c       --- Set the signs of the E field for particles on negative side of
+c       --- the axis of symmetry.
+        sy = -1.
+        sx = 1.
+        if (l4symtry) sx = -1.
+
+c       --- special loop symmetry is used
+        inext = nint((abs(xp(1) - xmmin))*dxi)
+        jnext = nint((abs(yp(1) - ymmin))*dyi)
+        knext = nint((zp(1) - zgrid - zmmin)*dzi)
+        do ip = 1, np
+
+          i = inext
+          j = jnext
+          k = knext
+          if (ip < np) then
+            inext = nint((abs(xp(ip+1) - xmmin))*dxi)
+            jnext = nint((abs(yp(ip+1) - ymmin))*dyi)
+            knext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          endif
+
+          wx = abs(xp(ip) - xmmin)*dxi - i
+          wy = abs(yp(ip) - ymmin)*dyi - j
+          wz = (zp(ip) - zgrid - zmmin)*dzi - k
+
+          u10 = wx - 0.5
+          u11 = - 2*wx
+          u12 = 0.5 + wx
+          v10 = wy - 0.5
+          v11 = - 2*wy
+          v12 = 0.5 + wy
+          w10 = wz - 0.5
+          w11 = - 2*wz
+          w12 = 0.5 + wz
+
+          u20 = 0.5*(0.5 - wx)**2
+          u21 = (0.75 - wx**2)
+          u22 = 0.5*(0.5 + wx)**2
+          v20 = 0.5*(0.5 - wy)**2
+          v21 = (0.75 - wy**2)
+          v22 = 0.5*(0.5 + wy)**2
+          w20 = 0.5*(0.5 - wz)**2
+          w21 = (0.75 - wz**2)
+          w22 = 0.5*(0.5 + wz)**2
+
+c         --- Adjust sign of E field for appropriate quadrant.
+          xsign = 1.
+          ysign = 1.
+          if (xp(ip) < 0.) xsign = sx
+          if (yp(ip) < 0.) ysign = sy
+
+          ext = u10*v20*w20*phi(i-1,j-1,k-1)
+     &        + u11*v20*w20*phi(i  ,j-1,k-1)
+     &        + u12*v20*w20*phi(i+1,j-1,k-1)
+     &        + u10*v21*w20*phi(i-1,j  ,k-1)
+     &        + u11*v21*w20*phi(i  ,j  ,k-1)
+     &        + u12*v21*w20*phi(i+1,j  ,k-1)
+     &        + u10*v22*w20*phi(i-1,j+1,k-1)
+     &        + u11*v22*w20*phi(i  ,j+1,k-1)
+     &        + u12*v22*w20*phi(i+1,j+1,k-1)
+
+     &        + u10*v20*w21*phi(i-1,j-1,k  )
+     &        + u11*v20*w21*phi(i  ,j-1,k  )
+     &        + u12*v20*w21*phi(i+1,j-1,k  )
+     &        + u10*v21*w21*phi(i-1,j  ,k  )
+     &        + u11*v21*w21*phi(i  ,j  ,k  )
+     &        + u12*v21*w21*phi(i+1,j  ,k  )
+     &        + u10*v22*w21*phi(i-1,j+1,k  )
+     &        + u11*v22*w21*phi(i  ,j+1,k  )
+     &        + u12*v22*w21*phi(i+1,j+1,k  )
+
+     &        + u10*v20*w22*phi(i-1,j-1,k+1)
+     &        + u11*v20*w22*phi(i  ,j-1,k+1)
+     &        + u12*v20*w22*phi(i+1,j-1,k+1)
+     &        + u10*v21*w22*phi(i-1,j  ,k+1)
+     &        + u11*v21*w22*phi(i  ,j  ,k+1)
+     &        + u12*v21*w22*phi(i+1,j  ,k+1)
+     &        + u10*v22*w22*phi(i-1,j+1,k+1)
+     &        + u11*v22*w22*phi(i  ,j+1,k+1)
+     &        + u12*v22*w22*phi(i+1,j+1,k+1)
+
+          eyt = u20*v10*w20*phi(i-1,j-1,k-1)
+     &        + u21*v10*w20*phi(i  ,j-1,k-1)
+     &        + u22*v10*w20*phi(i+1,j-1,k-1)
+     &        + u20*v11*w20*phi(i-1,j  ,k-1)
+     &        + u21*v11*w20*phi(i  ,j  ,k-1)
+     &        + u22*v11*w20*phi(i+1,j  ,k-1)
+     &        + u20*v12*w20*phi(i-1,j+1,k-1)
+     &        + u21*v12*w20*phi(i  ,j+1,k-1)
+     &        + u22*v12*w20*phi(i+1,j+1,k-1)
+
+     &        + u20*v10*w21*phi(i-1,j-1,k  )
+     &        + u21*v10*w21*phi(i  ,j-1,k  )
+     &        + u22*v10*w21*phi(i+1,j-1,k  )
+     &        + u20*v11*w21*phi(i-1,j  ,k  )
+     &        + u21*v11*w21*phi(i  ,j  ,k  )
+     &        + u22*v11*w21*phi(i+1,j  ,k  )
+     &        + u20*v12*w21*phi(i-1,j+1,k  )
+     &        + u21*v12*w21*phi(i  ,j+1,k  )
+     &        + u22*v12*w21*phi(i+1,j+1,k  )
+
+     &        + u20*v10*w22*phi(i-1,j-1,k+1)
+     &        + u21*v10*w22*phi(i  ,j-1,k+1)
+     &        + u22*v10*w22*phi(i+1,j-1,k+1)
+     &        + u20*v11*w22*phi(i-1,j  ,k+1)
+     &        + u21*v11*w22*phi(i  ,j  ,k+1)
+     &        + u22*v11*w22*phi(i+1,j  ,k+1)
+     &        + u20*v12*w22*phi(i-1,j+1,k+1)
+     &        + u21*v12*w22*phi(i  ,j+1,k+1)
+     &        + u22*v12*w22*phi(i+1,j+1,k+1)
+
+          ezt = u20*v20*w10*phi(i-1,j-1,k-1)
+     &        + u21*v20*w10*phi(i  ,j-1,k-1)
+     &        + u22*v20*w10*phi(i+1,j-1,k-1)
+     &        + u20*v21*w10*phi(i-1,j  ,k-1)
+     &        + u21*v21*w10*phi(i  ,j  ,k-1)
+     &        + u22*v21*w10*phi(i+1,j  ,k-1)
+     &        + u20*v22*w10*phi(i-1,j+1,k-1)
+     &        + u21*v22*w10*phi(i  ,j+1,k-1)
+     &        + u22*v22*w10*phi(i+1,j+1,k-1)
+
+     &        + u20*v20*w11*phi(i-1,j-1,k  )
+     &        + u21*v20*w11*phi(i  ,j-1,k  )
+     &        + u22*v20*w11*phi(i+1,j-1,k  )
+     &        + u20*v21*w11*phi(i-1,j  ,k  )
+     &        + u21*v21*w11*phi(i  ,j  ,k  )
+     &        + u22*v21*w11*phi(i+1,j  ,k  )
+     &        + u20*v22*w11*phi(i-1,j+1,k  )
+     &        + u21*v22*w11*phi(i  ,j+1,k  )
+     &        + u22*v22*w11*phi(i+1,j+1,k  )
+
+     &        + u20*v20*w12*phi(i-1,j-1,k+1)
+     &        + u21*v20*w12*phi(i  ,j-1,k+1)
+     &        + u22*v20*w12*phi(i+1,j-1,k+1)
+     &        + u20*v21*w12*phi(i-1,j  ,k+1)
+     &        + u21*v21*w12*phi(i  ,j  ,k+1)
+     &        + u22*v21*w12*phi(i+1,j  ,k+1)
+     &        + u20*v22*w12*phi(i-1,j+1,k+1)
+     &        + u21*v22*w12*phi(i  ,j+1,k+1)
+     &        + u22*v22*w12*phi(i+1,j+1,k+1)
+
+          ex(ip) = ex(ip) - ext*dxi*xsign
+          ey(ip) = ey(ip) - eyt*dyi*ysign
+          ez(ip) = ez(ip) - ezt*dzi
+
+        enddo
+
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine getselfe3d(phi,nx,ny,nz,nxguardphi,nyguardphi,nzguardphi,
+     &                      selfe,nxguarde,nyguarde,nzguarde,
+     &                      dx,dy,dz,lzero)
+      use Subtimersw3d
+      integer(ISZ):: nx,ny,nz,nxguardphi,nyguardphi,nzguardphi
+      integer(ISZ):: nxguarde,nyguarde,nzguarde
+      real(kind=8):: phi(-nxguardphi:nx+nxguardphi,
+     &                   -nyguardphi:ny+nyguardphi,
+     &                   -nzguardphi:nz+nzguardphi)
+      real(kind=8):: selfe(0:2,-nxguarde:nx+nxguarde,
+     &                         -nyguarde:ny+nyguarde,
+     &                         -nzguarde:nz+nzguarde)
+      real(kind=8):: dx,dy,dz
+      logical(ISZ):: lzero
+
+c Calculate the self-E via finite differences of phi.
+c The E field is accumulated, ie. e = e - grad phi, unless lzero,
+c then e = -grad phi.
+
+      integer(ISZ):: ix,iy,iz
+      real(kind=8):: dxi,dyi,dzi
+      real(kind=8):: tdxi,tdyi,tdzi
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Do some checking first.
+      if ((nx > 0 .and. nxguardphi == 0) .or.
+     &    (ny > 0 .and. nyguardphi == 0) .or.
+     &    (nz > 0 .and. nzguardphi == 0)) then
+        call kaboom("getselfe3d: ERROR: the phi array must have guard cells")
+      endif
+      if ((nx > 0 .and. nxguarde > nxguardphi-1) .or.
+     &    (nx > 0 .and. nxguarde > nxguardphi-1) .or.
+     &    (nx > 0 .and. nxguarde > nxguardphi-1)) then
+        call kaboom("getselfe3d: ERROR: the phi array must have at least one more guard cell than the self E array")
+      endif
+
+      dxi = 1.0/dx
+      dyi = 1.0/dy
+      dzi = 1.0/dz
+      tdxi = 0.5/dx
+      tdyi = 0.5/dy
+      tdzi = 0.5/dz
+
+c     --- Do the calculation
+c     --- If lzero, then set selfe, otherwise accumulate it.
+      if (lzero) then
+        do iz=-nzguarde,nz+nzguarde
+          do iy=-nyguarde,ny+nyguarde
+            do ix=-nxguarde,nx+nxguarde
+              if (nx > 0)
+     &          selfe(0,ix,iy,iz) =
+     &                    tdxi*(phi(ix-1,iy  ,iz  ) - phi(ix+1,iy  ,iz  ))
+              if (ny > 0)
+     &          selfe(1,ix,iy,iz) =
+     &                    tdyi*(phi(ix  ,iy-1,iz  ) - phi(ix  ,iy+1,iz  ))
+              if (nz > 0)
+     &          selfe(2,ix,iy,iz) =
+     &                    tdzi*(phi(ix  ,iy  ,iz-1) - phi(ix  ,iy  ,iz+1))
+            enddo
+          enddo
+        enddo
+
+      else
+        do iz=-nzguarde,nz+nzguarde
+          do iy=-nyguarde,ny+nyguarde
+            do ix=-nxguarde,nx+nxguarde
+              if (nx > 0)
+     &          selfe(0,ix,iy,iz) = selfe(0,ix,iy,iz) +
+     &                    tdxi*(phi(ix-1,iy  ,iz  ) - phi(ix+1,iy  ,iz  ))
+              if (ny > 0)
+     &          selfe(1,ix,iy,iz) = selfe(1,ix,iy,iz) +
+     &                    tdyi*(phi(ix  ,iy-1,iz  ) - phi(ix  ,iy+1,iz  ))
+              if (nz > 0)
+     &          selfe(2,ix,iy,iz) = selfe(2,ix,iy,iz) +
+     &                    tdzi*(phi(ix  ,iy  ,iz-1) - phi(ix  ,iy  ,iz+1))
+            enddo
+          enddo
+        enddo
+
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timegetselfe3d = timegetselfe3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine stptcl3d(pgroup)
+      use ParticleGroupmodule
+      use GlobalVars
+      use Subtimersw3d
+      use Beam_acc
+      use Constant
+      use InGen
+      use InGen3d
+      use InPart
+      use InPart3d
+      use InMesh3d
+      use Particles,Only: npmax,ssnpid,ssn
+      use Picglb
+      use Picglb3d
+#ifdef MPIPARALLEL
+      use Parallel
+#endif
+      type(ParticleGroup):: pgroup
+
+c  Loads particles.
+c  At end, particle boundary conditions are enforced.
+c
+c  For the parallel version, each processor loads the fraction of the
+c  longitudinally uniform beam of length (zimax-zimin) which is within its
+c  region. The routine sw_globalsum recalculates the particle weights (sw)
+c  appropriately.
+c
+c  Picglb is included only to use zbeam
+
+      real(kind=8):: clghtisq,gaminv,gam
+      integer(ISZ):: npm,ip,js,isid,i,j,k,i1,ipi
+      integer(ISZ):: nxstri_s,nystri_s,nzstri_s,izstripe,icheck
+      integer(ISZ):: nfib2,nfib3,nfib4,ii,ioff
+      real(kind=8):: rnpmi,zmid,zlen,zleni,vtx,vty,vtz,rr,r0,xx,yy
+      real(kind=8):: rpp,phi1,phi2,rp,wz,wr
+      real(kind=8):: vthr,vrbar
+      real(kind=8):: zoff
+      real(kind=8):: sumzdist,zdistmax
+      real(kind=8):: sumrdist
+      integer(ISZ):: iz,izz
+      integer(ISZ):: ir,irr
+      integer(ISZ):: envxport
+      character(72):: errline
+      real(kind=8):: wranf,wrandom,wrandomgauss
+
+      logical(ISZ):: firstk,lrz,lxz
+      integer(ISZ):: npgrp,iptotal
+      integer(ISZ),allocatable,dimension(:):: indx,nptot
+      real(kind=8),allocatable,dimension(:):: xt,yt,zt,rt,tt,uxt,uyt,uzt
+      real(kind=8),allocatable,dimension(:):: perpscal,at,apt,bt,bpt
+      real(kind=8),allocatable,dimension(:):: epsxt,epsyt,vzt,vtzt,ibeamt
+      real(kind=8),allocatable,dimension(:):: xct,xpct,yct,ypct
+
+      real(kind=8):: xmin,xmax,ymin,ymax
+#ifdef MPIPARALLEL
+      real(kind=8):: zmin,zmax
+#endif
+      integer:: alloc_status
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (lrelativ) then
+        clghtisq = 1./clight**2
+      endif
+
+c  Call the user supplied particle loading routine if requested
+      if (lcallparticleloader) then
+        call callpythonfunc("callparticleloader","controllers")
+      endif
+
+c     --- Make sure that sid is set if it is not set by the user.
+      do js=0,pgroup%ns-1
+        if (pgroup%sid(js) == -1) pgroup%sid(js) = js
+      enddo
+
+c  If distrbtn is not set by the user, exit
+      if (distrbtn == "none") then
+!$OMP MASTER
+        if (lw3dtimesubs) timestptcl3d = timestptcl3d + wtime() - substarttime
+!$OMP END MASTER
+        return
+      endif
+
+c     --- Set the lrz flag appropriately.
+      lrz = (solvergeom == RZgeom) .or. (solvergeom == Rgeom)
+      lxz = (solvergeom == XZgeom)
+
+c  Set npgrp so arrays are correct size
+      if (xrandom == "fibonacc" .or.
+     &    xrandom == "digitrev" .or.
+     &    xrandom == "pseudo") then
+        npgrp = nparpgrp
+      elseif (xrandom == "grid") then
+        npgrp = nxstripe*nystripe
+      else
+        write (errline,'("stptcl3d: ERROR: xrandom has an improper value = ",a8)')
+     &         xrandom
+        call kaboom(errline)
+      endif
+
+c  Set npm to be greater than zero if any particles are to be loaded.
+      if (xrandom == "fibonacc") then
+        npm = nfibgrps*fibg1
+      elseif (xrandom == "digitrev") then
+        npm = npmax
+      elseif (xrandom == "pseudo") then
+        npm = npmax
+      elseif (xrandom == "grid") then
+        npm = nxstripe*nystripe*nzstripe
+      endif
+
+c  If not loading any particles, skip the next big section, but still calculate
+c  values for sq and sm. For parallel version, also update the value for sw.
+      if (npm > 0 .and. distrbtn .ne. "preload") then
+
+      call setuppgroup(pgroup)
+
+c  Prepare for arbitrary particle distribution in z.  This coding will only
+c  load a beam approximately matching the distribution.  A gathering of
+c  the particles on a z mesh will not exactly reproduce the z distribution.
+c  This problem is being studied.
+      if (nzdist > 0) then
+c       --- Find sum of zdist so it can be normalized
+        sumzdist = 0.5*zdist(0)
+        do iz=1,nzdist-1
+          sumzdist = sumzdist + zdist(iz)
+        enddo
+        sumzdist = sumzdist + 0.5*zdist(nzdist)
+c       --- Calculate integral of zdist from 0 to iz
+c       --- Integral = 0.5*zdist(0) + sum(zdist(1:iz-1)) + 0.5*zdist(iz)
+c       --- Also, normalize zdist.
+        call gchange("InPart3d",0)
+        nrmzdist(0) = zdist(0)/sumzdist
+        intzdist(0) = 0.
+        do iz=1,nzdist
+          nrmzdist(iz) = zdist(iz)/sumzdist
+          intzdist(iz) = intzdist(iz-1) + 0.5*(nrmzdist(iz-1) + nrmzdist(iz))
+        enddo
+      endif
+
+c  Prepare for arbitrary particle distribution in r.  This coding will only
+c  load a beam approximately matching the distribution.  A gathering of
+c  the particles on a r mesh will not exactly reproduce the r distribution.
+c  This problem is being studied.
+      if (nrdist > 0) then
+        call gchange("InPart3d",0)
+c       --- Multiply rdist by r.
+        do ir=0,nrdist
+          nrmrdist(ir) = rdist(ir)*ir/nrdist
+        enddo
+c       --- Integrate rdist so it can be normalized. Note that nrmrdist(0)
+c       --- is ignored since it is always zero.
+        sumrdist = 0.
+        do ir=1,nrdist-1
+          sumrdist = sumrdist + nrmrdist(ir)
+        enddo
+        sumrdist = sumrdist + 0.5*nrmrdist(nrdist)
+c       --- Calculate integral of rdist from 0 to ir
+c       --- Integral = 0.5*rdist(0) + sum(rdist(1:ir-1)) + 0.5*rdist(ir)
+c       --- Also, normalize rdist.
+        intrdist(0) = 0.
+        do ir=1,nrdist
+          nrmrdist(ir) = nrmrdist(ir)/sumrdist
+          intrdist(ir) = intrdist(ir-1) + 0.5*(nrmrdist(ir-1) + nrmrdist(ir))
+        enddo
+      endif
+
+c     Calculate rms equivalent matched beam equilibria in a continuous
+c     focusing channel for use in generalized psudo-equilibrium distribution
+c     loads.
+c
+c     As presently implemented, this only calculates the equilibrium
+c     once for a single beam slice, making it useful only for xy slice code
+c     simulations.  To get this to work in 3D, the following should be done:
+c       1) Modify the main particle loading loop to first load the particle
+c          z coordinates of the full beam distribution before any transverse
+c          loading.
+c       2) Using the loaded z coordinates and the desired transverse loading
+c          option, calculate the range max -> min of all continuous focusing
+c          eqivalent beam parameters for all particles
+c       3) Based on the ranges of parameters in 2) calculate needed equilibria
+c          for the transverse load by discretizing the parameter range and
+c          then calculating the equilibria in scaled coordinates over the
+c          discretized range.
+c       4) Go through the main particle loading loop again to load the
+c          transverse distribution using the equilibria calculated in 3).
+c          Interpolation can be used for equilibria not saved at exactly the
+c          parameter values needed.
+
+
+      if (distrbtn == "WB" .or. distrbtn == "Waterbag"  .or.
+     &    distrbtn == "PA" .or. distrbtn == "Parabolic" .or.
+     &    distrbtn == "TE" .or. distrbtn == "ThermalEquilibrium") then
+
+        call  perp_cfe_den()
+
+      endif
+
+c----------------------------------
+c  Begin main loop over species
+c----------------------------------
+
+!$OMP PARALLEL
+!$OMP+PRIVATE(k,i,j,i1,izz,nzstri_s,izstripe,vtz,iz,wz,irr,ii,rp,rpp,r0)
+!$OMP+PRIVATE(firstk)
+!$OMP+PRIVATE(ir,wr,vthr,vrbar,vtx,vty,ip,rr,phi1,phi2)
+!$OMP+PRIVATE(indx,xt,yt,zt,rt,tt,uxt,uyt,uzt,perpscal,at,apt,bt,bpt)
+!$OMP+PRIVATE(xct,xpct,yct,ypct,icheck,nfib2,nfib3,nfib4,nxstri_s,nystri_s)
+!$OMP+PRIVATE(epsxt,epsyt,vzt,vtzt,ibeamt)
+!$OMP+SHARED(iptotal)
+
+c  Allocate scratch space for load. Must be done in the parallel block
+      allocate(indx(npgrp),xt(npgrp),yt(npgrp),zt(npgrp),rt(npgrp),tt(npgrp),
+     &         uxt(npgrp),uyt(npgrp),uzt(npgrp),perpscal(npgrp),
+     &         at(npgrp),apt(npgrp),bt(npgrp),bpt(npgrp),
+     &         epsxt(npgrp),epsyt(npgrp),vzt(npgrp),vtzt(npgrp),ibeamt(npgrp),
+     &         xct(npgrp),xpct(npgrp),yct(npgrp),ypct(npgrp),stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:stptcl3d: indx et al could not allocate temp arrays to shape ",npgrp
+        stop
+      endif
+
+      do js=0,pgroup%ns-1
+        isid = pgroup%sid(js)+1
+        if (sp_fract(isid) == 0.) cycle
+
+c       --- Get number of particles to be loaded for this species.
+        if (np_s(isid) == 0) then
+c         --- Only set np_s is it had not been set be the user
+          if (xrandom == "fibonacc") then
+            np_s(isid) = nfibgrps*fibg1*sp_fract(isid)
+          elseif (xrandom == "digitrev") then
+            np_s(isid) = npmax*sp_fract(isid)
+          elseif (xrandom == "pseudo") then
+            np_s(isid) = npmax*sp_fract(isid)
+          elseif (xrandom == "grid") then
+            np_s(isid) = nxstripe*nystripe*nzstripe*sp_fract(isid)
+          endif
+        endif
+
+        if (nzdist > 0 .and. .not. lnormalize_zdist) then
+c         --- If not normalizing zdist, then scale the number of particles
+c         --- to be loaded.
+          np_s(isid) = np_s(isid)*sumzdist/nzdist
+        endif
+        npm = np_s(isid)
+
+        zmid = .5 * (zimax_s(isid) + zimin_s(isid)) + zbeam
+        zlen = zimax_s(isid) - zimin_s(isid)
+        if (zlen == 0) then
+          zleni = 0.
+        else
+          zleni = 1./zlen
+        endif
+
+c       --- Inverse of the number of particles. When multiplied by the particle
+c       --- index and added to the normalized value of zmin, the normalized
+c       --- axial location of the particle in the beam, between 0 and 1,
+c       --- results.
+        rnpmi = 1./dvnz(real(npm,kind=8))
+
+c       --- Reset counter for arbitrary particle distribution in z.
+c       --- It is reset for each species since each species has its own
+c       --- initial uniform distribution.
+c       --- Resetting izz here and starting each particle with its previous
+c       --- value only works since the initial uniform z positions are
+c       --- monotonically increasing.  Using this feature greatly increases
+c       --- the speed of the code.
+        if (nzdist > 0) izz = 0
+
+c       --- Calculate zoff, the axial offset of particles for processors, and
+c       --- ioff, the offset for the random number generators for processors.
+c       --- This ensures that each processor has the correct z distribution and
+c       --- seeds for the generators.
+        zoff = 0.
+        ioff = 0
+
+#ifdef MPIPARALLEL
+c       --- first, calculate z extent of beam within this processor
+        zmin = max(zimin_s(isid),zpminlocal)
+        zmax = min(zimax_s(isid),zpmaxlocal)
+        if (zlen == 0.) then
+c         --- Divide the particles evenly up among the processors. The
+c         --- form of npm is such that is the numbers of particles is not
+c         --- evenly divisible by the number of processors, some processors
+c         --- will get an extra particles so that the total number is correct.
+          ioff = int(izproc*npm/nzprocs)
+          npm = int((izproc + 1)*npm/nzprocs) - int(izproc*npm/nzprocs)
+        else
+c         --- calculate number of particles that are loaded by processors
+c         --- to the left
+          ioff = int(npm*(zmin - zimin_s(isid))*zleni + 1.e-5)
+c         --- calculate axial offset so the first particle for this processor
+c         --- is the correct distance from the last particle of the processor
+c         --- to the left.
+          zoff = ioff*rnpmi
+c         --- number of particles to be loaded in this processor: the number
+c         --- of particles between zmax and zimin minus the number between
+c         --- zmin and zimin.
+          npm = int(npm*(zmax - zimin_s(isid))*zleni + 1.e-5) - ioff
+        endif
+c       --- Make sure that there is enough room to load the particles.
+c       --- This is only needed here in the parallel version since it is
+c       --- difficult to gaurantee that there is room when an arbitrary
+c       --- domain decomposition is allowed.
+#endif
+
+!$OMP MASTER
+c       --- Make sure there is space allocated for the new particles.
+        call chckpart(pgroup,js+1,0,npm)
+!$OMP END MASTER
+
+        ip = pgroup%ins(js+1) + pgroup%nps(js+1) - 1
+!$OMP SINGLE
+#ifdef _OPENMP
+        iptotal = pgroup%ins(js+1) + pgroup%nps(js+1) - 1
+#endif
+!$OMP END SINGLE
+
+c       --- Shift ioff by randoffset so that the seed for the quiet start
+c       --- random number generators can be controlled.
+        ioff = ioff + randoffset
+
+c       --- Set firstk = true. This is needed so that the code knows that it
+c       --- is in the first iteration of the loop over k. It is for the
+c       --- OpenMP code since there, each processor won't execute the
+c       --- iteration where k=1 and so some things would otherwise not be
+c       --- initialized properly, for example the code for a cylinder beam.
+        firstk = .true.
+
+c  MAIN INITIALIZATION LOOP
+
+!$OMP DO
+      do k = 1, npm, npgrp
+         i1 = min(npm, k+npgrp-1)
+
+c  Load longitudinal stuff
+c        --- load normalized z (0 < z < 1)
+         if (xrandom == "fibonacc" .or.
+     &       xrandom == "digitrev" .or.
+     &       xrandom == "pseudo") then
+           do i=k,i1
+              zt(i-k+1) = (i-.5)*rnpmi + zoff
+           enddo
+c          --- Transform the longitudinal positions to match the specified
+c          --- longitudinal distribution.
+           if (nzdist > 0) then
+             do i=k,i1
+c              --- Find what grid cell the particle is in.
+c              --- Note that the previous value of izz is used (see note above)
+               do while (zt(i-k+1) > intzdist(izz+1))
+                 izz = izz + 1
+               enddo
+c              --- Do the transformation.  The transformation assumes a
+c              --- linearly varying distribution between grid locations.
+c              --- The transformation is derived by equating an integral
+c              --- over the uniform distribution to an integral over the
+c              --- specified distribution.  The particle remains within
+c              --- the range [0,1].
+               if (nrmzdist(izz+1) == nrmzdist(izz)) then
+                 zt(i-k+1) = ((zt(i-k+1) - intzdist(izz))/nrmzdist(izz)+izz)/
+     &                       nzdist
+               else
+                 zt(i-k+1) = ((sqrt(nrmzdist(izz)**2 -
+     &                     2.*(nrmzdist(izz+1)-nrmzdist(izz))*(intzdist(izz) -
+     &                     zt(i-k+1)))-nrmzdist(izz))/
+     &                     (nrmzdist(izz+1)-nrmzdist(izz)) + izz)/nzdist
+               endif
+             enddo
+           endif
+
+         elseif (xrandom == "grid") then
+           nzstri_s = nzstripe*sp_fract(isid)**(1./3.)
+           izstripe = (k-1)/npgrp + 1
+           do i=k,i1
+              zt(i-k+1) = (izstripe-.5)/nzstri_s + zjig*(wranf()-.5)/nzstri_s +
+     &                    zoff
+           enddo
+         endif
+
+c        --- zero vz if vthz is zero only the first time through
+         if (vthz_s(isid) == 0. .and. firstk) then
+           do i=1,npgrp
+              uzt(i) = 0.
+           enddo
+         endif
+
+         if (cigarld) then
+c          --- set vtz to vthz*2 since vtz is vz_max - vz_bar for cigar
+           vtz = 2.*vthz_s(isid)
+c          --- load uzt with linear distribution (-.5 < uzt < .5)
+           if (vtz /= 0.) then
+             do i=1,i1-k+1
+               uzt(i) = wrandom(vzrandom,i+k-1+ioff,dig7,fibg1,npm) - .5
+             enddo
+           endif
+c          --- use cigar to adjust the z's
+c          --- xt,yt,uxt,uyt passed as scratch arrays
+           call cigar(i1-k+1,zt(1),uzt(1),zt(1),uzt(1),perpscal(1),
+     &                straight_s(isid),xt(1),yt(1),uxt(1),uyt(1))
+
+c          --- Loading gaussian longitudinal velocity distribution.
+           if (distr_l == "gaussian") then
+c            --- Note that the last argument is set to force the first value
+c            --- to be done in such a way so that the calculation of the
+c            --- gaussian random numbers is reset (since they are calculated
+c            --- two at a time. This is only really needed for the parallel
+c            --- version to get the same numbers as the serial case.
+             do i=1,i1-k+1
+               uzt(i) = wrandomgauss(vzrandom,i+k-1+ioff,dig7,dig8,1,1,i>1)
+               uzt(i) = 0.5*perpscal(i)*uzt(i)
+             enddo
+           endif
+
+         else
+c          --- non-cigar load
+c          --- set vtz to vthz
+           vtz = vthz_s(isid)
+c          --- load uzt with gaussian distribution (mean 0, variance 1)
+           if (vtz /= 0.) then
+             do i=1,i1-k+1
+               uzt(i) = wrandomgauss(vzrandom,i+k-1+ioff,dig7,dig8,1,1,i>1)
+             enddo
+           endif
+c          --- set perpscal to one first time through
+           if (firstk) perpscal = 1.0
+         endif
+
+c        --- unormalize z to fetch envelope
+         i = i1 - k + 1
+         zt(1:i) = zbeam + zimin_s(isid) + zlen*zt(1:i)
+
+c        --- fetch envelope, centroid, and emittance.  Reset values
+c        --- after initial set if axial varying emittance, axial velocity,
+c        --- and axial thermal velocity are input
+         if (nenvofz > 0) then
+           do i=1,i1-k+1
+c            --- envelope interpolations
+             iz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nenvofz
+             wz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nenvofz - iz
+c            --- envelope
+             at(i)  = aofz(iz)*(1.-wz)  + aofz(iz+1)*wz
+             bt(i)  = bofz(iz)*(1.-wz)  + bofz(iz+1)*wz
+             apt(i) = apofz(iz)*(1.-wz) + apofz(iz+1)*wz
+             bpt(i) = bpofz(iz)*(1.-wz) + bpofz(iz+1)*wz
+c            --- centroid
+             xct(i)  = xofz(iz)*(1.-wz)  + xofz(iz+1)*wz
+             yct(i)  = yofz(iz)*(1.-wz)  + yofz(iz+1)*wz
+             xpct(i) = xpofz(iz)*(1.-wz) + xpofz(iz+1)*wz
+             ypct(i) = ypofz(iz)*(1.-wz) + ypofz(iz+1)*wz
+           enddo
+         elseif (.not. cylinder) then
+           icheck = envxport(i1-k+1,zt,at,apt,bt,bpt,xct,xpct,yct,ypct,
+     &                       vzt,epsxt,epsyt,ibeamt)
+           if (icheck == 1) then
+              call kaboom("stptcl3d: ERROR: out-of-range z sent to ENVXPORT")
+           endif
+c          --- set axial thermal velocity based on species .... note that
+c          --- at present this is inconsistent with envxport not knowing about
+c          --- individual species.  Eventually this might be fixed with a
+c          --- generalized envelope solver
+           do i=1,npgrp
+             vtzt(i) = vthz_s(isid)
+           enddo
+         else
+c          --- set only first time through
+           if (firstk) then
+             do i=1,npgrp
+               at(i)   = a0_s(isid)
+               bt(i)   = b0_s(isid)
+               apt(i)  = ap0_s(isid)
+               bpt(i)  = bp0_s(isid)
+c
+               xct(i)  = x0_s(isid)  + xcent_s(isid)
+               yct(i)  = y0_s(isid)  + ycent_s(isid)
+               xpct(i) = xp0_s(isid) + xpcent_s(isid)
+               ypct(i) = yp0_s(isid) + ypcent_s(isid)
+c
+               epsxt(i) = emitx_s(isid)
+               epsyt(i) = emity_s(isid)
+c
+               vzt(i)  = vbeam_s(isid)
+               vtzt(i) = vthz_s(isid)
+c
+               ibeamt(i) = ibeam_s(isid)
+             enddo
+           endif
+         endif
+c        --- reset emittance interpolations
+         if (nemitofz > 0) then
+           do i=1,i1-k+1
+             iz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nemitofz
+             wz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nemitofz - iz
+c
+             epsxt(i) = emitxofz(iz)*(1.-wz) + emitxofz(iz+1)*wz
+             epsyt(i) = emityofz(iz)*(1.-wz) + emityofz(iz+1)*wz
+           enddo
+         endif
+c        --- reset axial velocity interpolations
+         if (nvbeamofz > 0) then
+           do i=1,i1-k+1
+c
+             iz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nvbeamofz
+             wz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nvbeamofz - iz
+c
+             vzt(i) = vbeamofz(iz)*(1.-wz) + vbeamofz(iz+1)*wz
+           enddo
+         endif
+c        --- reset axial thermal velocity interpolations
+         if (nvthzofz > 0) then
+           do i=1,i1-k+1
+c
+             iz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nvthzofz
+             wz = (zt(i) - zimin_s(isid) - zbeam)*zleni*nvthzofz - iz
+c
+             vtzt(i) = vthzofz(iz)*(1.-wz) + vthzofz(iz+1)*wz
+           enddo
+         endif
+c        --- XXX beam current interpolations (placeholder)
+c         if () then
+c           do i=1,i1-k+1
+c             ibeamt(i) = ....
+c           enddo
+c         endif
+
+
+c  Load tranverse stuff
+c  semi-gaussian distribution
+         if (distrbtn(:8) == "semigaus" .or. distrbtn == "SG" .or.
+     &       distrbtn == "SemiGaussian") then
+
+c          --- load normalized tranverse space variables
+           if (xrandom .ne. "grid") then
+             nfib2 = nfibgrps*fibg2
+             nfib3 = nfibgrps*fibg3
+             do i=1,i1-k+1
+               xt(i) = 2.*wrandom(xrandom,i+k-1+ioff,dig1,nfib2,npm) - 1.
+               yt(i) = 2.*wrandom(xrandom,i+k-1+ioff,dig2,nfib3,npm) - 1.
+             enddo
+           elseif (xrandom == "grid") then
+             nxstri_s = nxstripe*sp_fract(isid)**(1./3.)
+             nystri_s = nystripe*sp_fract(isid)**(1./3.)
+             do j=1,nystri_s
+               do i=1,nxstri_s
+                 xt(k+i-1+(j-1)*nxstri_s) = 2.*(i-.5)/nxstri_s - 1.
+                 yt(k+i-1+(j-1)*nystri_s) = 2.*(j-.5)/nystri_s - 1.
+               enddo
+             enddo
+           endif
+
+           if (ldprfile == "polar") then
+c          --- use random numbers to load particles in polar coordinates
+             do i=1,i1-k+1
+               rt(i) = 0.5*(xt(i) + 1.)
+               tt(i) = yt(i)*pi
+
+c              --- Transform the radial positions to match the specified
+c              --- distribution.
+               if (nrdist > 0) then
+c                --- Find what grid cell the particle is in.
+                 irr = 0
+                 do while (rt(i) > intrdist(irr+1))
+                   irr = irr + 1
+                 enddo
+c                --- Do the transformation.  The transformation assumes a
+c                --- linearly varying distribution between grid locations.
+c                --- The transformation is derived by equating an integral
+c                --- over the uniform distribution to an integral over the
+c                --- specified distribution.  The particle remains within
+c                --- the range [0,1].
+                 if (nrmrdist(irr+1) == nrmrdist(irr)) then
+                   rt(i) = (rt(i) - intrdist(irr))/nrmrdist(irr)
+                 else
+                   rt(i) = ((sqrt(nrmrdist(irr)**2 -
+     &              2.*(nrmrdist(irr+1)-nrmrdist(irr))*(intrdist(irr) - rt(i)))-
+     &              nrmrdist(irr))/(nrmrdist(irr+1)-nrmrdist(irr)) + irr)/nrdist
+                 endif
+c                --- The above gives the radius, but below, rt(i) is assumed to
+c                --- hold the r squared.
+                 rt(i) = rt(i)*rt(i)
+               endif
+
+c              --- Hollow beam using an analytic function.
+               if (hollow == 2) then
+c                --- f(r)~(h+(1-h)r^2)
+                 rt(i) = (1 + hollow_h)*rt(i)/
+     &                (hollow_h + sqrt(hollow_h**2 + (1. - hollow_h**2)*rt(i)))
+               endif
+
+c              --- Now convert radius and theta to x and y.
+               rt(i) = sqrt(rt(i))
+               xt(i) = rt(i)*cos(tt(i))
+               yt(i) = rt(i)*sin(tt(i))
+               indx(i) = i
+             enddo
+             j = i1-k+1
+
+           elseif (ldprfile == "streamls") then
+c            --- carve into cylinder
+             j=0
+             do i=1,i1-k+1
+               if (xt(i)**2 + yt(i)**2 < 1.) then
+                 rt(i) = sqrt(xt(i)**2 + yt(i)**2)
+                 tt(i) = atan2(yt(i),xt(i))
+                 j=j+1
+                 indx(j) = i
+               endif
+             enddo
+
+c            --- transform to hollow beam of type one
+c            --- f(r^2)  =    f0 * (r/rmax)^2                r < rmax/2
+c            ---              f0 * (1 - (r/rmax)^2)/3        r > rmax/2
+c            --- x and y are multiplied by 1.08 to keep rbar and rrms roughly
+c            --- the same as in the uniform beam
+             if (hollow == 1)  then
+               do i=1,i1-k+1
+                 ii = indx(i)
+                 rp = sqrt(xt(ii)**2 + yt(ii)**2)
+                 rpp = sqrt(0.5*sqrt(rp**2))
+                 if (rp > 0.5) rpp = sqrt(1. - 0.5*sqrt(3. - 3.*rp**2))
+                 xt(ii) = rpp*xt(ii)/rp*1.08
+                 yt(ii) = rpp*yt(ii)/rp*1.08
+               enddo
+             endif
+
+           elseif (ldprfile == "stripes") then
+c            --- carve into normalized envelope
+             j=0
+             r0 = max(a0_s(isid),b0_s(isid))
+             do i=1,i1-k+1
+               if ((xt(i)*bt(i))**2 + (yt(i)*at(i))**2
+     &                                < (at(i)*bt(i)/r0)**2) then
+                 j=j+1
+                 indx(j) = i
+                 xt(i) = xt(i)*r0/at(i)
+                 yt(i) = yt(i)*r0/bt(i)
+                 rt(i) = sqrt(xt(i)**2 + yt(i)**2)
+                 tt(i) = atan2(yt(i),xt(i))
+               endif
+             enddo
+
+           else
+             write (errline,'("stptcl3d: ERROR: ldprfile has an improper value = ",a8)')
+     &           ldprfile
+             call kaboom(errline)
+           endif
+
+c          --- load normalized transverse velocity variables
+           if (distr_t == "gaussian") then
+c             --- Note that the loops must be broken up in this way since the
+c             --- routine wrandomgauss must be called in the correct order.
+             do i=1,i1-k+1
+               uxt(i) = wrandomgauss(vtrandom,i+k-1+ioff,dig3,dig4,1,1,i>1)
+             enddo
+             do i=1,i1-k+1
+               uyt(i) = wrandomgauss(vtrandom,i+k-1+ioff,dig5,dig6,1,1,i>1)
+             enddo
+           else if (distr_t == "uniform") then
+             do i=1,i1-k+1
+               uxt(i) = 2.*wrandom(vtrandom,i+k-1+ioff,dig3,fibg1,npm) - 1.
+               uyt(i) = 2.*wrandom(vtrandom,i+k-1+ioff,dig5,fibg1,npm) - 1.
+             enddo
+           endif
+
+c          --- Modify radial velocity distribution
+           if (nvrdist > 0) then
+             do i=1,i1-k+1
+               ir = rt(i)*nvrdist
+               wr = rt(i)*nvrdist - ir
+               vthr = (vthrofr(ir)*(1.-wr) + vthrofr(ir+1)*wr)
+               vrbar = (vrbarofr(ir)*(1.-wr) + vrbarofr(ir+1)*wr)
+               uxt(i) = vthr*uxt(i) + vrbar*cos(tt(i))
+               uyt(i) = vthr*uyt(i) + vrbar*sin(tt(i))
+             enddo
+           endif
+
+c!$OMP CRITICAL (STPTCL3D1)
+c#ifdef _OPENMP
+c           ip = iptotal
+c           iptotal = iptotal + j
+c#endif
+c!$OMP END CRITICAL (STPTCL3D1)
+
+c          --- unnormalize everything and load into particle arrays
+           ipi = ip
+           do i=1,j
+             ii = indx(i)
+
+c            --- put position into particle arrays
+             pgroup%xp(ipi+1) = at(ii)*xt(ii)*perpscal(ii) + xct(ii)
+             pgroup%yp(ipi+1) = bt(ii)*yt(ii)*perpscal(ii) + yct(ii)
+             pgroup%zp(ipi+1) = zt(ii)
+
+#ifdef MPIPARALLEL
+c            --- Check if particles are within the domain and skip them if not.
+c            --- Only transverse is checked since each processor creates
+c            --- particles at different z's.
+             xx = pgroup%xp(ipi+1)
+             yy = pgroup%yp(ipi+1)
+             if (lrz) then
+               rr = xx**2 + yy**2
+               if (rr < xpminlocal**2 .or. rr >= xpmaxlocal**2) cycle
+             else
+               if (l4symtry) xx = abs(xx)
+               if (l2symtry .or. l4symtry) yy = abs(yy)
+               if (xx < xpminlocal .or. xx >= xpmaxlocal) cycle
+               if (.not. lxz .and. (yy < ypminlocal.or.yy >= ypmaxlocal)) cycle
+             endif
+#endif
+
+             ipi = ipi + 1
+
+c            --- put velocity into particle arrays
+             if (at(ii) == 0.) then
+               vtx = vthperp_s(isid)
+             else
+               vtx = .5*vzt(ii)*epsxt(ii)/at(ii)*perpscal(ii) + vthperp_s(isid)
+             endif
+             if (bt(ii) == 0.) then
+               vty = vthperp_s(isid)
+             else
+               vty = .5*vzt(ii)*epsyt(ii)/bt(ii)*perpscal(ii) + vthperp_s(isid)
+             endif
+             pgroup%uxp(ipi) = vzt(ii)*apt(ii)*xt(ii)*perpscal(ii) +
+     &                         vtx*uxt(ii) + vzt(ii)*xpct(ii)
+             pgroup%uyp(ipi) = vzt(ii)*bpt(ii)*yt(ii)*perpscal(ii) +
+     &                         vty*uyt(ii) + vzt(ii)*ypct(ii)
+             pgroup%uzp(ipi) = vzt(ii)*(1.+vtilt_s(isid)*(zmid - zt(ii))*zleni)+
+     &                         vtzt(ii)*uzt(ii)
+
+c            --- add sinusoidal perturbation to uzp
+             if (vzperamp /= 0.) then
+               pgroup%uzp(ipi) = pgroup%uzp(ipi) +
+     &                   vzperamp*sin(2.*pi*pgroup%zp(ipi)/vzperlam + vzperphs)
+             endif
+
+             if (lrelativ) then
+               gaminv = sqrt ( 1. -  (pgroup%uxp(ipi)**2 +
+     &                                pgroup%uyp(ipi)**2 +
+     &                                pgroup%uzp(ipi)**2)*clghtisq)
+               gam = 1./gaminv
+               pgroup%gaminv(ipi) = gaminv
+               pgroup%uxp(ipi) = gam*pgroup%uxp(ipi)
+               pgroup%uyp(ipi) = gam*pgroup%uyp(ipi)
+               pgroup%uzp(ipi) = gam*pgroup%uzp(ipi)
+             else
+               pgroup%gaminv(ipi) = 1.0
+             endif
+
+             if (pgroup%npid > 0) pgroup%pid(ipi,:) = 0.
+             if (ssnpid > 0) then
+               pgroup%pid(ipi,ssnpid) = ioff + k + i - 1
+               ssn = ioff + k + i
+             endif
+           enddo
+
+c          --- increment number of particles by size of current group
+           ip = ipi
+
+c        --- K-V distribution
+         elseif (distrbtn == "K-V" .or. distrbtn == "KV") then
+
+c          --- fetch random numbers and put into xt,yt, & uxt  temporarily
+           nfib2 = nfibgrps*fibg2
+           nfib3 = nfibgrps*fibg3
+           nfib4 = nfibgrps*fibg4
+           do i=1,i1-k+1
+             xt(i) = wrandom(xrandom,i+k-1+ioff,dig1,nfib2,npm)
+             yt(i) = wrandom(xrandom,i+k-1+ioff,dig2,nfib3,npm)
+             uxt(i) = wrandom(xrandom,i+k-1+ioff,dig3,nfib4,npm)
+           enddo
+
+c!$OMP CRITICAL (STPTCL3D2)
+c#ifdef _OPENMP
+c           ip = iptotal
+c           iptotal = iptotal + i1-k+1
+c#endif
+c!$OMP END CRITICAL (STPTCL3D2)
+
+c          --- load x,y,ux, and uy evenly onto a 4-D ellipsoid
+           ipi = ip
+           do i=1,i1-k+1
+             rr = sqrt(xt(i))
+             phi1 = 2.*Pi*yt(i)
+             phi2 = 2.*Pi*uxt(i)
+c            --- put position into particle arrays
+             pgroup%xp(ipi+1) = rr*cos(phi1)*at(i)*perpscal(i) + xct(i)
+             pgroup%yp(ipi+1) = rr*sin(phi1)*bt(i)*perpscal(i) + yct(i)
+             pgroup%zp(ipi+1) = zt(i)
+
+#ifdef MPIPARALLEL
+c            --- Check if particles are within the domain and skip them if not.
+c            --- Only transverse is checked since each processor creates
+c            --- particles at different z's.
+             xx = pgroup%xp(ipi+1)
+             yy = pgroup%yp(ipi+1)
+             if (lrz) then
+               rr = xx**2 + yy**2
+               if (rr < xpminlocal**2 .or. rr >= xpmaxlocal**2) cycle
+             else
+               if (l4symtry) xx = abs(xx)
+               if (l2symtry .or. l4symtry) yy = abs(yy)
+               if (xx < xpminlocal .or. xx >= xpmaxlocal) cycle
+               if (.not. lxz .and. (yy < ypminlocal.or.yy >= ypmaxlocal)) cycle
+             endif
+#endif
+
+             ipi = ipi + 1
+
+c            --- put velocity into particle arrays
+c            --- Note that the coherent velocities are relative to the
+c            --- centroid.
+             rr = sqrt(1.-rr*rr)
+             if (at(i) == 0.) then
+               vtx = vthperp_s(isid)
+               vtz = 0.
+             else
+               vtx = vzt(i)*epsxt(i)/at(i)*perpscal(i) + vthperp_s(isid)
+               vtz = vzt(i)*(pgroup%xp(ipi) - xct(i))*apt(i)/at(i)
+             endif
+             pgroup%uxp(ipi) = vtz + vtx*rr*cos(phi2) + vzt(i)*xpct(i)
+             if (bt(i) == 0.) then
+               vty = vthperp_s(isid)
+               vtz = 0.
+             else
+               vty = vzt(i)*epsyt(i)/bt(i)*perpscal(i) + vthperp_s(isid)
+               vtz = vzt(i)*(pgroup%yp(ipi) - yct(i))*bpt(i)/bt(i)
+             endif
+             pgroup%uyp(ipi) = vtz + vty*rr*sin(phi2) + vzt(i)*ypct(i)
+             pgroup%uzp(ipi) = vzt(i)*(1.+vtilt_s(isid)*(zmid - zt(i))*zleni) +
+     &                   vtzt(i)*uzt(i)
+
+c            --- add sinusoidal perturbation to uzp
+             if (vzperamp /= 0.) then
+                 pgroup%uzp(ipi) = pgroup%uzp(ipi) +
+     &                 vzperamp*sin(2.*pi*pgroup%zp(ipi)/vzperlam + vzperphs)
+             endif
+
+             if (lrelativ) then
+               gaminv = sqrt ( 1. -  (pgroup%uxp(ipi)**2 +
+     &                                pgroup%uyp(ipi)**2 +
+     &                                pgroup%uzp(ipi)**2)*clghtisq)
+               gam = 1./gaminv
+               pgroup%gaminv(ipi) = gaminv
+               pgroup%uxp(ipi) = gam*pgroup%uxp(ipi)
+               pgroup%uyp(ipi) = gam*pgroup%uyp(ipi)
+               pgroup%uzp(ipi) = gam*pgroup%uzp(ipi)
+             else
+               pgroup%gaminv(ipi) = 1.0
+             endif
+
+             if (pgroup%npid > 0) pgroup%pid(ipi,:) = 0.
+             if (ssnpid > 0) then
+               pgroup%pid(ipi,ssnpid) = ioff + k + i - 1
+               ssn = ioff + k + i
+             endif
+           enddo
+
+c          --- increment number of particles by size of current group
+           ip = ipi
+
+c        --- Load various transverse distributions
+c        --- using local Courant-Snyder zero-current invariants (0 suffixes)
+c        --- appropriate for periodic focusing channels or
+
+         elseif (distrbtn == "WB"  .or. distrbtn == "Waterbag"  .or.
+     &           distrbtn == "PA"  .or. distrbtn == "Parabolic" .or.
+     &           distrbtn == "TE"  .or. distrbtn == "ThermalEquilibrium" .or.
+     &           distrbtn == "KV0" .or.
+     &           distrbtn == "WB0" .or. distrbtn == "Waterbag0"  .or.
+     &           distrbtn == "PA0" .or. distrbtn == "Parabolic0" .or.
+     &           distrbtn == "GA0" .or. distrbtn == "Gaussian0"  .or.
+     &           distrbtn == "TE"  .or. distrbtn == "ThermalEquilibrium")
+     &           then
+
+c          --- Load transverse particles in x-x', y-y' phase space using
+c          --- the local beam envelope and emittance in the slice of each
+c          --- particle
+
+           if (distrbtn == "WB" .or. distrbtn == "Waterbag"  .or.
+     &         distrbtn == "PA" .or. distrbtn == "Parabolic" .or.
+     &         distrbtn == "TE" .or. distrbtn == "ThermalEquilibrium") then
+c            --- use transforms of continuous focusing equilibria
+             call loadperpdist(k+ioff,i1-k+1,xt,yt,rt,tt,uxt,uyt,
+     &                         at,bt,apt,bpt,epsxt,epsyt)
+           elseif (distrbtn == "KV0" .or.
+     &             distrbtn == "WB0" .or. distrbtn == "Waterbag0"  .or.
+     &             distrbtn == "PA0" .or. distrbtn == "Parabolic0" .or.
+     &             distrbtn == "GA0" .or. distrbtn == "Gaussian0") then
+c            --- use zero applied field Courant-Snyder invariants
+             call loadperpdist0(k+ioff,i1-k+1,xt,yt,uxt,uyt,
+     &                          at,bt,apt,bpt,epsxt,epsyt)
+           endif
+
+c!$OMP CRITICAL (STPTCL3D2)
+c#ifdef _OPENMP
+c           ip = iptotal
+c           iptotal = iptotal + i1-k+1
+c#endif
+c!$OMP END CRITICAL (STPTCL3D2)
+
+c          --- load coordinates
+           ipi = ip
+           do i=1,i1-k+1
+
+c            --- set longitudinal particle coordinates
+c                  1st term: distribution about centroid
+c                  2nd term: centroid component
+             pgroup%xp(ipi+1) = xt(i) + xct(i)
+             pgroup%yp(ipi+1) = yt(i) + yct(i)
+
+#ifdef MPIPARALLEL
+c            --- Check if particles are within the domain and skip them if not.
+c            --- Only transverse is checked since each processor creates
+c            --- particles at different z's.
+             xx = pgroup%xp(ipi+1)
+             yy = pgroup%yp(ipi+1)
+             if (lrz) then
+               rr = xx**2 + yy**2
+               if (rr < xpminlocal**2 .or. rr >= xpmaxlocal**2) cycle
+             else
+               if (l4symtry) xx = abs(xx)
+               if (l2symtry .or. l4symtry) yy = abs(yy)
+               if (xx < xpminlocal .or. xx >= xpmaxlocal) cycle
+               if (.not. lxz .and. (yy < ypminlocal.or.yy >= ypmaxlocal)) cycle
+             endif
+#endif
+
+             ipi = ipi + 1
+
+c            --- set the longitudinal particle coordinate
+             pgroup%zp(ipi) = zt(i)
+c            --- set transverse particle gamma*velocity
+c                  1st term: rescale uxp returned in x' units to uxp
+c                  2nd term: centroid component
+             pgroup%uxp(ipi) = vzt(i)*uxt(i) + vzt(i)*xpct(i)
+             pgroup%uyp(ipi) = vzt(i)*uyt(i) + vzt(i)*ypct(i)
+c            --- set longitudinal particle gamma*velocity
+             pgroup%uzp(ipi) = vzt(i)*(1. + vtilt_s(isid)*(zmid - zt(i))*zleni) +
+     &                   vtzt(i)*uzt(i)
+
+c            --- add sinusoidal perturbation to uzp
+             if (vzperamp /= 0.) then
+               pgroup%uzp(ipi) = pgroup%uzp(ipi) +
+     &               vzperamp*sin(2.*pi*pgroup%zp(ipi)/vzperlam + vzperphs)
+             endif
+
+             if (lrelativ) then
+               gaminv = sqrt ( 1. -  (pgroup%uxp(ipi)**2 +
+     &                                pgroup%uyp(ipi)**2 +
+     &                                pgroup%uzp(ipi)**2)*clghtisq)
+               gam = 1./gaminv
+               pgroup%gaminv(ipi) = gaminv
+               pgroup%uxp(ipi) = gam*pgroup%uxp(ipi)
+               pgroup%uyp(ipi) = gam*pgroup%uyp(ipi)
+               pgroup%uzp(ipi) = gam*pgroup%uzp(ipi)
+             else
+               pgroup%gaminv(ipi) = 1.0
+             endif
+
+             if (pgroup%npid > 0) pgroup%pid(ipi,:) = 0.
+             if (ssnpid > 0) then
+               pgroup%pid(ipi,ssnpid) = ioff + k + i - 1
+               ssn = ioff + k + i
+             endif
+           enddo
+
+c          --- increment number of particles by size of current group
+           ip = ipi
+
+         else
+           write (errline,'("stptcl3d: ERROR: distrbtn has an improper value = ",a8)')
+     &           distrbtn
+           call kaboom(errline)
+         endif
+
+c        --- Set flag to indicate that the loop has been passed through once
+        firstk = .false.
+      enddo
+!$OMP END DO
+
+c  Set particle number, indices, etc.
+
+c!$OMP MASTER
+c#ifdef _OPENMP
+c      ip = iptotal
+c#endif
+      pgroup%nps(js+1) = ip - pgroup%ins(js+1) + 1
+c!$OMP END MASTER
+
+      enddo
+
+c     deallocate scratch space for load
+c      --- XXX These were commented out - I'm not sure why.
+       deallocate(indx,xt,yt,zt,rt,tt)
+       deallocate(uxt,uyt,uzt,perpscal)
+       deallocate(at,apt,bt,bpt)
+       deallocate(epsxt,epsyt,vzt,vtzt,ibeamt)
+       deallocate(xct,xpct,yct,ypct)
+
+!$OMP END PARALLEL
+
+c--------------------------------
+c  End main loop over species
+c--------------------------------
+
+c     --- end of if checking for positive npm and distrbtn is not preload
+      endif
+
+c     --- Get the global number of particles
+      allocate(nptot(0:pgroup%ns-1), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:stptcl3d: nptot could not be allocated"
+        stop
+      endif
+      nptot = pgroup%nps
+#ifdef MPIPARALLEL
+      call parallelsumintegerarray(nptot,pgroup%ns)
+#endif
+
+c     --- calculate values for sm, sq, and sw for each species.
+      do js = 0,pgroup%ns-1
+        isid = pgroup%sid(js) + 1
+        if (pgroup%sq(js+1) == 0) pgroup%sq(js+1) = zion_s(isid) * echarge
+        if (pgroup%sm(js+1) == 0) pgroup%sm(js+1) = aion_s(isid) * amu
+        if (vbeam_s(isid) /= 0. .and. nptot(js) /= 0 .and.
+     &      zion_s(isid) /= 0.  .and. pgroup%sw(js+1) == 0) then
+          zlen = zimax_s(isid) - zimin_s(isid)
+          if (zlen == 0.) zlen = 1.
+c         --- sw must be >= 0. The cancellation of signs in this expression
+c         --- is tricky, so it is simplest to just use abs. For example,
+c         --- the code allows zimin > zimax, which leaves zlen < 0.
+c         --- Also, ibeam, vbeam and zion would have to be consistent.
+          pgroup%sw(js+1)=abs(ibeam_s(isid)*zlen*sp_fract(isid)/
+     &                        (vbeam_s(isid)*echarge*zion_s(isid)*nptot(js)))
+        else if (js > 0) then
+          if (pgroup%sw(js+1) == 0 .and.
+     &           pgroup%sq(js+1) == pgroup%sq(js) .and.
+     &           pgroup%sm(js+1) == pgroup%sm(js) .and.
+     &           pgroup%ndts(js) == 2*pgroup%ndts(js-1)) then
+c           --- Automatically set the sw for species with larger ndts since in
+c           --- general there will be no particles in those groups initially
+c           --- (so nptot will be zero and the above skipped).
+            pgroup%sw(js+1) = pgroup%sw(js)
+          endif
+        endif
+c       --- Don't zero out sw in case the user has set it.
+
+c       --- Adjust weighting of particles since cigar() makes beam more dense
+        if (cigarld) then
+          pgroup%sw(js+1) = pgroup%sw(js+1)*
+     &                        (straight_s(isid) + (1. - straight_s(isid))*2./3.)
+        endif
+
+        if (nzdist > 0) then
+          if (lnormalize_zdist) then
+c           --- When zdist is being normalized, scale sw so that ibeam/vbeam
+c           --- gives the maximum line-charge of the distribution. sw is scaled
+c           --- by the ratio of the sum of zdist and the the product of the
+c           --- max of zdist and the number of grid points in zdist. That is
+c           --- the ratio of the loaded linecharge and what the linecharge
+c           --- would have been with a uniform distribution.
+          zdistmax = maxval(nrmzdist)
+          pgroup%sw(js+1) = pgroup%sw(js+1)/(zdistmax*nzdist)
+          else
+c           --- When not normalizing zdist, scale sw so that the total charge
+c           --- is scaled by the sum of zdist. This needs to be done since
+c           --- nptot above has been scaled by the sum of zdist but the
+c           --- line-charge calculated from ibeam/vbeam has not been scaled.
+            pgroup%sw(js+1) = pgroup%sw(js+1)*sumzdist/nzdist
+        endif
+        endif
+
+      enddo
+
+      deallocate(nptot)
+
+c     --- This is not needed since the global number of particles is used
+c     --- above to calculate sw.
+c     --- if slave, recalculate sw
+c#ifdef MPIPARALLEL
+c      call sw_globalsum(pgroup%ns,pgroup%sw)
+c#endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timestptcl3d = timestptcl3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine setrho3d(rho,np,xp,yp,zp,zgrid,q,wght,depos,depos_order,
+     &                    nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                    dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry,
+     &                    lcylindrical)
+      use GlobalVars
+      use Subtimersw3d
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      character(8):: depos
+      integer(ISZ):: depos_order(0:2)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c  Sets charge density using various algorithms
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (q*wght == 0.) return
+
+      if (ALL(depos_order == 1)) then
+
+c       --- Vectorized deposition loop
+        if (depos == "vector") then
+
+          call setrho3dvector(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                        nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                        dx,dy,dz,xmmin,ymmin,zmmin,
+     &                        l2symtry,l4symtry)
+
+c       --- Scalar deposition loop
+        elseif (depos == "scalar") then
+
+          call setrho3dscalar(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                        nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                        dx,dy,dz,xmmin,ymmin,zmmin,
+     &                        l2symtry,l4symtry)
+
+c       --- Direct deposition loop
+        elseif (depos == "direct") then
+
+          call setrho3ddirect(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                        nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                        dx,dy,dz,xmmin,ymmin,zmmin,
+     &                        l2symtry,l4symtry)
+
+c       --- Direct deposition loop with precalculated integer conversions
+        elseif (depos == "direct1") then
+
+          if (.not. lcylindrical) then
+            call setrho3ddirect1(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,
+     &                           l2symtry,l4symtry)
+          else
+            call setrho3ddirect2(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,
+     &                           l2symtry,l4symtry,lcylindrical)
+          endif
+
+c       --- Vectorized deposition loop with precalculated integer conversions
+        else if (depos == "vector1") then
+
+          call setrho3dvector1(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                         nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                         dx,dy,dz,xmmin,ymmin,zmmin,
+     &                         l2symtry,l4symtry)
+
+        endif
+
+      else if (ALL(depos_order == 2)) then
+
+c       --- Direct deposition using a second order spline
+c       --- Formerly depos == "dspline2"
+
+        if (.not. lcylindrical) then
+          call setrho3ddirectspline2(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                               nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                               dx,dy,dz,xmmin,ymmin,zmmin,
+     &                               l2symtry,l4symtry)
+        else
+          call setrho3ddirectspline2cyl(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                                  nx,ny,nz,
+     &                                  nxguardrho,nyguardrho,nzguardrho,
+     &                                  dx,dy,dz,xmmin,ymmin,zmmin,
+     &                                  l2symtry,l4symtry)
+       endif
+
+      else if (ALL(depos_order == 3)) then
+
+c       --- Direct deposition using a third order spline
+        if (.not. lcylindrical) then
+           call setrho3ddirectspline3(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                                nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                                dx,dy,dz,xmmin,ymmin,zmmin,
+     &                                l2symtry,l4symtry)
+        else
+           call kaboom("setho3dw: cylindrical geometry is not supported for depos_order=3")
+        endif
+        
+      else
+        call kaboom("setho3d: order of deposition is not supported in the electrostatic solver")
+        return
+      endif
+
+!$OMP END PARALLEL
+
+      if (lw3dtimesubs) timesetrho3d = timesetrho3d + wtime() - substarttime
+      return
+      end
+c=============================================================================
+      subroutine setrho3dvector(rho1d,np,xp,yp,zp,zgrid,q,wght,
+     &                          nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                          dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho1d(0:(1+nx+2*nxguardrho)*(1+ny+2*nyguardrho)*(1+nz+2*nzguardrho)-1)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+
+c  Algorithm notes: rho array is dimensioned (0:nx,0:ny,0:nz) outside,
+c  but is made one dimensional in this routine
+c  so cell index into 1d rho array for vectorized deposition is:
+c     i + j*(nx+1) + k*(nx+1)*(ny+1)
+c  In each case,
+c     rho(i  ,j  ,k  ) = rho(i  ,j  ,k  ) + u0*v0*w0*g
+c     rho(i+1,j  ,k  ) = rho(i+1,j  ,k  ) + u1*v0*w0*g
+c  Note that many changes are possible; for example, we might define
+c  ind0(ir) and not use indx; this saves some store operations but
+c  leads to a more complicated indirect address for the vectorized
+c  gather-add-scatter loop.  It seems about 3% slower than the present way.
+c  RHO must be zeroed in ZERORHO since it is not zeroed here (to allow
+c  handling of blocks of particles at a time)
+
+      integer(ISZ):: nnx,nnxy
+      integer(ISZ):: moff(0:7)
+      integer(ISZ),allocatable:: indx(:,:)
+      real(kind=8),allocatable:: s(:,:)
+
+      integer(ISZ):: ipmin,nptmp,ip,i,j,k,ind0,m,ir
+      real(kind=8):: g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+      integer:: alloc_status
+
+c     --- Set up offset array for vectorized deposition:
+      nnx = nx + 1 + 2*nxguardrho
+      nnxy = (nx + 1 + 2*nxguardrho)*(ny + 1 + 2*nyguardrho)
+      moff(0) = 0
+      moff(1) = 1
+      moff(2) = nnx
+      moff(3) = nnx + 1
+      moff(4) = nnxy
+      moff(5) = nnxy + 1
+      moff(6) = nnxy + nnx
+      moff(7) = nnxy + nnx + 1
+
+      moff = moff + nnxy*nzguardrho
+
+      g = wght*q/(dx*dy*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g = g*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g = g*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ipmin,nptmp,i,j,k,u1,u0,v1,v0,w1,w0,ir,ip,ind0,indx,m)
+!$OMP&FIRSTPRIVATE(np)
+
+      allocate(indx(0:7,0:nparpgrp-1),s(0:7,0:nparpgrp-1), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:setrho3dvector: indx and s could not be allocated"
+        stop
+      endif
+
+!$OMP DO
+      do ipmin = 1,np,nparpgrp
+        nptmp = min(nparpgrp, np+1-ipmin)
+
+c       --- vectorized loop to compute indices, weights
+        if (l2symtry) then
+c         --- special loop for 2-fold symmetry
+c         --- The particle weight is reduced by a factor of 2 except near the
+c         --- transverse boundaries.
+          do ip = ipmin,ipmin+nptmp-1
+            i  = int((xp(ip) - xmmin)*dxi)
+            u1 =     (xp(ip) - xmmin)*dxi - i
+            u0 = 1. - u1
+            j  = int((abs(yp(ip)) - ymmin)*dyi)
+            v1 =     (abs(yp(ip)) - ymmin)*dyi - j
+            v0 = 1. - v1
+            k  = int((zp(ip) - zgrid - zmmin)*dzi)
+            w1 =     (zp(ip) - zgrid - zmmin)*dzi - k
+            w0 = 1. - w1
+            ir = ip - ipmin
+            ind0 = i + j*nnx + k*nnxy
+            indx(0,ir) = ind0 + moff(0)
+            indx(1,ir) = ind0 + moff(1)
+            indx(2,ir) = ind0 + moff(2)
+            indx(3,ir) = ind0 + moff(3)
+            indx(4,ir) = ind0 + moff(4)
+            indx(5,ir) = ind0 + moff(5)
+            indx(6,ir) = ind0 + moff(6)
+            indx(7,ir) = ind0 + moff(7)
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        elseif (l4symtry) then
+c         --- special loop for 4-fold symmetry
+c         --- The particle weight is reduced by a factor of 4 except near the
+c         --- transverse boundaries.
+          do ip = ipmin,ipmin+nptmp-1
+            i  = int((abs(xp(ip)) - xmmin)*dxi)
+            u1 =     (abs(xp(ip)) - xmmin)*dxi - i
+            u0 = 1. - u1
+            j  = int((abs(yp(ip)) - ymmin)*dyi)
+            v1 =     (abs(yp(ip)) - ymmin)*dyi - j
+            v0 = 1. - v1
+            k  = int((zp(ip) - zgrid - zmmin)*dzi)
+            w1 =     (zp(ip) - zgrid - zmmin)*dzi - k
+            w0 = 1. - w1
+            ir = ip - ipmin
+            ind0 = i + j*nnx + k*nnxy
+            indx(0,ir) = ind0 + moff(0)
+            indx(1,ir) = ind0 + moff(1)
+            indx(2,ir) = ind0 + moff(2)
+            indx(3,ir) = ind0 + moff(3)
+            indx(4,ir) = ind0 + moff(4)
+            indx(5,ir) = ind0 + moff(5)
+            indx(6,ir) = ind0 + moff(6)
+            indx(7,ir) = ind0 + moff(7)
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        else
+c         --- normal loop
+          do ip = ipmin,ipmin+nptmp-1
+            i  = int((xp(ip) - xmmin)*dxi)
+            u1 =     (xp(ip) - xmmin)*dxi - i
+            u0 = 1. - u1
+            j  = int((yp(ip) - ymmin)*dyi)
+            v1 =     (yp(ip) - ymmin)*dyi - j
+            v0 = 1. - v1
+            k  = int((zp(ip) - zgrid - zmmin)*dzi)
+            w1 =     (zp(ip) - zgrid - zmmin)*dzi - k
+            w0 = 1. - w1
+            ir = ip - ipmin
+            ind0 = i + j*nnx + k*nnxy
+            indx(0,ir) = ind0 + moff(0)
+            indx(1,ir) = ind0 + moff(1)
+            indx(2,ir) = ind0 + moff(2)
+            indx(3,ir) = ind0 + moff(3)
+            indx(4,ir) = ind0 + moff(4)
+            indx(5,ir) = ind0 + moff(5)
+            indx(6,ir) = ind0 + moff(6)
+            indx(7,ir) = ind0 + moff(7)
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        endif
+
+c       --- vectorized deposition over the 8 cells touched;
+c       --- there'd be a hazard if we interchanged the loops.
+!$OMP CRITICAL (CRITICAL_SETRHO3DVECTOR)
+        do ir = 0,nptmp-1
+          do m = 0, 7
+            rho1d(indx(m,ir)) = rho1d(indx(m,ir)) + s(m,ir)
+          enddo
+        enddo
+!$OMP END CRITICAL (CRITICAL_SETRHO3DVECTOR)
+
+      enddo
+!$OMP END DO
+
+      deallocate(indx,s)
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3dscalar(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                          nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                          dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  Similar to vector, but rho is treated as a 3d array rather than a 1d array
+
+      integer(ISZ),allocatable:: ii(:), jj(:), kk(:)
+      real(kind=8),allocatable:: s(:,:)
+
+      integer(ISZ):: ipmin,nptmp,ip,i,j,k,ir
+      real(kind=8):: g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+      integer:: alloc_status
+
+      g = wght*q/(dx*dy*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g = g*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g = g*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ipmin,nptmp,u1,u0,v1,v0,w1,w0,ir,ip,
+!$OMP&                 s,ii,jj,kk)
+!$OMP&FIRSTPRIVATE(np)
+
+      allocate(ii(0:nparpgrp-1), jj(0:nparpgrp-1), kk(0:nparpgrp-1), s(0:7,0:nparpgrp-1), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:setrho3dscalar: ii et al could not be allocated"
+        stop
+      endif
+
+!$OMP DO
+      do ipmin = 1,np,nparpgrp
+        nptmp = min(nparpgrp, np+1-ipmin)
+
+c       --- vectorized loop to compute indices, weights
+        if (l2symtry) then
+          do ip = ipmin,ipmin+nptmp-1
+            ir = ip - ipmin
+            ii(ir) = int((xp(ip) - xmmin)*dxi)
+            u1     =     (xp(ip) - xmmin)*dxi - ii(ir)
+            u0     = 1. - u1
+            jj(ir) = int((abs(yp(ip)) - ymmin)*dyi)
+            v1     =     (abs(yp(ip)) - ymmin)*dyi - jj(ir)
+            v0     = 1. - v1
+            kk(ir) = int((zp(ip) - zgrid - zmmin)*dzi)
+            w1     =     (zp(ip) - zgrid - zmmin)*dzi - kk(ir)
+            w0     = 1. - w1
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        elseif (l4symtry) then
+          do ip = ipmin,ipmin+nptmp-1
+            ir = ip - ipmin
+            ii(ir) = int((abs(xp(ip)) - xmmin)*dxi)
+            u1     =     (abs(xp(ip)) - xmmin)*dxi - ii(ir)
+            u0     = 1. - u1
+            jj(ir) = int((abs(yp(ip)) - ymmin)*dyi)
+            v1     =     (abs(yp(ip)) - ymmin)*dyi - jj(ir)
+            v0     = 1. - v1
+            kk(ir) = int((zp(ip) - zgrid - zmmin)*dzi)
+            w1     =     (zp(ip) - zgrid - zmmin)*dzi - kk(ir)
+            w0     = 1. - w1
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        else
+c         --- normal loop
+          do ip = ipmin,ipmin+nptmp-1
+            ir = ip - ipmin
+            ii(ir) = int((xp(ip) - xmmin)*dxi)
+            u1     = (xp(ip) - xmmin)*dxi - ii(ir)
+            u0     = 1. - u1
+            jj(ir) = int((yp(ip) - ymmin)*dyi)
+            v1     = (yp(ip) - ymmin)*dyi - jj(ir)
+            v0     = 1. - v1
+            kk(ir) = int((zp(ip) - zgrid - zmmin)*dzi)
+            w1     = (zp(ip) - zgrid - zmmin)*dzi - kk(ir)
+            w0     = 1. - w1
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        endif
+c       --- scalar loop does the actual deposition
+!$OMP CRITICAL (CRITICAL_SETRHO3D2)
+      do ir = 0, nptmp-1
+        rho(ii(ir)  ,jj(ir)  ,kk(ir)  )=rho(ii(ir)  ,jj(ir)  ,kk(ir)  )+s(0,ir)
+        rho(ii(ir)+1,jj(ir)  ,kk(ir)  )=rho(ii(ir)+1,jj(ir)  ,kk(ir)  )+s(1,ir)
+        rho(ii(ir)  ,jj(ir)+1,kk(ir)  )=rho(ii(ir)  ,jj(ir)+1,kk(ir)  )+s(2,ir)
+        rho(ii(ir)+1,jj(ir)+1,kk(ir)  )=rho(ii(ir)+1,jj(ir)+1,kk(ir)  )+s(3,ir)
+        rho(ii(ir)  ,jj(ir)  ,kk(ir)+1)=rho(ii(ir)  ,jj(ir)  ,kk(ir)+1)+s(4,ir)
+        rho(ii(ir)+1,jj(ir)  ,kk(ir)+1)=rho(ii(ir)+1,jj(ir)  ,kk(ir)+1)+s(5,ir)
+        rho(ii(ir)  ,jj(ir)+1,kk(ir)+1)=rho(ii(ir)  ,jj(ir)+1,kk(ir)+1)+s(6,ir)
+        rho(ii(ir)+1,jj(ir)+1,kk(ir)+1)=rho(ii(ir)+1,jj(ir)+1,kk(ir)+1)+s(7,ir)
+      enddo
+!$OMP END CRITICAL (CRITICAL_SETRHO3D2)
+
+      enddo
+!$OMP END DO
+
+      deallocate(ii,jj,kk,s)
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirect(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                          nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                          dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  No particle blocks are used (since there are no temporary arrays).
+
+      integer(ISZ):: ip,ii,jj,kk
+      real(kind=8):: g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+
+      g = wght*q/(dx*dy*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g = g*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g = g*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,u1,u0,v1,v0,w1,w0,ip)
+!$OMP&FIRSTPRIVATE(np)
+
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry) then
+!$OMP DO
+        do ip = 1,np
+          ii = int((xp(ip) - xmmin)*dxi)
+          u1 =     (xp(ip) - xmmin)*dxi - ii
+          u0 = 1. - u1
+          jj = int((abs(yp(ip)) - ymmin)*dyi)
+          v1 =     (abs(yp(ip)) - ymmin)*dyi - jj
+          v0 = 1. - v1
+          kk = int((zp(ip) - zgrid - zmmin)*dzi)
+          w1 =     (zp(ip) - zgrid - zmmin)*dzi - kk
+          w0 = 1. - w1
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+        enddo
+!$OMP END DO
+      elseif (l4symtry) then
+!$OMP DO
+        do ip = 1,np
+          ii = int((abs(xp(ip)) - xmmin)*dxi)
+          u1 =     (abs(xp(ip)) - xmmin)*dxi - ii
+          u0 = 1. - u1
+          jj = int((abs(yp(ip)) - ymmin)*dyi)
+          v1 =     (abs(yp(ip)) - ymmin)*dyi - jj
+          v0 = 1. - v1
+          kk = int((zp(ip) - zgrid - zmmin)*dzi)
+          w1 =     (zp(ip) - zgrid - zmmin)*dzi - kk
+          w0 = 1. - w1
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+!$OMP DO
+        do ip = 1,np
+          ii = int((xp(ip) - xmmin)*dxi)
+          u1 = (xp(ip) - xmmin)*dxi - ii
+          u0 = 1. - u1
+          jj = int((yp(ip) - ymmin)*dyi)
+          v1 = (yp(ip) - ymmin)*dyi - jj
+          v0 = 1. - v1
+          kk = int((zp(ip) - zgrid - zmmin)*dzi)
+          w1 = (zp(ip) - zgrid - zmmin)*dzi - kk
+          w0 = 1. - w1
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+        enddo
+!$OMP END DO
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirect1(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  No particle blocks are used (since there are no temporary arrays).
+c  Also, the float to integer conversions are precalculated.
+c  This seems to be the fastest version.
+
+      integer(ISZ):: ip,ii,jj,kk
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+      real(kind=8):: u1next,v1next,w1next
+
+      g = wght*q
+      if (nx > 0) g = g/dx
+      if (ny > 0) g = g/dy
+      if (nz > 0) g = g/dz
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g = g*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g = g*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,u1,u0,v1,v0,w1,w0,ip,
+!$OMP&                 iinext,jjnext,kknext,u1next,v1next,w1next)
+!$OMP&FIRSTPRIVATE(np)
+
+      if (ny > 0) then
+
+c       --- vectorized loop to compute indices, weights
+        if (l2symtry) then
+          iinext = int((xp(1) - xmmin)*dxi)
+          jjnext = int((abs(yp(1)) - ymmin)*dyi)
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          u1next = (xp(1) - xmmin)*dxi - iinext
+          v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            jj = jjnext
+            kk = kknext
+            u1 = u1next
+            v1 = v1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((xp(ip+1) - xmmin)*dxi)
+              jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              u1next = (xp(ip+1) - xmmin)*dxi - iinext
+              v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            u0 = 1. - u1
+            v0 = 1. - v1
+            w0 = 1. - w1
+            rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+            rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+            rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+            rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+            rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+            rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+            rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+            rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+          enddo
+!$OMP END DO
+        elseif (l4symtry) then
+          iinext = int((abs(xp(1)) - xmmin)*dxi)
+          jjnext = int((abs(yp(1)) - ymmin)*dyi)
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          u1next = (abs(xp(1)) - xmmin)*dxi - iinext
+          v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            jj = jjnext
+            kk = kknext
+            u1 = u1next
+            v1 = v1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((abs(xp(ip+1)) - xmmin)*dxi)
+              jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              u1next = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+              v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            u0 = 1. - u1
+            v0 = 1. - v1
+            w0 = 1. - w1
+            rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+            rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+            rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+            rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+            rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+            rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+            rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+            rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+          enddo
+!$OMP END DO
+        else
+c         --- normal loop
+          iinext = int((xp(1) - xmmin)*dxi)
+          jjnext = int((yp(1) - ymmin)*dyi)
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          u1next = (xp(1) - xmmin)*dxi - iinext
+          v1next = (yp(1) - ymmin)*dyi - jjnext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            jj = jjnext
+            kk = kknext
+            u1 = u1next
+            v1 = v1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((xp(ip+1) - xmmin)*dxi)
+              jjnext = int((yp(ip+1) - ymmin)*dyi)
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              u1next = (xp(ip+1) - xmmin)*dxi - iinext
+              v1next = (yp(ip+1) - ymmin)*dyi - jjnext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            u0 = 1. - u1
+            v0 = 1. - v1
+            w0 = 1. - w1
+            rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+            rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+            rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+            rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+            rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+            rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+            rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+            rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+          enddo
+!$OMP END DO
+        endif
+
+      else if (ny == 0) then
+
+c       --- normal loop
+        if (l4symtry) then
+          iinext = int(abs(xp(1) - xmmin)*dxi)
+          u1next = abs(xp(1) - xmmin)*dxi - iinext
+        else
+          iinext = int((xp(1) - xmmin)*dxi)
+          u1next = (xp(1) - xmmin)*dxi - iinext
+        endif
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          u1 = u1next
+          w1 = w1next
+          if (ip < np) then
+            if (l4symtry) then
+              iinext = int(abs(xp(ip+1) - xmmin)*dxi)
+              u1next = abs(xp(ip+1) - xmmin)*dxi - iinext
+            else
+              iinext = int((xp(ip+1) - xmmin)*dxi)
+              u1next = (xp(ip+1) - xmmin)*dxi - iinext
+            endif
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          w0 = 1. - w1
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1*g
+        enddo
+!$OMP END DO
+
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirect2(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                    nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                    dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry,
+     &                    lcylindrical)
+      use GlobalVars
+      use Constant,Only: pi
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c  Sets charge density
+c  No particle blocks are used (since there are no temporary arrays).
+c  Also, the float to integer conversions are precalculated.
+c  This seems to be the fastest version.
+
+      integer(ISZ):: ip,ii,jj,kk,ix
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+      real(kind=8):: u1next,v1next,w1next
+
+c     --- Work array holding q/cell volume, the charge density per
+c     --- real particle. This is primarily needed for the RZ version
+c     --- since the cell volume there has radial dependence.
+      real(kind=8):: cdens(0:nx)
+c     --- Temp arrays to hold particle data
+c     --- These are needed when lcylindrical is true, in which case x=r, y=0.
+      real(kind=8):: x,y
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (lcylindrical) then
+        if (xmmin == 0.) then
+c         --- The factor 0.75 corrects for overdeposition due to linear
+c         --- weighting (for uniform distribution)
+c         --- see Larson et al., Comp. Phys. Comm., 90:260-266, 1995
+c         --- and Verboncoeur, J. of Comp. Phys.,
+          cdens(0) = 0.75/(pi*(0.5*0.5*dx*dx*dz))
+        else
+          cdens(0) = 1./(2.*pi*(xmmin)*dx*dz)
+        endif
+        do ix = 1,nx
+          cdens(ix) = 1./(2.*pi*(ix*dx+xmmin)*dx*dz)
+        enddo
+        cdens = cdens*wght*q
+      else
+        g = wght*q/(dx*dy*dz)
+        if (l2symtry) then
+c         --- The particle weight is reduced by a factor of 2 except near the
+c         --- transverse boundaries.
+          g = g*0.5
+        elseif (l4symtry) then
+c         --- The particle weight is reduced by a factor of 4 except near the
+c         --- transverse boundaries.
+          g = g*0.25
+        endif
+        cdens = g
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,u1,u0,v1,v0,w1,w0,ip,
+!$OMP&                 iinext,jjnext,kknext,u1next,v1next,w1next)
+!$OMP&FIRSTPRIVATE(np)
+
+      if (ny > 0) then
+
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry .and. .not. lcylindrical) then
+        iinext = int((xp(1) - xmmin)*dxi)
+        jjnext = int((abs(yp(1)) - ymmin)*dyi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (xp(1) - xmmin)*dxi - iinext
+        v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          u1 = u1next
+          v1 = v1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((xp(ip+1) - xmmin)*dxi)
+            jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (xp(ip+1) - xmmin)*dxi - iinext
+            v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+        enddo
+!$OMP END DO
+      elseif (l4symtry .and. .not. lcylindrical) then
+        iinext = int((abs(xp(1)) - xmmin)*dxi)
+        jjnext = int((abs(yp(1)) - ymmin)*dyi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (abs(xp(1)) - xmmin)*dxi - iinext
+        v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          u1 = u1next
+          v1 = v1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((abs(xp(ip+1)) - xmmin)*dxi)
+            jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        if (lcylindrical) then
+          x = sqrt(xp(1)**2 + yp(1)**2)
+          y = 0.
+        else
+          x = xp(1)
+          y = yp(1)
+        endif
+        iinext = int((x - xmmin)*dxi)
+        jjnext = int((y - ymmin)*dyi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (x - xmmin)*dxi - iinext
+        v1next = (y - ymmin)*dyi - jjnext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          u1 = u1next
+          v1 = v1next
+          w1 = w1next
+          if (ip < np) then
+            if (lcylindrical) then
+              x = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+              y = 0.
+            else
+              x = xp(ip+1)
+              y = yp(ip+1)
+            endif
+            iinext = int((x - xmmin)*dxi)
+            jjnext = int((y - ymmin)*dyi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (x - xmmin)*dxi - iinext
+            v1next = (y - ymmin)*dyi - jjnext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+          u0 = u0*cdens(ii  )
+          u1 = u1*cdens(ii+1)
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1
+        enddo
+!$OMP END DO
+
+      endif
+
+      else
+
+c NY == 0
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry .and. .not. lcylindrical) then
+        iinext = int((xp(1) - xmmin)*dxi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (xp(1) - xmmin)*dxi - iinext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          u1 = u1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((xp(ip+1) - xmmin)*dxi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (xp(ip+1) - xmmin)*dxi - iinext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          w0 = 1. - w1
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1*g
+        enddo
+!$OMP END DO
+      elseif (l4symtry .and. .not. lcylindrical) then
+        iinext = int((abs(xp(1)) - xmmin)*dxi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (abs(xp(1)) - xmmin)*dxi - iinext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          u1 = u1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((abs(xp(ip+1)) - xmmin)*dxi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          w0 = 1. - w1
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1*g
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        if (lcylindrical) then
+          x = sqrt(xp(1)**2 + yp(1)**2)
+        else
+          x = xp(1)
+        endif
+        iinext = int((x - xmmin)*dxi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (x - xmmin)*dxi - iinext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          u1 = u1next
+          w1 = w1next
+          if (ip < np) then
+            if (lcylindrical) then
+              x = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+            else
+              x = xp(ip+1)
+            endif
+            iinext = int((x - xmmin)*dxi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (x - xmmin)*dxi - iinext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          w0 = 1. - w1
+          u0 = u0*cdens(ii  )
+          u1 = u1*cdens(ii+1)
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1
+        enddo
+!$OMP END DO
+
+      endif
+
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3dvector1(rho1d,np,xp,yp,zp,zgrid,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho1d(0:(1+nx+2*nxguardrho)*(1+ny+2*nyguardrho)*(1+nz+2*nzguardrho)-1)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  Same as vector except that the float to integer conversions are
+c  precalculated for the next particle since the conversion can be a bottleneck.
+
+      integer(ISZ):: nnx,nnxy
+      integer(ISZ):: moff(0:7)
+      integer(ISZ),allocatable:: indx(:,:)
+      real(kind=8),allocatable:: s(:,:)
+
+      integer(ISZ):: ipmin,nptmp,ip,i,j,k,ind0,m,ir
+      integer(ISZ):: inext,jnext,knext
+      real(kind=8):: g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+      integer:: alloc_status
+
+c  Set up offset array for vectorized deposition:
+      nnx = nx + 1 + 2*nxguardrho
+      nnxy = (nx + 1 + 2*nxguardrho)*(ny + 1 + 2*nyguardrho)
+      moff(0) = 0
+      moff(1) = 1
+      moff(2) = nnx
+      moff(3) = nnx + 1
+      moff(4) = nnxy
+      moff(5) = nnxy + 1
+      moff(6) = nnxy + nnx
+      moff(7) = nnxy + nnx + 1
+
+      moff = moff + nnxy*nzguardrho
+
+      g = wght*q/(dx*dy*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g = g*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g = g*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ipmin,nptmp,i,j,k,u1,u0,v1,v0,w1,w0,ir,ip,ind0,indx,
+!$OMP&                 m,inext,jnext,knext)
+!$OMP&FIRSTPRIVATE(np)
+
+      allocate(indx(0:7,0:nparpgrp-1),s(0:7,0:nparpgrp-1), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:setrho3dvector1: indx and s could not be allocated"
+        stop
+      endif
+
+!$OMP DO
+      do ipmin = 1,np,nparpgrp
+        nptmp = min(nparpgrp, np+1-ipmin)
+
+c       --- Here, the i,j,k are precalculated for the next particle
+c       --- since the float to integer conversion can be expensive.
+c       --- Tests however only show about a 5% speed up.
+
+c       --- vectorized loop to compute indices, weights
+        if (l2symtry) then
+c         --- special loop for 2-fold symmetry
+c         --- The particle weight is reduced by a factor of 2 except near the
+c         --- transverse boundaries.
+          inext = int((xp(ipmin) - xmmin)*dxi)
+          jnext = int((abs(yp(ipmin)) - ymmin)*dyi)
+          knext = int((zp(ipmin) - zgrid - zmmin)*dzi)
+          do ip = ipmin,ipmin+nptmp-1
+            i = inext
+            j = jnext
+            k = knext
+            if (ip < ipmin+nptmp-1) then
+              inext = int((xp(ip+1) - xmmin)*dxi)
+              jnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+              knext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            endif
+            u1 =     (xp(ip) - xmmin)*dxi - i
+            u0 = 1. - u1
+            v1 =     (abs(yp(ip)) - ymmin)*dyi - j
+            v0 = 1. - v1
+            w1 =     (zp(ip) - zgrid - zmmin)*dzi - k
+            w0 = 1. - w1
+            ir = ip - ipmin
+            ind0 = i + j*nnx + k*nnxy
+            indx(0,ir) = ind0 + moff(0)
+            indx(1,ir) = ind0 + moff(1)
+            indx(2,ir) = ind0 + moff(2)
+            indx(3,ir) = ind0 + moff(3)
+            indx(4,ir) = ind0 + moff(4)
+            indx(5,ir) = ind0 + moff(5)
+            indx(6,ir) = ind0 + moff(6)
+            indx(7,ir) = ind0 + moff(7)
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        elseif (l4symtry) then
+c         --- special loop for 4-fold symmetry
+c         --- The particle weight is reduced by a factor of 4 except near the
+c         --- transverse boundaries.
+          inext  = int((abs(xp(ipmin)) - xmmin)*dxi)
+          jnext  = int((abs(yp(ipmin)) - ymmin)*dyi)
+          knext  = int((zp(ipmin) - zgrid - zmmin)*dzi)
+          do ip = ipmin,ipmin+nptmp-1
+            i = inext
+            j = jnext
+            k = knext
+            if (ip < ipmin+nptmp-1) then
+               inext = int((abs(xp(ip+1)) - xmmin)*dxi)
+               jnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+               knext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            endif
+            u1 =     (abs(xp(ip)) - xmmin)*dxi - i
+            u0 = 1. - u1
+            v1 =     (abs(yp(ip)) - ymmin)*dyi - j
+            v0 = 1. - v1
+            w1 =     (zp(ip) - zgrid - zmmin)*dzi - k
+            w0 = 1. - w1
+            ir = ip - ipmin
+            ind0 = i + j*nnx + k*nnxy
+            indx(0,ir) = ind0 + moff(0)
+            indx(1,ir) = ind0 + moff(1)
+            indx(2,ir) = ind0 + moff(2)
+            indx(3,ir) = ind0 + moff(3)
+            indx(4,ir) = ind0 + moff(4)
+            indx(5,ir) = ind0 + moff(5)
+            indx(6,ir) = ind0 + moff(6)
+            indx(7,ir) = ind0 + moff(7)
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        else
+c         --- normal loop
+          inext = int((xp(ipmin) - xmmin)*dxi)
+          jnext = int((yp(ipmin) - ymmin)*dyi)
+          knext = int((zp(ipmin) - zgrid - zmmin)*dzi)
+          do ip = ipmin,ipmin+nptmp-1
+            i = inext
+            j = jnext
+            k = knext
+            if (ip < ipmin+nptmp-1) then
+              inext = int((xp(ip+1) - xmmin)*dxi)
+              jnext = int((yp(ip+1) - ymmin)*dyi)
+              knext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            endif
+            u1 =     (xp(ip) - xmmin)*dxi - i
+            u0 = 1. - u1
+            v1 =     (yp(ip) - ymmin)*dyi - j
+            v0 = 1. - v1
+            w1 =     (zp(ip) - zgrid - zmmin)*dzi - k
+            w0 = 1. - w1
+            ir = ip - ipmin
+            ind0 = i + j*nnx + k*nnxy
+            indx(0,ir) = ind0 + moff(0)
+            indx(1,ir) = ind0 + moff(1)
+            indx(2,ir) = ind0 + moff(2)
+            indx(3,ir) = ind0 + moff(3)
+            indx(4,ir) = ind0 + moff(4)
+            indx(5,ir) = ind0 + moff(5)
+            indx(6,ir) = ind0 + moff(6)
+            indx(7,ir) = ind0 + moff(7)
+            s(0,ir) = u0*v0*w0*g
+            s(1,ir) = u1*v0*w0*g
+            s(2,ir) = u0*v1*w0*g
+            s(3,ir) = u1*v1*w0*g
+            s(4,ir) = u0*v0*w1*g
+            s(5,ir) = u1*v0*w1*g
+            s(6,ir) = u0*v1*w1*g
+            s(7,ir) = u1*v1*w1*g
+          enddo
+        endif
+
+c       --- vectorized deposition over the 8 cells touched;
+c       --- there'd be a hazard if we interchanged the loops.
+!$OMP CRITICAL (CRITICAL_SETRHO3D1)
+        do ir = 0,nptmp-1
+          do m = 0, 7
+            rho1d(indx(m,ir)) = rho1d(indx(m,ir)) + s(m,ir)
+          enddo
+        enddo
+!$OMP END CRITICAL (CRITICAL_SETRHO3D1)
+
+      enddo
+!$OMP END DO
+
+      deallocate(indx,s)
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirectspline3(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np), wfact(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+
+c  Sets charge density
+c  Uses a third order spline with direct deposition (no particle blocks)
+
+      integer(ISZ):: ip,ii,jj,kk
+      real(kind=8):: g,dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: u0,u1,u2,u3,v0,v1,v2,v3,w0,w1,w2,w3
+      real(kind=8):: gxf,gyf,gxfm1,gyfm1
+
+      if (np == 0) return
+
+      g = wght*q/(dx*dy*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g = g*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g = g*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,wx,wy,wz,u2,u1,u0,v2,v1,v0,w2,w1,w0,ip)
+!$OMP&FIRSTPRIVATE(np)
+
+      if (ny > 0) then
+
+        if (nxguardrho <= 0 .or. nyguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline3: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- vectorized loop to compute indices, weights
+!$OMP DO
+        do ip = 1,np
+
+c     --- determine the position of the particle with respect to the grid
+          kk = int((zp(ip) - zgrid -zmmin)*dzi)
+          wz = (zp(ip) - zgrid - zmmin)*dzi - kk
+          if (l4symtry) then
+            ii = int((abs(xp(ip)) - xmmin)*dxi)
+            wx = (abs(xp(ip)) - xmmin)*dxi - ii
+          else
+            ii = int((xp(ip) - xmmin)*dxi)
+            wx = (xp(ip) - xmmin)*dxi - ii
+          endif
+          if (l2symtry .or. l4symtry) then
+            jj = int((abs(yp(ip)) - ymmin)*dyi)
+            wy = (abs(yp(ip)) - ymmin)*dyi - jj
+          else
+            jj = int((yp(ip) - ymmin)*dyi)
+            wy = (yp(ip) - ymmin)*dyi - jj
+          endif
+
+c     --- calculate weights for each cell
+          u0 = onesixth*(1-wx)**3
+          u1 = twothird - wx**2*(1-0.5*wx)
+          u2 = twothird - (1-wx)**2*(1-0.5*(1-wx))
+          u3 = onesixth*wx**3
+          v0 = onesixth*(1-wy)**3
+          v1 = twothird - wy**2*(1-0.5*wy)
+          v2 = twothird - (1-wy)**2*(1-0.5*(1-wy))
+          v3 = onesixth*wy**3
+          w0 = onesixth*(1-wz)**3
+          w1 = twothird - wz**2*(1-0.5*wz)
+          w2 = twothird - (1-wz)**2*(1-0.5*(1-wz))
+          w3 = onesixth*wz**3
+
+c     --- add the charge for each cell
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii+2,jj-1,kk-1) = rho(ii+2,jj-1,kk-1) + u3*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii+2,jj  ,kk-1) = rho(ii+2,jj  ,kk-1) + u3*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+          rho(ii+2,jj+1,kk-1) = rho(ii+2,jj+1,kk-1) + u3*v2*w0*g
+          rho(ii-1,jj+2,kk-1) = rho(ii-1,jj+2,kk-1) + u0*v3*w0*g
+          rho(ii  ,jj+2,kk-1) = rho(ii  ,jj+2,kk-1) + u1*v3*w0*g
+          rho(ii+1,jj+2,kk-1) = rho(ii+1,jj+2,kk-1) + u2*v3*w0*g
+          rho(ii+2,jj+2,kk-1) = rho(ii+2,jj+2,kk-1) + u3*v3*w0*g
+          
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii+2,jj-1,kk  ) = rho(ii+2,jj-1,kk  ) + u3*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii+2,jj  ,kk  ) = rho(ii+2,jj  ,kk  ) + u3*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+          rho(ii+2,jj+1,kk  ) = rho(ii+2,jj+1,kk  ) + u3*v2*w1*g
+          rho(ii-1,jj+2,kk  ) = rho(ii-1,jj+2,kk  ) + u0*v3*w1*g
+          rho(ii  ,jj+2,kk  ) = rho(ii  ,jj+2,kk  ) + u1*v3*w1*g
+          rho(ii+1,jj+2,kk  ) = rho(ii+1,jj+2,kk  ) + u2*v3*w1*g
+          rho(ii+2,jj+2,kk  ) = rho(ii+2,jj+2,kk  ) + u3*v3*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii+2,jj-1,kk+1) = rho(ii+2,jj-1,kk+1) + u3*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii+2,jj  ,kk+1) = rho(ii+2,jj  ,kk+1) + u3*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+          rho(ii+2,jj+1,kk+1) = rho(ii+2,jj+1,kk+1) + u3*v2*w2*g
+          rho(ii-1,jj+2,kk+1) = rho(ii-1,jj+2,kk+1) + u0*v3*w2*g
+          rho(ii  ,jj+2,kk+1) = rho(ii  ,jj+2,kk+1) + u1*v3*w2*g
+          rho(ii+1,jj+2,kk+1) = rho(ii+1,jj+2,kk+1) + u2*v3*w2*g
+          rho(ii+2,jj+2,kk+1) = rho(ii+2,jj+2,kk+1) + u3*v3*w2*g
+
+          rho(ii-1,jj-1,kk+2) = rho(ii-1,jj-1,kk+2) + u0*v0*w3*g
+          rho(ii  ,jj-1,kk+2) = rho(ii  ,jj-1,kk+2) + u1*v0*w3*g
+          rho(ii+1,jj-1,kk+2) = rho(ii+1,jj-1,kk+2) + u2*v0*w3*g
+          rho(ii+2,jj-1,kk+2) = rho(ii+2,jj-1,kk+2) + u3*v0*w3*g
+          rho(ii-1,jj  ,kk+2) = rho(ii-1,jj  ,kk+2) + u0*v1*w3*g
+          rho(ii  ,jj  ,kk+2) = rho(ii  ,jj  ,kk+2) + u1*v1*w3*g
+          rho(ii+1,jj  ,kk+2) = rho(ii+1,jj  ,kk+2) + u2*v1*w3*g
+          rho(ii+2,jj  ,kk+2) = rho(ii+2,jj  ,kk+2) + u3*v1*w3*g
+          rho(ii-1,jj+1,kk+2) = rho(ii-1,jj+1,kk+2) + u0*v2*w3*g
+          rho(ii  ,jj+1,kk+2) = rho(ii  ,jj+1,kk+2) + u1*v2*w3*g
+          rho(ii+1,jj+1,kk+2) = rho(ii+1,jj+1,kk+2) + u2*v2*w3*g
+          rho(ii+2,jj+1,kk+2) = rho(ii+2,jj+1,kk+2) + u3*v2*w3*g
+          rho(ii-1,jj+2,kk+2) = rho(ii-1,jj+2,kk+2) + u0*v3*w3*g
+          rho(ii  ,jj+2,kk+2) = rho(ii  ,jj+2,kk+2) + u1*v3*w3*g
+          rho(ii+1,jj+2,kk+2) = rho(ii+1,jj+2,kk+2) + u2*v3*w3*g
+          rho(ii+2,jj+2,kk+2) = rho(ii+2,jj+2,kk+2) + u3*v3*w3*g
+          
+        enddo
+!$OMP END DO
+
+      else
+
+        if (nxguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline3w: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- NY = 0
+c     --- vectorized loop to compute indices, weights
+!$OMP DO
+        do ip = 1,np
+
+c     --- determine the position of the particle with respect to the grid
+          kk = int((zp(ip) - zgrid -zmmin)*dzi)
+          wz = (zp(ip+1) - zgrid - zmmin)*dzi - kk
+          if (l4symtry) then
+            ii = int((abs(xp(ip)) - xmmin)*dxi)
+            wx = (abs(xp(ip)) - xmmin)*dxi - ii
+          else
+            ii = int((xp(ip) - xmmin)*dxi)
+            wx = (xp(ip) - xmmin)*dxi - ii
+         endif
+
+c     --- calculate weights for each cell
+          u0 = onesixth*(1-wx)**3
+          u1 = twothird - wx**2*(1-0.5*wx)
+          u2 = twothird - (1-wx)**2*(1-0.5*(1-wx))
+          u3 = onesixth*wx**3
+          w0 = onesixth*(1-wz)**3
+          w1 = twothird - wz**2*(1-0.5*wz)
+          w2 = twothird - (1-wz)**2*(1-0.5*(1-wz))
+          w3 = onesixth*wz**3
+
+          rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0*g
+          rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0*g
+          rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0*g
+          rho(ii+2,0,kk-1) = rho(ii+2,0,kk-1) + u3*w0*g
+
+          rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1*g
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1*g
+          rho(ii+2,0,kk  ) = rho(ii+2,0,kk  ) + u3*w1*g
+
+          rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2*g
+          rho(ii+2,0,kk+1) = rho(ii+2,0,kk+1) + u3*w2*g
+
+          rho(ii-1,0,kk+2) = rho(ii-1,0,kk+2) + u0*w3*g
+          rho(ii  ,0,kk+2) = rho(ii  ,0,kk+2) + u1*w3*g
+          rho(ii+1,0,kk+2) = rho(ii+1,0,kk+2) + u2*w3*g
+          rho(ii+2,0,kk+2) = rho(ii+2,0,kk+2) + u3*w3*g
+
+        enddo
+!$OMP END DO
+        
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirectspline2(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  Uses a second order spline with direct deposition (no particle blocks)
+
+      integer(ISZ):: ip,ii,jj,kk
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g,dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: wxnext,wynext,wznext
+      real(kind=8):: u0,u1,u2,v0,v1,v2,w0,w1,w2
+      real(kind=8):: gxf,gyf,gxfm1,gyfm1
+
+      if (np == 0) return
+
+      g = wght*q
+      if (nx > 0) g = g/dx
+      if (ny > 0) g = g/dy
+      if (nz > 0) g = g/dz
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g = g*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g = g*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,wx,wy,wz,u2,u1,u0,v2,v1,v0,w2,w1,w0,ip)
+!$OMP&FIRSTPRIVATE(np)
+
+      if (ny > 0) then
+
+        if (nxguardrho <= 0 .or. nyguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline2: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry) then
+        iinext = nint((xp(1) - xmmin)*dxi)
+        jjnext = nint((abs(yp(1)) - ymmin)*dyi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (xp(1) - xmmin)*dxi - iinext
+        wynext = (abs(yp(1)) - ymmin)*dyi - jjnext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          wx = wxnext
+          wy = wynext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((xp(ip+1) - xmmin)*dxi)
+            jjnext = nint((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (xp(ip+1) - xmmin)*dxi - iinext
+            wynext = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+
+        enddo
+!$OMP END DO
+      elseif (l4symtry) then
+        iinext = nint((abs(xp(1)) - xmmin)*dxi)
+        jjnext = nint((abs(yp(1)) - ymmin)*dyi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (abs(xp(1)) - xmmin)*dxi - iinext
+        wynext = (abs(yp(1)) - ymmin)*dyi - jjnext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          wx = wxnext
+          wy = wynext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((abs(xp(ip+1)) - xmmin)*dxi)
+            jjnext = nint((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            wynext = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        iinext = nint((xp(1) - xmmin)*dxi)
+        jjnext = nint((yp(1) - ymmin)*dyi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (xp(1) - xmmin)*dxi - iinext
+        wynext = (yp(1) - ymmin)*dyi - jjnext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          wx = wxnext
+          wy = wynext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((xp(ip+1) - xmmin)*dxi)
+            jjnext = nint((yp(ip+1) - ymmin)*dyi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (xp(ip+1) - xmmin)*dxi - iinext
+            wynext = (yp(ip+1) - ymmin)*dyi - jjnext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+
+        enddo
+!$OMP END DO
+      endif
+
+      else
+
+        if (nxguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline2: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- NY = 0
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry .or. l4symtry) then
+        iinext = nint((abs(xp(1)) - xmmin)*dxi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (abs(xp(1)) - xmmin)*dxi - iinext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          wx = wxnext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((abs(xp(ip+1)) - xmmin)*dxi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0*g
+          rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0*g
+          rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0*g
+
+          rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1*g
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1*g
+
+          rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2*g
+
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        iinext = nint((xp(1) - xmmin)*dxi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (xp(1) - xmmin)*dxi - iinext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          wx = wxnext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((xp(ip+1) - xmmin)*dxi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (xp(ip+1) - xmmin)*dxi - iinext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+
+          rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0*g
+          rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0*g
+          rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0*g
+
+          rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1*g
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1*g
+
+          rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2*g
+
+        enddo
+!$OMP END DO
+      endif
+
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirectspline2cyl(rho,np,xp,yp,zp,zgrid,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      use Constant,Only: pi
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  Uses a second order spline with direct deposition (no particle blocks)
+
+      integer(ISZ):: ix,ip,ii,jj,kk
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g,dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: wxnext,wynext,wznext
+      real(kind=8):: u0,u1,u2,v0,v1,v2,w0,w1,w2
+      real(kind=8):: gxf,gyf,gxfm1,gyfm1
+
+c     --- Work array holding q/cell volume, the charge density per
+c     --- real particle. This is needed for RZ
+c     --- since the cell volume there has radial dependence.
+      real(kind=8):: cdens(-1:nx+1)
+      real(kind=8):: x
+
+      if (np == 0) return
+
+      if (nxguardrho <= 0 .or. nzguardrho <= 0) then
+        call kaboom("setrho3ddirectspline2cyl: there must be at least one guard cell on all axes")
+        return
+      endif
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (xmmin > dx) then
+        cdens(-1) = 1./(2.*pi*(dx+xmmin)*dx*dz)
+      else
+        cdens(-1) = 0.
+      endif
+      if (xmmin == 0.) then
+c       --- The factor 8/13 corrects for overdeposition due to the
+c       --- weighting (for uniform distribution). Note that for
+c       --- this shape function, the next cell needs adjusting as well.
+c       --- see Larson et al., Comp. Phys. Comm., 90:260-266, 1995
+c       --- and Verboncoeur, J. of Comp. Phys. (for linear weighting)
+        cdens(0) = 8./(13.*pi*0.25*dx*dx*dz)
+        cdens(1) = 1./(2.*pi*(dx+xmmin)*dx*dz)*384./385.
+      else
+        cdens(0) = 1./(2.*pi*(xmmin)*dx*dz)
+        cdens(1) = 1./(2.*pi*(dx+xmmin)*dx*dz)
+      endif
+      do ix = 2,nx+1
+        cdens(ix) = 1./(2.*pi*(ix*dx+xmmin)*dx*dz)
+      enddo
+      cdens = cdens*wght*q
+
+c     --- normal loop
+      x = sqrt(xp(1)**2 + yp(1)**2)
+      iinext = nint((x     - xmmin)*dxi)
+      kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+      wxnext = (x     - xmmin)*dxi - iinext
+      wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+      do ip = 1,np
+        ii = iinext
+        kk = kknext
+        wx = wxnext
+        wz = wznext
+        if (ip < np) then
+          x = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+          iinext = nint((x        - xmmin)*dxi)
+          kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          wxnext = (x        - xmmin)*dxi - iinext
+          wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+        endif
+
+        u0 = 0.5*(0.5 - wx)**2 *cdens(ii-1)
+        u1 = (0.75 - wx**2)    *cdens(ii)
+        u2 = 0.5*(0.5 + wx)**2 *cdens(ii+1)
+        w0 = 0.5*(0.5 - wz)**2
+        w1 = (0.75 - wz**2)
+        w2 = 0.5*(0.5 + wz)**2
+
+        rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0
+        rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0
+        rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0
+
+        rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1
+        rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1
+        rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1
+
+        rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2
+        rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2
+        rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2
+
+      enddo
+!$OMP END DO
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+
+c=============================================================================
+      subroutine setrho3dw(rho,np,xp,yp,zp,zgrid,wfact,q,wght,depos,depos_order,
+     &                     nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                     dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry,
+     &                     lcylindrical)
+      use GlobalVars
+      use Subtimersw3d
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np), wfact(np)
+      character(8):: depos
+      integer(ISZ):: depos_order(0:2)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c  Sets charge density using various algorithms
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (ALL(depos_order == 1)) then
+
+c       --- Direct deposition loop with precalculated integer conversions
+        if (.not. lcylindrical) then
+          call setrho3ddirect1w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                          nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                          dx,dy,dz,xmmin,ymmin,zmmin,
+     &                          l2symtry,l4symtry)
+        else
+          call setrho3ddirect2w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                          nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                          dx,dy,dz,xmmin,ymmin,zmmin,
+     &                          l2symtry,l4symtry,lcylindrical)
+        endif
+
+      else if (ALL(depos_order == 2)) then
+
+c       --- Direct deposition using a second order spline
+c       --- Formerly depos == "dspline2"
+
+        if (.not. lcylindrical) then
+          call setrho3ddirectspline2w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                                nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                                dx,dy,dz,xmmin,ymmin,zmmin,
+     &                                l2symtry,l4symtry)
+        else
+          call setrho3ddirectspline2cylw(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                                   nx,ny,nz,
+     &                                   nxguardrho,nyguardrho,nzguardrho,
+     &                                   dx,dy,dz,xmmin,ymmin,zmmin,
+     &                                   l2symtry,l4symtry)
+        endif
+
+      else if (ALL(depos_order == 3)) then
+
+c       --- Direct deposition using a third order spline
+        if (.not. lcylindrical) then
+           call setrho3ddirectspline3w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                                nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                                dx,dy,dz,xmmin,ymmin,zmmin,
+     &                                l2symtry,l4symtry)
+        else
+           call kaboom("setho3dw: cylindrical geometry is not supported for depos_order=3")
+        endif
+
+      else
+        call kaboom("setho3dw: order of deposition is not supported in the electrostatic solver")
+        return
+      endif
+
+!$OMP END PARALLEL
+
+      if (lw3dtimesubs) timesetrho3d = timesetrho3d + wtime() - substarttime
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirect1w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                            nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                            dx,dy,dz,xmmin,ymmin,zmmin,
+     &                            l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np), wfact(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  No particle blocks are used (since there are no temporary arrays).
+c  Also, the float to integer conversions are precalculated.
+c  This seems to be the fastest version.
+
+      integer(ISZ):: ip,ii,jj,kk
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g0,g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+      real(kind=8):: u1next,v1next,w1next
+
+      if (ny > 0) then
+
+        g0 = wght*q/(dx*dy*dz)
+        dxi = 1./dx
+        dyi = 1./dy
+        dzi = 1./dz
+        if (l2symtry) then
+c         --- The particle weight is reduced by a factor of 2 except near the
+c         --- transverse boundaries.
+          g0 = g0*0.5
+        elseif (l4symtry) then
+c         --- The particle weight is reduced by a factor of 4 except near the
+c         --- transverse boundaries.
+          g0 = g0*0.25
+        endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,u1,u0,v1,v0,w1,w0,ip,
+!$OMP&                 iinext,jjnext,kknext,u1next,v1next,w1next)
+!$OMP&FIRSTPRIVATE(np)
+
+c       --- vectorized loop to compute indices, weights
+        if (l2symtry) then
+          iinext = int((xp(1) - xmmin)*dxi)
+          jjnext = int((abs(yp(1)) - ymmin)*dyi)
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          u1next = (xp(1) - xmmin)*dxi - iinext
+          v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            jj = jjnext
+            kk = kknext
+            u1 = u1next
+            v1 = v1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((xp(ip+1) - xmmin)*dxi)
+              jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              u1next = (xp(ip+1) - xmmin)*dxi - iinext
+              v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            g = g0*wfact(ip)
+            u0 = 1. - u1
+            v0 = 1. - v1
+            w0 = 1. - w1
+            rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+            rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+            rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+            rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+            rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+            rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+            rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+            rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+          enddo
+!$OMP END DO
+        elseif (l4symtry) then
+          iinext = int((abs(xp(1)) - xmmin)*dxi)
+          jjnext = int((abs(yp(1)) - ymmin)*dyi)
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          u1next = (abs(xp(1)) - xmmin)*dxi - iinext
+          v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            jj = jjnext
+            kk = kknext
+            u1 = u1next
+            v1 = v1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((abs(xp(ip+1)) - xmmin)*dxi)
+              jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              u1next = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+              v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            g = g0*wfact(ip)
+            u0 = 1. - u1
+            v0 = 1. - v1
+            w0 = 1. - w1
+            rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+            rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+            rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+            rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+            rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+            rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+            rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+            rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+          enddo
+!$OMP END DO
+        else
+c         --- normal loop
+          iinext = int((xp(1) - xmmin)*dxi)
+          jjnext = int((yp(1) - ymmin)*dyi)
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          u1next = (xp(1) - xmmin)*dxi - iinext
+          v1next = (yp(1) - ymmin)*dyi - jjnext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            jj = jjnext
+            kk = kknext
+            u1 = u1next
+            v1 = v1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((xp(ip+1) - xmmin)*dxi)
+              jjnext = int((yp(ip+1) - ymmin)*dyi)
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              u1next = (xp(ip+1) - xmmin)*dxi - iinext
+              v1next = (yp(ip+1) - ymmin)*dyi - jjnext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            g = g0*wfact(ip)
+            u0 = 1. - u1
+            v0 = 1. - v1
+            w0 = 1. - w1
+            rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+            rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+            rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+            rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+            rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+            rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+            rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+            rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+          enddo
+!$OMP END DO
+        endif
+
+      else if (ny == 0) then
+
+        g0 = wght*q/(dx*dz)
+        dxi = 1./dx
+        dzi = 1./dz
+        if (l4symtry) then
+c         --- The particle weight is reduced by a factor of 2 except near the
+c         --- transverse boundaries.
+          g0 = g0*0.5
+        endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,u1,u0,v1,v0,w1,w0,ip,
+!$OMP&                 iinext,jjnext,kknext,u1next,v1next,w1next)
+!$OMP&FIRSTPRIVATE(np)
+
+c       --- vectorized loop to compute indices, weights
+        if (l4symtry) then
+          iinext = int((abs(xp(1)) - xmmin)*dxi)
+          if (iinext == nx) iinext = nx - 1
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          if (kknext == nz) kknext = nz - 1
+          u1next = (abs(xp(1)) - xmmin)*dxi - iinext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            kk = kknext
+            u1 = u1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((abs(xp(ip+1)) - xmmin)*dxi)
+              if (iinext == nx) iinext = nx - 1
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              if (kknext == nz) kknext = nz - 1
+              u1next = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            g = g0*wfact(ip)
+            u0 = 1. - u1
+            w0 = 1. - w1
+            rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0*g
+            rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0*g
+            rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1*g
+            rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1*g
+          enddo
+!$OMP END DO
+        else
+c         --- normal loop
+          iinext = int((xp(1) - xmmin)*dxi)
+          if (iinext == nx) iinext = nx - 1
+          kknext = int((zp(1) - zgrid - zmmin)*dzi)
+          if (kknext == nz) kknext = nz - 1
+          u1next = (xp(1) - xmmin)*dxi - iinext
+          w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+          do ip = 1,np
+            ii = iinext
+            kk = kknext
+            u1 = u1next
+            w1 = w1next
+            if (ip < np) then
+              iinext = int((xp(ip+1) - xmmin)*dxi)
+              if (iinext == nx) iinext = nx - 1
+              kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+              if (kknext == nz) kknext = nz - 1
+              u1next = (xp(ip+1) - xmmin)*dxi - iinext
+              w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+            endif
+            g = g0*wfact(ip)
+            u0 = 1. - u1
+            w0 = 1. - w1
+            rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0*g
+            rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0*g
+            rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1*g
+            rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1*g
+          enddo
+!$OMP END DO
+        endif
+
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirect2w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                            nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                            dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry,
+     &                            lcylindrical)
+      use GlobalVars
+      use Constant,Only: pi
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np), wfact(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry,lcylindrical
+
+c  Sets charge density
+c  No particle blocks are used (since there are no temporary arrays).
+c  Also, the float to integer conversions are precalculated.
+c  This seems to be the fastest version.
+
+      integer(ISZ):: ip,ii,jj,kk,ix
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g0,g,dxi,dyi,dzi,u0,u1,v0,v1,w0,w1
+      real(kind=8):: u1next,v1next,w1next
+
+c     --- Work array holding q/cell volume, the charge density per
+c     --- real particle. This is primarily needed for the RZ version
+c     --- since the cell volume there has radial dependence.
+      real(kind=8):: cdens(0:nx)
+c     --- Temp arrays to hold particle data
+c     --- These are needed when lcylindrical is true, in which case x=r, y=0.
+      real(kind=8):: x,y
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (lcylindrical) then
+        if (xmmin == 0.) then
+c         --- The factor 0.75 corrects for overdeposition due to linear
+c         --- weighting (for uniform distribution)
+c         --- see Larson et al., Comp. Phys. Comm., 90:260-266, 1995
+c         --- and Verboncoeur, J. of Comp. Phys.,
+          cdens(0) = 0.75/(pi*(0.5*0.5*dx*dx*dz))
+        else
+          cdens(0) = 1./(2.*pi*(xmmin)*dx*dz)
+        endif
+        do ix = 1,nx
+          cdens(ix) = 1./(2.*pi*(ix*dx+xmmin)*dx*dz)
+        enddo
+        cdens = cdens*wght*q
+      else
+        g0 = wght*q/(dx*dy*dz)
+        if (l2symtry) then
+c         --- The particle weight is reduced by a factor of 2 except near the
+c         --- transverse boundaries.
+          g0 = g0*0.5
+        elseif (l4symtry) then
+c         --- The particle weight is reduced by a factor of 4 except near the
+c         --- transverse boundaries.
+          g0 = g0*0.25
+        endif
+        cdens = g0
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,u1,u0,v1,v0,w1,w0,ip,
+!$OMP&                 iinext,jjnext,kknext,u1next,v1next,w1next)
+!$OMP&FIRSTPRIVATE(np)
+
+      if (ny > 0) then
+
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry .and. .not. lcylindrical) then
+        iinext = int((xp(1) - xmmin)*dxi)
+        jjnext = int((abs(yp(1)) - ymmin)*dyi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (xp(1) - xmmin)*dxi - iinext
+        v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          u1 = u1next
+          v1 = v1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((xp(ip+1) - xmmin)*dxi)
+            jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (xp(ip+1) - xmmin)*dxi - iinext
+            v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+          g = g0*wfact(ip)
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+        enddo
+!$OMP END DO
+      elseif (l4symtry .and. .not. lcylindrical) then
+        iinext = int((abs(xp(1)) - xmmin)*dxi)
+        jjnext = int((abs(yp(1)) - ymmin)*dyi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (abs(xp(1)) - xmmin)*dxi - iinext
+        v1next = (abs(yp(1)) - ymmin)*dyi - jjnext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          u1 = u1next
+          v1 = v1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((abs(xp(ip+1)) - xmmin)*dxi)
+            jjnext = int((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            v1next = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+          g = g0*wfact(ip)
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1*g
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        if (lcylindrical) then
+          x = sqrt(xp(1)**2 + yp(1)**2)
+          y = ymmin
+        else
+          x = xp(1)
+          y = yp(1)
+        endif
+        iinext = int((x - xmmin)*dxi)
+        jjnext = int((y - ymmin)*dyi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (x - xmmin)*dxi - iinext
+        v1next = (y - ymmin)*dyi - jjnext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          u1 = u1next
+          v1 = v1next
+          w1 = w1next
+          if (ip < np) then
+            if (lcylindrical) then
+              x = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+              y = 0.
+            else
+              x = xp(ip+1)
+              y = yp(ip+1)
+            endif
+            iinext = int((x - xmmin)*dxi)
+            jjnext = int((y - ymmin)*dyi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (x - xmmin)*dxi - iinext
+            v1next = (y - ymmin)*dyi - jjnext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          v0 = 1. - v1
+          w0 = 1. - w1
+          u0 = u0*cdens(ii  )*wfact(ip)
+          u1 = u1*cdens(ii+1)*wfact(ip)
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u0*v0*w0
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u1*v0*w0
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u0*v1*w0
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u1*v1*w0
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u0*v0*w1
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u1*v0*w1
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u0*v1*w1
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u1*v1*w1
+        enddo
+!$OMP END DO
+      endif
+
+      else
+
+c NY == 0
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry .and. .not. lcylindrical) then
+        iinext = int((xp(1) - xmmin)*dxi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (xp(1) - xmmin)*dxi - iinext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          u1 = u1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((xp(ip+1) - xmmin)*dxi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (xp(ip+1) - xmmin)*dxi - iinext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          w0 = 1. - w1
+          g = g0*wfact(ip)
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1*g
+        enddo
+!$OMP END DO
+      elseif (l4symtry .and. .not. lcylindrical) then
+        iinext = int((abs(xp(1)) - xmmin)*dxi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (abs(xp(1)) - xmmin)*dxi - iinext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          u1 = u1next
+          w1 = w1next
+          if (ip < np) then
+            iinext = int((abs(xp(ip+1)) - xmmin)*dxi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          w0 = 1. - w1
+          g = g0*wfact(ip)
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1*g
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        if (lcylindrical) then
+          x = sqrt(xp(1)**2 + yp(1)**2)
+        else
+          x = xp(1)
+        endif
+        iinext = int((x - xmmin)*dxi)
+        kknext = int((zp(1) - zgrid - zmmin)*dzi)
+        u1next = (x - xmmin)*dxi - iinext
+        w1next = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          u1 = u1next
+          w1 = w1next
+          if (ip < np) then
+            if (lcylindrical) then
+              x = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+            else
+              x = xp(ip+1)
+            endif
+            iinext = int((x - xmmin)*dxi)
+            kknext = int((zp(ip+1) - zgrid - zmmin)*dzi)
+            u1next = (x - xmmin)*dxi - iinext
+            w1next = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+          u0 = 1. - u1
+          w0 = 1. - w1
+          u0 = u0*cdens(ii  )*wfact(ip)
+          u1 = u1*cdens(ii+1)*wfact(ip)
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u0*w0
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u1*w0
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u0*w1
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u1*w1
+        enddo
+!$OMP END DO
+      endif
+
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine setrho3ddirectspline3w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np), wfact(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+
+c  Sets charge density
+c  Uses a third order spline with direct deposition (no particle blocks)
+
+      integer(ISZ):: ip,ii,jj,kk
+      real(kind=8):: g0,g,dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: u0,u1,u2,u3,v0,v1,v2,v3,w0,w1,w2,w3
+      real(kind=8):: gxf,gyf,gxfm1,gyfm1
+
+      if (np == 0) return
+
+      g0 = wght*q/(dx*dy*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g0 = g0*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g0 = g0*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,wx,wy,wz,u2,u1,u0,v2,v1,v0,w2,w1,w0,ip)
+!$OMP&FIRSTPRIVATE(np)
+
+      if (ny > 0) then
+
+        if (nxguardrho <= 0 .or. nyguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline3: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- vectorized loop to compute indices, weights
+!$OMP DO
+        do ip = 1,np
+
+c     --- determine the position of the particle with respect to the grid
+          kk = int((zp(ip) - zgrid -zmmin)*dzi)
+          wz = (zp(ip) - zgrid - zmmin)*dzi - kk
+          if (l4symtry) then
+            ii = int((abs(xp(ip)) - xmmin)*dxi)
+            wx = (abs(xp(ip)) - xmmin)*dxi - ii
+          else
+            ii = int((xp(ip) - xmmin)*dxi)
+            wx = (xp(ip) - xmmin)*dxi - ii
+          endif
+          if (l2symtry .or. l4symtry) then
+            jj = int((abs(yp(ip)) - ymmin)*dyi)
+            wy = (abs(yp(ip)) - ymmin)*dyi - jj
+          else
+            jj = int((yp(ip) - ymmin)*dyi)
+            wy = (yp(ip) - ymmin)*dyi - jj
+          endif
+
+c     --- calculate weights for each cell
+          u0 = onesixth*(1-wx)**3
+          u1 = twothird - wx**2*(1-0.5*wx)
+          u2 = twothird - (1-wx)**2*(1-0.5*(1-wx))
+          u3 = onesixth*wx**3
+          v0 = onesixth*(1-wy)**3
+          v1 = twothird - wy**2*(1-0.5*wy)
+          v2 = twothird - (1-wy)**2*(1-0.5*(1-wy))
+          v3 = onesixth*wy**3
+          w0 = onesixth*(1-wz)**3
+          w1 = twothird - wz**2*(1-0.5*wz)
+          w2 = twothird - (1-wz)**2*(1-0.5*(1-wz))
+          w3 = onesixth*wz**3
+
+          g = g0*wfact(ip)
+
+c     --- add the charge for each cell
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii+2,jj-1,kk-1) = rho(ii+2,jj-1,kk-1) + u3*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii+2,jj  ,kk-1) = rho(ii+2,jj  ,kk-1) + u3*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+          rho(ii+2,jj+1,kk-1) = rho(ii+2,jj+1,kk-1) + u3*v2*w0*g
+          rho(ii-1,jj+2,kk-1) = rho(ii-1,jj+2,kk-1) + u0*v3*w0*g
+          rho(ii  ,jj+2,kk-1) = rho(ii  ,jj+2,kk-1) + u1*v3*w0*g
+          rho(ii+1,jj+2,kk-1) = rho(ii+1,jj+2,kk-1) + u2*v3*w0*g
+          rho(ii+2,jj+2,kk-1) = rho(ii+2,jj+2,kk-1) + u3*v3*w0*g
+          
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii+2,jj-1,kk  ) = rho(ii+2,jj-1,kk  ) + u3*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii+2,jj  ,kk  ) = rho(ii+2,jj  ,kk  ) + u3*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+          rho(ii+2,jj+1,kk  ) = rho(ii+2,jj+1,kk  ) + u3*v2*w1*g
+          rho(ii-1,jj+2,kk  ) = rho(ii-1,jj+2,kk  ) + u0*v3*w1*g
+          rho(ii  ,jj+2,kk  ) = rho(ii  ,jj+2,kk  ) + u1*v3*w1*g
+          rho(ii+1,jj+2,kk  ) = rho(ii+1,jj+2,kk  ) + u2*v3*w1*g
+          rho(ii+2,jj+2,kk  ) = rho(ii+2,jj+2,kk  ) + u3*v3*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii+2,jj-1,kk+1) = rho(ii+2,jj-1,kk+1) + u3*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii+2,jj  ,kk+1) = rho(ii+2,jj  ,kk+1) + u3*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+          rho(ii+2,jj+1,kk+1) = rho(ii+2,jj+1,kk+1) + u3*v2*w2*g
+          rho(ii-1,jj+2,kk+1) = rho(ii-1,jj+2,kk+1) + u0*v3*w2*g
+          rho(ii  ,jj+2,kk+1) = rho(ii  ,jj+2,kk+1) + u1*v3*w2*g
+          rho(ii+1,jj+2,kk+1) = rho(ii+1,jj+2,kk+1) + u2*v3*w2*g
+          rho(ii+2,jj+2,kk+1) = rho(ii+2,jj+2,kk+1) + u3*v3*w2*g
+
+          rho(ii-1,jj-1,kk+2) = rho(ii-1,jj-1,kk+2) + u0*v0*w3*g
+          rho(ii  ,jj-1,kk+2) = rho(ii  ,jj-1,kk+2) + u1*v0*w3*g
+          rho(ii+1,jj-1,kk+2) = rho(ii+1,jj-1,kk+2) + u2*v0*w3*g
+          rho(ii+2,jj-1,kk+2) = rho(ii+2,jj-1,kk+2) + u3*v0*w3*g
+          rho(ii-1,jj  ,kk+2) = rho(ii-1,jj  ,kk+2) + u0*v1*w3*g
+          rho(ii  ,jj  ,kk+2) = rho(ii  ,jj  ,kk+2) + u1*v1*w3*g
+          rho(ii+1,jj  ,kk+2) = rho(ii+1,jj  ,kk+2) + u2*v1*w3*g
+          rho(ii+2,jj  ,kk+2) = rho(ii+2,jj  ,kk+2) + u3*v1*w3*g
+          rho(ii-1,jj+1,kk+2) = rho(ii-1,jj+1,kk+2) + u0*v2*w3*g
+          rho(ii  ,jj+1,kk+2) = rho(ii  ,jj+1,kk+2) + u1*v2*w3*g
+          rho(ii+1,jj+1,kk+2) = rho(ii+1,jj+1,kk+2) + u2*v2*w3*g
+          rho(ii+2,jj+1,kk+2) = rho(ii+2,jj+1,kk+2) + u3*v2*w3*g
+          rho(ii-1,jj+2,kk+2) = rho(ii-1,jj+2,kk+2) + u0*v3*w3*g
+          rho(ii  ,jj+2,kk+2) = rho(ii  ,jj+2,kk+2) + u1*v3*w3*g
+          rho(ii+1,jj+2,kk+2) = rho(ii+1,jj+2,kk+2) + u2*v3*w3*g
+          rho(ii+2,jj+2,kk+2) = rho(ii+2,jj+2,kk+2) + u3*v3*w3*g
+          
+        enddo
+!$OMP END DO
+
+      else
+
+        if (nxguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline3w: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- NY = 0
+c     --- vectorized loop to compute indices, weights
+!$OMP DO
+        do ip = 1,np
+
+c     --- determine the position of the particle with respect to the grid
+          kk = int((zp(ip) - zgrid -zmmin)*dzi)
+          wz = (zp(ip+1) - zgrid - zmmin)*dzi - kk
+          if (l4symtry) then
+            ii = int((abs(xp(ip)) - xmmin)*dxi)
+            wx = (abs(xp(ip)) - xmmin)*dxi - ii
+          else
+            ii = int((xp(ip) - xmmin)*dxi)
+            wx = (xp(ip) - xmmin)*dxi - ii
+         endif
+
+c     --- calculate weights for each cell
+          u0 = onesixth*(1-wx)**3
+          u1 = twothird - wx**2*(1-0.5*wx)
+          u2 = twothird - (1-wx)**2*(1-0.5*(1-wx))
+          u3 = onesixth*wx**3
+          w0 = onesixth*(1-wz)**3
+          w1 = twothird - wz**2*(1-0.5*wz)
+          w2 = twothird - (1-wz)**2*(1-0.5*(1-wz))
+          w3 = onesixth*wz**3
+
+          g = g0*wfact(ip)
+
+          rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0*g
+          rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0*g
+          rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0*g
+          rho(ii+2,0,kk-1) = rho(ii+2,0,kk-1) + u3*w0*g
+
+          rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1*g
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1*g
+          rho(ii+2,0,kk  ) = rho(ii+2,0,kk  ) + u3*w1*g
+
+          rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2*g
+          rho(ii+2,0,kk+1) = rho(ii+2,0,kk+1) + u3*w2*g
+
+          rho(ii-1,0,kk+2) = rho(ii-1,0,kk+2) + u0*w3*g
+          rho(ii  ,0,kk+2) = rho(ii  ,0,kk+2) + u1*w3*g
+          rho(ii+1,0,kk+2) = rho(ii+1,0,kk+2) + u2*w3*g
+          rho(ii+2,0,kk+2) = rho(ii+2,0,kk+2) + u3*w3*g
+
+        enddo
+!$OMP END DO
+        
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end
+
+c=============================================================================
+      subroutine setrho3ddirectspline2w(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np), wfact(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  Uses a second order spline with direct deposition (no particle blocks)
+
+      integer(ISZ):: ip,ii,jj,kk
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g0,g,dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: wxnext,wynext,wznext
+      real(kind=8):: u0,u1,u2,v0,v1,v2,w0,w1,w2
+      real(kind=8):: gxf,gyf,gxfm1,gyfm1
+
+      if (np == 0) return
+
+      g0 = wght*q/(dx*dy*dz)
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      if (l2symtry) then
+c       --- The particle weight is reduced by a factor of 2 except near the
+c       --- transverse boundaries.
+        g0 = g0*0.5
+      elseif (l4symtry) then
+c       --- The particle weight is reduced by a factor of 4 except near the
+c       --- transverse boundaries.
+        g0 = g0*0.25
+      endif
+
+! np was made FIRSTPRIVATE to get around a bug when the expression
+! np+1-ipmin was evaluating to 1-ipmin (as if np was zero).
+! I don't know why it works, but it does.
+!$OMP PARALLEL PRIVATE(ii,jj,kk,wx,wy,wz,u2,u1,u0,v2,v1,v0,w2,w1,w0,ip)
+!$OMP&FIRSTPRIVATE(np)
+
+      if (ny > 0) then
+
+        if (nxguardrho <= 0 .or. nyguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline2: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry) then
+        iinext = nint((xp(1) - xmmin)*dxi)
+        jjnext = nint((abs(yp(1)) - ymmin)*dyi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (xp(1) - xmmin)*dxi - iinext
+        wynext = (abs(yp(1)) - ymmin)*dyi - jjnext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          wx = wxnext
+          wy = wynext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((xp(ip+1) - xmmin)*dxi)
+            jjnext = nint((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (xp(ip+1) - xmmin)*dxi - iinext
+            wynext = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+          g = g0*wfact(ip)
+
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+
+        enddo
+!$OMP END DO
+      elseif (l4symtry) then
+        iinext = nint((abs(xp(1)) - xmmin)*dxi)
+        jjnext = nint((abs(yp(1)) - ymmin)*dyi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (abs(xp(1)) - xmmin)*dxi - iinext
+        wynext = (abs(yp(1)) - ymmin)*dyi - jjnext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          wx = wxnext
+          wy = wynext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((abs(xp(ip+1)) - xmmin)*dxi)
+            jjnext = nint((abs(yp(ip+1)) - ymmin)*dyi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            wynext = (abs(yp(ip+1)) - ymmin)*dyi - jjnext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+          g = g0*wfact(ip)
+
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        iinext = nint((xp(1) - xmmin)*dxi)
+        jjnext = nint((yp(1) - ymmin)*dyi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (xp(1) - xmmin)*dxi - iinext
+        wynext = (yp(1) - ymmin)*dyi - jjnext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          jj = jjnext
+          kk = kknext
+          wx = wxnext
+          wy = wynext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((xp(ip+1) - xmmin)*dxi)
+            jjnext = nint((yp(ip+1) - ymmin)*dyi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (xp(ip+1) - xmmin)*dxi - iinext
+            wynext = (yp(ip+1) - ymmin)*dyi - jjnext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          v0 = 0.5*(0.5 - wy)**2
+          v1 = (0.75 - wy**2)
+          v2 = 0.5*(0.5 + wy)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+          g = g0*wfact(ip)
+
+          rho(ii-1,jj-1,kk-1) = rho(ii-1,jj-1,kk-1) + u0*v0*w0*g
+          rho(ii  ,jj-1,kk-1) = rho(ii  ,jj-1,kk-1) + u1*v0*w0*g
+          rho(ii+1,jj-1,kk-1) = rho(ii+1,jj-1,kk-1) + u2*v0*w0*g
+          rho(ii-1,jj  ,kk-1) = rho(ii-1,jj  ,kk-1) + u0*v1*w0*g
+          rho(ii  ,jj  ,kk-1) = rho(ii  ,jj  ,kk-1) + u1*v1*w0*g
+          rho(ii+1,jj  ,kk-1) = rho(ii+1,jj  ,kk-1) + u2*v1*w0*g
+          rho(ii-1,jj+1,kk-1) = rho(ii-1,jj+1,kk-1) + u0*v2*w0*g
+          rho(ii  ,jj+1,kk-1) = rho(ii  ,jj+1,kk-1) + u1*v2*w0*g
+          rho(ii+1,jj+1,kk-1) = rho(ii+1,jj+1,kk-1) + u2*v2*w0*g
+
+          rho(ii-1,jj-1,kk  ) = rho(ii-1,jj-1,kk  ) + u0*v0*w1*g
+          rho(ii  ,jj-1,kk  ) = rho(ii  ,jj-1,kk  ) + u1*v0*w1*g
+          rho(ii+1,jj-1,kk  ) = rho(ii+1,jj-1,kk  ) + u2*v0*w1*g
+          rho(ii-1,jj  ,kk  ) = rho(ii-1,jj  ,kk  ) + u0*v1*w1*g
+          rho(ii  ,jj  ,kk  ) = rho(ii  ,jj  ,kk  ) + u1*v1*w1*g
+          rho(ii+1,jj  ,kk  ) = rho(ii+1,jj  ,kk  ) + u2*v1*w1*g
+          rho(ii-1,jj+1,kk  ) = rho(ii-1,jj+1,kk  ) + u0*v2*w1*g
+          rho(ii  ,jj+1,kk  ) = rho(ii  ,jj+1,kk  ) + u1*v2*w1*g
+          rho(ii+1,jj+1,kk  ) = rho(ii+1,jj+1,kk  ) + u2*v2*w1*g
+
+          rho(ii-1,jj-1,kk+1) = rho(ii-1,jj-1,kk+1) + u0*v0*w2*g
+          rho(ii  ,jj-1,kk+1) = rho(ii  ,jj-1,kk+1) + u1*v0*w2*g
+          rho(ii+1,jj-1,kk+1) = rho(ii+1,jj-1,kk+1) + u2*v0*w2*g
+          rho(ii-1,jj  ,kk+1) = rho(ii-1,jj  ,kk+1) + u0*v1*w2*g
+          rho(ii  ,jj  ,kk+1) = rho(ii  ,jj  ,kk+1) + u1*v1*w2*g
+          rho(ii+1,jj  ,kk+1) = rho(ii+1,jj  ,kk+1) + u2*v1*w2*g
+          rho(ii-1,jj+1,kk+1) = rho(ii-1,jj+1,kk+1) + u0*v2*w2*g
+          rho(ii  ,jj+1,kk+1) = rho(ii  ,jj+1,kk+1) + u1*v2*w2*g
+          rho(ii+1,jj+1,kk+1) = rho(ii+1,jj+1,kk+1) + u2*v2*w2*g
+
+        enddo
+!$OMP END DO
+      endif
+
+      else
+
+        if (nxguardrho <= 0 .or. nzguardrho <= 0) then
+          call kaboom("setrho3ddirectspline2: there must be at least one guard cell on all axes")
+          return
+        endif
+
+c     --- NY = 0
+c     --- vectorized loop to compute indices, weights
+      if (l2symtry .or. l4symtry) then
+        iinext = nint((abs(xp(1)) - xmmin)*dxi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (abs(xp(1)) - xmmin)*dxi - iinext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          wx = wxnext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((abs(xp(ip+1)) - xmmin)*dxi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (abs(xp(ip+1)) - xmmin)*dxi - iinext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+          g = g0*wfact(ip)
+
+          rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0*g
+          rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0*g
+          rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0*g
+
+          rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1*g
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1*g
+
+          rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2*g
+
+        enddo
+!$OMP END DO
+      else
+c       --- normal loop
+        iinext = nint((xp(1) - xmmin)*dxi)
+        kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+        wxnext = (xp(1) - xmmin)*dxi - iinext
+        wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+        do ip = 1,np
+          ii = iinext
+          kk = kknext
+          wx = wxnext
+          wz = wznext
+          if (ip < np) then
+            iinext = nint((xp(ip+1) - xmmin)*dxi)
+            kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+            wxnext = (xp(ip+1) - xmmin)*dxi - iinext
+            wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+          endif
+
+          u0 = 0.5*(0.5 - wx)**2
+          u1 = (0.75 - wx**2)
+          u2 = 0.5*(0.5 + wx)**2
+          w0 = 0.5*(0.5 - wz)**2
+          w1 = (0.75 - wz**2)
+          w2 = 0.5*(0.5 + wz)**2
+          g = g0*wfact(ip)
+
+          rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0*g
+          rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0*g
+          rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0*g
+
+          rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1*g
+          rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1*g
+          rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1*g
+
+          rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2*g
+          rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2*g
+          rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2*g
+
+        enddo
+!$OMP END DO
+      endif
+
+      endif
+
+!$OMP END PARALLEL
+
+      return
+      end      
+c=============================================================================
+      subroutine setrho3ddirectspline2cylw(rho,np,xp,yp,zp,zgrid,wfact,q,wght,
+     &                           nx,ny,nz,nxguardrho,nyguardrho,nzguardrho,
+     &                           dx,dy,dz,xmmin,ymmin,zmmin,l2symtry,l4symtry)
+      use GlobalVars
+      use Constant,Only: pi
+      integer(ISZ):: np
+      integer(ISZ):: nx,ny,nz,nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: dx,dy,dz
+      real(kind=8):: zgrid,q,wght
+      real(kind=8):: rho(-nxguardrho:nx+nxguardrho,
+     &                   -nyguardrho:ny+nyguardrho,
+     &                   -nzguardrho:nz+nzguardrho)
+      real(kind=8):: xp(np), yp(np), zp(np), wfact(np)
+      real(kind=8):: xmmin,ymmin,zmmin
+      logical(ISZ):: l2symtry,l4symtry
+
+c  Sets charge density
+c  Uses a second order spline with direct deposition (no particle blocks)
+
+      integer(ISZ):: ix,ip,ii,jj,kk
+      integer(ISZ):: iinext,jjnext,kknext
+      real(kind=8):: g,dxi,dyi,dzi
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: wxnext,wynext,wznext
+      real(kind=8):: u0,u1,u2,v0,v1,v2,w0,w1,w2
+      real(kind=8):: gxf,gyf,gxfm1,gyfm1
+
+c     --- Work array holding q/cell volume, the charge density per
+c     --- real particle. This is needed for RZ
+c     --- since the cell volume there has radial dependence.
+      real(kind=8):: cdens(-1:nx+1)
+      real(kind=8):: x
+
+      if (np == 0) return
+
+      if (nxguardrho <= 0 .or. nzguardrho <= 0) then
+        call kaboom("setrho3ddirectspline2cyl: there must be at least one guard cell on all axes")
+        return
+      endif
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (xmmin > dx) then
+        cdens(-1) = 1./(2.*pi*(dx+xmmin)*dx*dz)
+      else
+        cdens(-1) = 0.
+      endif
+      if (xmmin == 0.) then
+c       --- The factor 8/13 corrects for overdeposition due to the
+c       --- weighting (for uniform distribution). Note that for
+c       --- this shape function, the next cell needs adjusting as well.
+c       --- see Larson et al., Comp. Phys. Comm., 90:260-266, 1995
+c       --- and Verboncoeur, J. of Comp. Phys. (for linear weighting)
+        cdens(0) = 8./(13.*pi*0.25*dx*dx*dz)
+        cdens(1) = 1./(2.*pi*(dx+xmmin)*dx*dz)*384./385.
+      else
+        cdens(0) = 1./(2.*pi*(xmmin)*dx*dz)
+        cdens(1) = 1./(2.*pi*(dx+xmmin)*dx*dz)
+      endif
+      do ix = 2,nx+1
+        cdens(ix) = 1./(2.*pi*(ix*dx+xmmin)*dx*dz)
+      enddo
+      cdens = cdens*wght*q
+
+c     --- normal loop
+      x = sqrt(xp(1)**2 + yp(1)**2)
+      iinext = nint((x     - xmmin)*dxi)
+      kknext = nint((zp(1) - zgrid - zmmin)*dzi)
+      wxnext = (x     - xmmin)*dxi - iinext
+      wznext = (zp(1) - zgrid - zmmin)*dzi - kknext
+!$OMP DO
+      do ip = 1,np
+        ii = iinext
+        kk = kknext
+        wx = wxnext
+        wz = wznext
+        if (ip < np) then
+          x = sqrt(xp(ip+1)**2 + yp(ip+1)**2)
+          iinext = nint((x        - xmmin)*dxi)
+          kknext = nint((zp(ip+1) - zgrid - zmmin)*dzi)
+          wxnext = (x        - xmmin)*dxi - iinext
+          wznext = (zp(ip+1) - zgrid - zmmin)*dzi - kknext
+        endif
+
+        u0 = 0.5*(0.5 - wx)**2 *cdens(ii-1)
+        u1 = (0.75 - wx**2)    *cdens(ii)
+        u2 = 0.5*(0.5 + wx)**2 *cdens(ii+1)
+        w0 = 0.5*(0.5 - wz)**2
+        w1 = (0.75 - wz**2)
+        w2 = 0.5*(0.5 + wz)**2
+        g = wfact(ip)
+
+        rho(ii-1,0,kk-1) = rho(ii-1,0,kk-1) + u0*w0*g
+        rho(ii  ,0,kk-1) = rho(ii  ,0,kk-1) + u1*w0*g
+        rho(ii+1,0,kk-1) = rho(ii+1,0,kk-1) + u2*w0*g
+
+        rho(ii-1,0,kk  ) = rho(ii-1,0,kk  ) + u0*w1*g
+        rho(ii  ,0,kk  ) = rho(ii  ,0,kk  ) + u1*w1*g
+        rho(ii+1,0,kk  ) = rho(ii+1,0,kk  ) + u2*w1*g
+
+        rho(ii-1,0,kk+1) = rho(ii-1,0,kk+1) + u0*w2*g
+        rho(ii  ,0,kk+1) = rho(ii  ,0,kk+1) + u1*w2*g
+        rho(ii+1,0,kk+1) = rho(ii+1,0,kk+1) + u2*w2*g
+
+      enddo
+!$OMP END DO
+
+!$OMP END PARALLEL
+
+      return
+      end
+c=============================================================================
+      subroutine zerorhowithsampledsubcycling()
+      use Subcycling
+      use Fields3dParticles
+
+      integer(ISZ):: in1
+
+c     --- Zero the rho copy for species when the positions
+c     --- are advanced.
+c     --- rhopndts(:,:,:,1,in1) holds the old rho which is still needed
+c     --- for the faster advanced groups.
+      do in1=0,nsndts-1
+        if (ldts(in1)) then
+          if (nrhopndtscopies == 2) then
+            rhopndts(:,:,:,1,in1) = rhopndts(:,:,:,0,in1)
+          endif
+          rhopndts(:,:,:,0,in1) = 0.
+        endif
+      enddo
+
+      return
+      end
+c=============================================================================
+      subroutine averagerhowithsampledsubcycling()
+      use Picglb,Only: it
+      use Subcycling
+      use Fields3dParticles
+
+      integer(ISZ):: in1,in2,in2tmp
+
+      if (ndtsmax == 1) return
+
+c     --- First, copy the rho of the fastest species into rhopndts(:,:,:,1,0)
+c     --- which is used for the field solve. Note that the old rho of this
+c     --- species is never used.
+      rhopndts(:,:,:,1,0) = rhopndts(:,:,:,0,0)
+
+c     --- Save the rho where the fastest particle's rho is.
+c     --- This is always in1=0.
+      do in1=1,nsndts-1
+        if (it == 0) then
+c         --- At it==0, before the first step, always add the new rho.
+          rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) + rhopndts(:,:,:,0,in1)
+        elseif (mod(ndts(in1),2) == 1) then
+c         --- Use the rho that is closest in time to the current time.
+          if (mod(it-1,ndts(in1)) > ndts(in1)/2.-1.) then
+            rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) + rhopndts(:,:,:,0,in1)
+          else
+            rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) + rhopndts(:,:,:,1,in1)
+          endif
+        else
+c         --- When ndts is even, at the mid point of the step, take the
+c         --- average of the old and the new
+c         --- Otherwise, use the rho that is closest in time to the currentc
+c         --- time.
+          if (mod(it-1,ndts(in1)) == ndts(in1)/2-1) then
+            rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) +
+     &       0.5*(rhopndts(:,:,:,0,in1) + rhopndts(:,:,:,1,in1))
+          else if (mod(it-1,ndts(in1)) > ndts(in1)/2.-1.) then
+            rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) + rhopndts(:,:,:,0,in1)
+          else
+            rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) + rhopndts(:,:,:,1,in1)
+          endif
+        endif
+      enddo
+
+      return
+      end
+c=============================================================================
+      subroutine averagerhowithslowweightedsubcycling()
+      use Picglb,Only: it
+      use Subcycling
+      use Fields3dParticles
+
+      integer(ISZ):: in1,in2,in2tmp
+      real(kind=8):: weight
+
+      if (ndtsmax == 1) return
+
+c     --- First, copy the rho of the fastest species into rhopndts(:,:,:,1,0)
+c     --- which is used for the field solve. Note that the old rho of this
+c     --- species is never used.
+      rhopndts(:,:,:,1,0) = rhopndts(:,:,:,0,0)
+
+c     --- Save the rho where the fastest particle's rho is.
+c     --- This is always in1=0.
+      do in1=1,nsndts-1
+        if (it == 0) then
+c         --- At it==0, before the first step, always add the new rho.
+          rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) + rhopndts(:,:,:,0,in1)
+        else
+c         --- This needs checking !!! XXX
+          weight = mod(it-1,ndts(in1))/(ndts(in1)-1.)
+          rhopndts(:,:,:,1,0) = rhopndts(:,:,:,1,0) +
+     &       rhopndts(:,:,:,0,in1)*(1.-weight) +
+     &       rhopndts(:,:,:,1,in1)*(   weight)
+        endif
+      enddo
+
+      return
+      end
+c=============================================================================
+      subroutine zerorhowithfullvsubcycling()
+      use Subcycling
+      use Fields3dParticles
+
+      integer(ISZ):: in1
+
+c     --- Zero the rho copy for species when the positions
+c     --- are advanced.
+      do in1=0,nsndts-1
+        if (mod(ndts(in1),2) == 1) then
+c         --- rho is zeroed for all of the odd cases
+          if (ldts(in1)) then
+            rhopndts(:,:,:,0,in1) = 0.
+          endif
+        else
+          call kaboom("This version of subcyling is not supported with even step sizes.")
+c         --- rho is zeroed for even cases only when there is no group
+c         --- with half its time step size (since those cases already
+c         --- have a contribution added.
+c         if (ldts(in1)) then
+c           lzeroeven = .true.
+c           do in2 = 0,nsndts-1
+c             if (ndts(in1) > ndts(in2)) then
+c               if (mod(ndts(in1),ndts(in2)) == 0) then
+c                 lzeroeven = .false.
+c                 exit
+c               endif
+c             endif
+c           enddo
+c           if (lzeroeven) rhopndts(:,:,:,0,in1) = 0.
+c         endif
+        endif
+      enddo
+
+      return
+      end
+c=============================================================================
+      subroutine zerorhowithselfb()
+      use SelfB
+      use Fields3dParticles
+
+      if (nsselfb3d > 0) rhopselfb = 0.
+
+      return
+      end
+c=============================================================================
+      subroutine averagerhowithfullvsubcycling()
+      use Subcycling
+      use Fields3dParticles
+      use Picglb,Only: it
+
+      integer(ISZ):: in1,in2,ndtstmp,in2tmp
+      real(kind=8):: rndts
+
+      if (ndtsmax == 1) return
+
+c     --- The copy is only needed if there are multiple groups of ndts.
+      if (nrhopndtscopies == 2) then
+        do in1 = 0,nsndts-1
+          if (ldts(in1)) then
+c           --- Copy the individual speices rho to its array holding the
+c           --- total rho.
+            if (mod(ndts(in1),2) == 1) then
+              rhopndts(:,:,:,1,in1) = rhopndts(:,:,:,0,in1)
+            else
+c             --- For ndts even, some contribution may already have been made
+c             --- in setupevensubcyclingrho.
+              rhopndts(:,:,:,1,in1) = rhopndts(:,:,:,1,in1) +
+     &                                rhopndts(:,:,:,0,in1)
+            endif
+          endif
+        enddo
+      endif
+      do in1 = 0,nsndts-1
+        do in2 = 0,nsndts-1
+          if (in1 == in2) cycle
+          ndtstmp = ndts(in1) - mod(ndts(in1),2)
+          if (ndts(in1) < ndts(in2) .and. ldts(in1)) then
+c           --- For groups with larger time steps, add in their rho
+c           --- now since it only needs to be done once.
+c           --- Also, if only sampling instead of averaging.
+            rhopndts(:,:,:,1,in1) = rhopndts(:,:,:,1,in1) +
+     &                              rhopndts(:,:,:,0,in2)
+          else if (ndts(in1) > ndts(in2)) then
+c           --- For groups with smaller times steps, add in the
+c           --- fractional contribution.
+            rndts = 1./ndts(in1)
+c           --- Check the special case when the rho for one group is
+c           --- exactly half way between two of the larger time steps.
+c           --- This can happen when the larger is an integer multiple
+c           --- of the smaller.
+c           --- Only half is added in ala the trapezoidal rule.
+            in2tmp = ndts(in2) - mod(ndts(in2),2)
+            if (mod(ndts(in1),2) == 0 .and. ldts(in2) .and.
+     &          ndts(in1) == 2*mod(itndts(in2),ndts(in1))) then
+              rndts = rndts*0.5
+            endif
+c           --- The first time step is special since the past histories
+c           --- of the faster moving groups is not known.
+c           --- It is assumed that the starting time step is it=0,
+c           --- which means that it = 0 now. As an estimate, the initial
+c           --- charge density is multiplied by a scale factor to replace
+c           --- the unknown values from the past.
+            if (it == 0) then
+              rndts = ((ndts(in1) + 1)/2.)/ndts(in1)
+            endif
+c           --- Note that time could be saved since ndts(in1) > 1
+c           --- and its rho won't change every step and its contribution
+c           --- doesn't needed to be added in every step. Right now
+c           --- though I'm too lazy to figure out the logic and the
+c           --- weighting factors.
+            rhopndts(:,:,:,1,in1) = rhopndts(:,:,:,1,in1) +
+     &                              rhopndts(:,:,:,0,in2)*rndts
+          endif
+        enddo
+      enddo
+
+      return
+      end
+c=============================================================================
+      subroutine zerorhowithhalfvsubcycling()
+      use Subcycling
+      use Fields3dParticles
+
+      if (ndtsmax == 1) return
+
+      call kaboom("Version 2 of averaging for subcyling is not yet supported")
+
+      return
+      end
+c=============================================================================
+      subroutine averagerhowithhalfvsubcycling()
+      use Subcycling
+      use Fields3dParticles
+
+      return
+      end
+c=============================================================================
+      subroutine loadrho3d(pgroup,ins_i,nps_i,is_i,lzero,lfinalize_rho)
+      use w3d_interfaces
+      use ParticleGroupmodule
+      use w3d_interfaces
+      use GlobalVars
+      use Subtimersw3d
+      use InGen,Only: depos,fstype
+      use InGen3d
+      use InPart
+      use InMesh3d
+      use Picglb
+      use Picglb3d
+      use Particles,Only: wpid
+      use Subcycling
+      use Fields3dParticles
+      use GridBoundary3d
+      use FieldSolveAPI, Only: lzerorhofsapi,lfinalizerhofsapi,js1fsapi,js2fsapi
+      use Timers, Only: lrtime
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: ins_i,nps_i,is_i
+      logical(ISZ):: lzero,lfinalize_rho
+
+c --- This routine provides a simple call from the interpreter to load the
+c --- rhop array.  The value '-1' is used as a flag in the input to use
+c --- all of the particles, otherwise the specified particles are loaded.
+
+      integer(ISZ):: ins_u,nps_u
+      integer(ISZ):: is1,is2,isid,i1,i2
+      integer(ISZ):: ip,ipmin,is,indts
+      real(kind=8):: swtmp
+      logical(ISZ):: lzeroeven
+      real(kind=8):: substarttime,subendtime,wtime
+c     --- This routine is always timed (data saved in lrtime)
+      substarttime = wtime()
+      call printentering("loadrho3d", 2)
+
+      if (lbeforelr) call callpythonfunc("beforeloadrho","controllers")
+
+c     --- Ensure that subcycling is setup correctly (in case the user had
+c     --- made changes.
+      call setupSubcycling(pgroup)
+      call setupSelfB(pgroup)
+
+      if(depos == 'none') then
+        if (lafterloadrho) call callpythonfunc("afterloadrho","controllers")
+        return
+      endif
+
+c     --- set limits on loop over species
+      if (is_i == -1) then
+        is1 = 1
+        is2 = pgroup%ns
+      else
+        is1 = is_i
+        is2 = is_i
+      endif
+
+      if (fstype == 12) then
+c       --- Use user registered solver to load rho
+        lzerorhofsapi = lzero
+        lfinalizerhofsapi = lfinalize_rho
+        js1fsapi = is1 - 1
+        js2fsapi = is2 - 1
+        call callpythonfunc("loadrhoregistered","field_solvers.fieldsolver")
+        js1fsapi = -1
+        js2fsapi = -1
+      else
+
+c       --- This is always done with the built in solvers
+c       --- (even with the RZ solver which does use the w3d.rho array)
+        call setupFields3dParticles()
+
+c       --- zero rhop if requested
+        if (lzero) then
+          if (solvergeom == XYZgeom) then
+c           --- Zero the rho copy for species when the positions
+c           --- are advanced.
+            if (ndtsaveraging == 0 .or. ndtsaveraging == 1) then
+              call zerorhowithsampledsubcycling()
+            elseif (ndtsaveraging == 2) then
+              call zerorhowithfullvsubcycling()
+            elseif (ndtsaveraging == 3) then
+              call zerorhowithhalfvsubcycling()
+            endif
+            call zerorhowithselfb()
+          endif
+          if(solvergeom==RZgeom .or. solvergeom==XZgeom .or. solvergeom==XYgeom .or.
+     &       solvergeom==Rgeom  .or. solvergeom==Zgeom) call reset_rzmgrid_rho()
+        end if
+
+c       --- change AMR grid if necessary
+        if(solvergeom==RZgeom .or. solvergeom==XZgeom .or. solvergeom==XYgeom .or.
+     &     solvergeom==Rgeom  .or. solvergeom==Zgeom) call change_loc_part()
+
+c       --- set initial limits from input
+c       --- (will be changed if necessary in the loop)
+        ins_u = ins_i
+        nps_u = nps_i
+
+c       --- loop over species
+        do is=is1,is2
+           isid = pgroup%sid(is-1) + 1
+           if (isid == 0) cycle
+
+c          --- For the AMR/Chombo version, all of the lost particles must be
+c          --- cleared out.
+           if (solvergeom == AMRgeom) call clearpart(pgroup,is,1)
+
+c          --- get loop limits for particles if needed
+           if (ins_i == -1) ins_u = pgroup%ins(is)
+           if (nps_i == -1) nps_u = pgroup%nps(is)
+           if (nps_u == 0) cycle
+
+c          --- Scale the weight, sw, by the time step scale size. This only
+c          --- makes sense for steady-state and slice modes. In time-dependent
+c          --- mode, it is assumed that dtscale has not been changed from 1.
+           swtmp = pgroup%sw(is)*pgroup%dtscale(is)
+
+           if(solvergeom==XYZgeom) then
+             ipmin = ins_u
+             i1 = ipmin
+             i2 = ipmin + nps_u - 1
+             indts = ndtstorho(pgroup%ndts(is-1))
+             if (ldts(indts)) then
+c              --- Only load the rho if the positions have been advanced.
+               if(wpid==0) then
+                 call setrho3d(rhopndts(:,:,:,0,indts),nps_u,
+     &                         pgroup%xp(i1:i2),pgroup%yp(i1:i2),pgroup%zp(i1:i2),
+     &                         zgridndts(indts),pgroup%sq(is),
+     &                         swtmp,depos,depos_order(:,is),nxp,nyp,nzp,
+     &                         nxguardrho,nyguardrho,nzguardrho,
+     &                         dx,dy,dz,xmminp,ymminp,zmminp,
+     &                         l2symtry,l4symtry,solvergeom==RZgeom)
+               else
+                 call setrho3dw(rhopndts(:,:,:,0,indts),nps_u,
+     &                          pgroup%xp(i1:i2),pgroup%yp(i1:i2),pgroup%zp(i1:i2),
+     &                          zgridndts(indts),
+     &                          pgroup%pid(i1:i2,wpid),pgroup%sq(is),
+     &                          swtmp,depos,depos_order(:,is),nxp,nyp,nzp,
+     &                          nxguardrho,nyguardrho,nzguardrho,
+     &                          dx,dy,dz,xmminp,ymminp,zmminp,
+     &                          l2symtry,l4symtry,solvergeom==RZgeom)
+               endif
+             endif
+           elseif(solvergeom==RZgeom .or. solvergeom==XZgeom) then
+c            --- loop over particle blocks
+             do ipmin = ins_u, ins_u + nps_u - 1, nparpgrp
+               ip = min(nparpgrp, ins_u+nps_u-ipmin)
+               i1 = ipmin
+               i2 = ipmin + ip - 1
+               if(wpid==0) then
+                 call rhoweightrz(pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                            pgroup%zp(i1:i2),ip,
+     &                            pgroup%sq(is)*swtmp,nxlocal,nzlocal,dx,dz,xmmin,zgrid)
+               else
+                 call rhoweightrz_weights(pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                            pgroup%zp(i1:i2),pgroup%pid(i1:i2,wpid),ip,
+     &                            pgroup%sq(is)*swtmp,nxlocal,nzlocal,dx,dz,xmmin,zgrid)
+               end if
+             enddo
+           elseif(solvergeom==XYgeom) then
+c            --- loop over particle blocks
+             do ipmin = ins_u, ins_u + nps_u - 1, nparpgrp
+               ip = min(nparpgrp, ins_u+nps_u-ipmin)
+               i1 = ipmin
+               i2 = ipmin + ip - 1
+               if(wpid==0) then
+                 call rhoweightrz(pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                            pgroup%yp(i1:i2),ip,
+     &                            pgroup%sq(is)*swtmp,nxlocal,nylocal,dx,dy,xmmin,ymmin)
+               else
+                 call rhoweightrz_weights(pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                            pgroup%yp(i1:i2),pgroup%pid(i1:i2,wpid),ip,
+     &                            pgroup%sq(is)*swtmp,nxlocal,nylocal,dx,dy,xmmin,ymmin)
+               end if
+             enddo
+           elseif(solvergeom==Zgeom) then
+c            --- loop over particle blocks
+             do ipmin = ins_u, ins_u + nps_u - 1, nparpgrp
+                ip = min(nparpgrp, ins_u+nps_u-ipmin)
+                i1 = ipmin
+                i2 = ipmin + ip - 1
+                call rhoweightz(pgroup%zp(i1:i2),ip,pgroup%sq(is)*swtmp,
+     &                          nzlocal,dz,zgrid)
+             enddo
+           elseif(solvergeom==Rgeom) then
+c            --- loop over particle blocks
+             do ipmin = ins_u, ins_u + nps_u - 1, nparpgrp
+                ip = min(nparpgrp, ins_u+nps_u-ipmin)
+                i1 = ipmin
+                i2 = ipmin + ip - 1
+                if(wpid==0) then
+                  call rhoweightr(pgroup%xp(i1:i2),pgroup%yp(i1:i2),ip,
+     &                            pgroup%sq(is)*swtmp,nx,dx,xmmin)
+                else
+                  call rhoweightr_weights(pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                                    pgroup%pid(i1:i2,wpid),ip,
+     &                                    pgroup%sq(is)*swtmp,nx,dx,xmmin)
+                end if
+             enddo
+           elseif(solvergeom==AMRgeom) then
+c            --- loop over particle blocks
+             do ipmin = ins_u, ins_u + nps_u - 1, nparpgrp
+                ip = min(nparpgrp, ins_u+nps_u-ipmin)
+                i1 = ipmin
+                i2 = ipmin + ip - 1
+                call cho_setrho3d(ip,pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                            pgroup%zp(i1:i2),zgrid,
+     &                            pgroup%sq(is),swtmp,isid,
+     &                            (ipmin-pgroup%ins(is))/nparpgrp)
+             enddo
+           endif
+        enddo
+
+c       --- rhop has been changed, so set the flag the rho needs further
+c       --- processing.
+        lrhofinalized = .false.
+
+c       --- If lzero is requested, then it is assumed that loadrho should
+c       --- be a complete operation and that any final processing on rho
+c       --- should be done.
+        if (lzero .and. lfinalize_rho) call finalizerho()
+
+      endif
+
+c     --- Do any loading that is needed for injection
+      call loadrho_inject(pgroup)
+
+      if (lafterloadrho) call callpythonfunc("afterloadrho","controllers")
+
+      call printexiting("loadrho3d", 2)
+!$OMP MASTER
+      subendtime = wtime()
+      lrtime = lrtime + subendtime - substarttime
+      if (lw3dtimesubs) timeloadrho3d = timeloadrho3d + subendtime - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine finalizerho()
+      use Subtimersw3d
+      use InGen3d
+      use Fields3dParticles
+      use Subcycling
+      use w3d_interfaces
+
+c Carry out any processing on rho needed to get it ready for the field solver.
+c This includes appling the boundary conditions, copying from rhop to rho,
+c sharing rho among parallel processing neighbors and doing the appropriate
+c averaging for subcycling.
+
+      integer(ISZ):: tmpnsndts,indts,isndts
+      integer(ISZ):: getnsndtsforsubcycling
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- If rho has already been finalized, then do nothing.
+      if (lrhofinalized) return
+      lrhofinalized = .true.
+
+c     --- Add together the rhop from the species with different time steps
+c     --- This must be done after all of the species has been deposited.
+      if(solvergeom==XYZgeom) then
+        if (ndtsaveraging == 0 .or. ndtsaveraging == 1) then
+          call averagerhowithsampledsubcycling()
+        elseif (ndtsaveraging == 2) then
+          call averagerhowithfullvsubcycling()
+        elseif (ndtsaveraging == 3) then
+          call averagerhowithhalfvsubcycling()
+        endif
+      endif
+
+c     --- Loop over the subcyling groups and apply B.C.s to rho
+c     --- WARNING: this code is not correct for ndtsaveraging > 1 for the
+c     --- parallel code!!!
+c     --- The setrhoandphiforfieldsolve only allocates one rho array for
+c     --- the parallel code, but with ndtsaveraging > 1, multiple rho
+c     --- arrays will be needed. (In serial rho only points to memory
+c     --- in rhopndts and so implicitly allows multiple copies.)
+      tmpnsndts = getnsndtsforsubcycling()
+      do indts=tmpnsndts-1,0,-1
+        if (.not. ldts(indts)
+     &      .and. ((ndtsaveraging == 0 .or. ndtsaveraging == 1)
+     &       .and. .not. any(ldts))) cycle
+        isndts = min(indts,nsndtsphi3d-1)
+
+c       --- For serial version, the arrays rho and phi are pointed to the
+c       --- appropriate arrays for the current ndts group.
+c       --- For parallel version, each processor sends rho to neighboring
+c       --- processors whose field solve region overlap its particle region.
+        call assignrhoandphiforfieldsolve(rhopndts(:,:,:,nrhopndtscopies-1,indts),
+     &                                    phipndts(:,:,:,isndts))
+        call setrhoandphiforfieldsolve(rhopndts(:,:,:,nrhopndtscopies-1,indts),
+     &                                 phipndts(:,:,:,isndts))
+
+c       --- enforce the boundary conditions
+c       --- This is done on the rho array, rather than rhop, since that will
+c       --- be used for the field solve. Also, in some cases, the rhop array
+c       --- will not cover the full axial extent of the system anyway.
+        call applyrhoboundaryconditions()
+
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timefinalizerho = timefinalizerho + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine setupevensubcyclingrho(it)
+c     use Subcycling
+c     use Fields3dParticles
+c     use InGen3d,Only:solvergeom,XYZgeom
+      integer(ISZ):: it
+
+c     --- When, sometimes rho is know at a time that is exactly half way
+c     --- between two larger times steps. When this happens, the trapezoidal
+c     --- rule is used and one half of that rho is added to the larger time
+c     --- steps rho.
+
+c     integer(ISZ):: iz,in1,in2,ndtstmp
+c     real(kind=8):: rndts
+
+c     --- This code is not supported
+
+c     if (solvergeom/=XYZgeom) return
+
+c     --- First, zero out the rho or those cases
+c     do in1 = 0,nsndts-1
+c       do in2 = 0,nsndts-1
+c         if (in1 == in2) cycle
+c         if (ndts(in1) > ndts(in2)) then
+c           if (mod(ndts(in1),ndts(in2)) == 0) then
+c             ndtstmp = ndts(in1) - mod(ndts(in1),2)
+c             if (mod(it-1,ndts(in1)) == ndtstmp/2) then
+c               rhopndts(:,:,:,1,in1) = 0.
+c               exit
+c             endif
+c           endif
+c         endif
+c       enddo
+c     enddo
+
+c     --- Then add in the half contribution
+c     do in1 = 0,nsndts-1
+c       do in2 = 0,nsndts-1
+c         if (in1 == in2) cycle
+c         if (ndts(in1) > ndts(in2)) then
+c           if (mod(ndts(in1),ndts(in2)) == 0) then
+c             ndtstmp = ndts(in1) - mod(ndts(in1),2)
+c             if (mod(it-1,ndts(in1)) == ndtstmp/2) then
+c               rndts = 0.5/ndts(in1)
+c               rhopndts(:,:,:,1,in1) = rhopndts(:,:,:,1,in1) +
+c    &                                  rhopndts(:,:,:,0,in2)*rndts
+c             endif
+c           endif
+c         endif
+c       enddo
+c     enddo
+
+      return
+      end
+c=============================================================================
+      subroutine assignrhopandphipforparticles(rhopin,phipin)
+      use InGen3d
+      use InMesh3d
+      use Fields3dParticles
+      real(kind=8),target:: rhopin(-nxguardrho:nxp+nxguardrho,
+     &                             -nyguardrho:nyp+nyguardrho,
+     &                             -nzguardrho:nzp+nzguardrho)
+      real(kind=8),target:: phipin(-nxguardphi:nxp+nxguardphi,
+     &                             -nyguardphi:nyp+nyguardphi,
+     &                             -nzguardphi:nzp+nzguardphi)
+
+c     --- The assignments must be done in a subroutine like this so that
+c     --- the lower and upper bounds of rho and phi are correct.
+
+c     --- Point rho to the block for the currently active ndts group.
+c     --- Note that nrhopndtscopies is used in case ndts is only 1
+c     --- (and nrhopndtscopies is 1) since the extra rho copy is not saved.
+      rhop => rhopin
+      phip => phipin
+
+      return
+      end
+c=============================================================================
+      subroutine allocateselfepforparticles(lforce)
+      use InPart,Only: efetch,depos_order
+      use InGen,Only: fstype
+      use InGen3d
+      use InMesh3d,Only: nxlocal,nylocal,nzlocal,nxguarde,nyguarde,nzguarde
+      use Fields3dParticles,Only: selfep,nxp,nyp,nzp
+      logical(ISZ):: lforce
+
+c Only do the allocation if needed, when lforce is true or when the array
+c is needed for the field gather (efetch == 3).
+
+      logical(ISZ):: checkalloc
+      logical(ISZ):: doallocate
+      integer:: alloc_status
+
+      checkalloc = lforce
+
+      if ((ANY(efetch == 3) .or. ANY(depos_order > 1)) .and. fstype < 12 .and.
+     &    (solvergeom == XYZgeom .or.
+     &     solvergeom == RZgeom .or.
+     &     solvergeom == XZgeom .or.
+     &     solvergeom == XYgeom .or.
+     &     solvergeom == Rgeom  .or.
+     &     solvergeom == Zgeom)) checkalloc = .true.
+
+      if (checkalloc) then
+
+c       --- selfep is allocated only if it hasn't already been or if it
+c       --- has the wrong shape.
+        doallocate = .false.
+        if (.not. associated(selfep)) then
+          doallocate = .true.
+        else if (ANY(shape(selfep) .ne. (/3,1+nxp+2*nxguarde,1+nyp+2*nyguarde,1+nzp+2*nzguarde/))) then
+          deallocate(selfep)
+          doallocate = .true.
+        endif
+
+        if (doallocate) then
+          allocate(selfep(3,-nxguarde:nxp+nxguarde,
+     &                      -nyguarde:nyp+nyguarde,
+     &                      -nzguarde:nzp+nzguarde), stat=alloc_status)
+          if (alloc_status /= 0) then
+            print*,"Error:allocateselfepforparticles: selfep could not be allocated"
+            stop
+          endif
+        endif
+
+      endif
+
+      return
+      end
+c=============================================================================
+      subroutine assignrhoandphiforfieldsolve(rhopin,phipin)
+      use InMesh3d
+      use Fields3dSolver
+      use Fields3dParticles
+      real(kind=8),target:: rhopin(-nxguardrho:nxp+nxguardrho,
+     &                             -nyguardrho:nyp+nyguardrho,
+     &                             -nzguardrho:nzp+nzguardrho)
+      real(kind=8),target:: phipin(-nxguardphi:nxp+nxguardphi,
+     &                             -nyguardphi:nyp+nyguardphi,
+     &                             -nzguardphi:nzp+nzguardphi)
+
+      integer:: alloc_status
+
+#ifndef MPIPARALLEL
+
+c      --- Point rho to the block for the currently active ndts group.
+       rho => rhopin
+       phi => phipin
+
+#else
+
+c     --- The rho and phi arrays need to be allocated if they havn't already
+c     --- been.
+      if (.not. associated(rho)) then
+        allocate(rho(-nxguardrho:nxlocal+nxguardrho,
+     &               -nyguardrho:nylocal+nyguardrho,
+     &               -nzguardrho:nzlocal+nzguardrho), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:assignrhoandphiforfieldsolve: rho could not be allocated"
+          stop
+        endif
+        rho = 0.
+      endif
+      if (.not. associated(phi)) then
+        allocate(phi(-nxguardphi:nxlocal+nxguardphi,
+     &               -nyguardphi:nylocal+nyguardphi,
+     &               -nzguardphi:nzlocal+nzguardphi), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:assignrhoandphiforfieldsolve: phi could not be allocated"
+          stop
+        endif
+        phi = 0.
+      endif
+
+#endif
+
+      return
+      end
+c=============================================================================
+      subroutine allocateselfeforfieldsolve()
+#ifdef MPIPARALLEL
+      use InMesh3d,Only: nxlocal,nylocal,nzlocal,nxguarde,nyguarde,nzguarde
+#endif
+      use Fields3dSolver
+      use Fields3dParticles
+
+#ifndef MPIPARALLEL
+
+c      --- Point selfe to selfep, making sure that selfep is allocated.
+       call allocateselfepforparticles(.true.)
+       selfe => selfep
+
+#else
+
+      logical(ISZ):: doallocate
+      integer:: alloc_status
+
+c     --- selfe needs to be allocated if it hasn't already been.
+      doallocate = .false.
+      if (.not. associated(selfe)) then
+        doallocate = .true.
+      else if (ANY(shape(selfe) .ne. (/3,1+nxlocal+2*nxguarde,1+nylocal+2*nyguarde,1+nzlocal+2*nzguarde/))) then
+        deallocate(selfe)
+        doallocate = .true.
+      endif
+      if (doallocate) then
+        allocate(selfe(3,-nxguarde:nxlocal+nxguarde,
+     &                   -nyguarde:nylocal+nyguarde,
+     &                   -nzguarde:nzlocal+nzguarde), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:allocateselfeforfieldsolve: selfe could not be allocated"
+          stop
+        endif
+      endif
+
+#endif
+
+      return
+      end
+c=============================================================================
+      subroutine setrhoandphiforfieldsolve(rhopin,phipin)
+      use Subtimersw3d
+      use InGen
+      use InGen3d
+      use InMesh3d
+      use Fields3dSolver
+      use Subcycling
+      use Fields3dParticles
+#ifdef MPIPARALLEL
+      use Parallel
+#endif
+      real(kind=8),target:: rhopin(-nxguardrho:nxp+nxguardrho,
+     &                             -nyguardrho:nyp+nyguardrho,
+     &                             -nzguardrho:nzp+nzguardrho)
+      real(kind=8),target:: phipin(-nxguardphi:nxp+nxguardphi,
+     &                             -nyguardphi:nyp+nyguardphi,
+     &                             -nzguardphi:nzp+nzguardphi)
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+#ifdef MPIPARALLEL
+
+c  For parallel version, each processor sends rho to neighboring processors
+c  whose field solve region overlap its particle region.
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom) then
+        call getrhoforfieldsolverz(nxlocal,nzlocal,rho)
+      else if(solvergeom==XYgeom) then
+        call getrhoforfieldsolverz(nxlocal,nylocal,rho)
+      else if(solvergeom==Zgeom) then
+        call getrhoforfieldsolvez(nzlocal,rho)
+      elseif (solvergeom==XYZgeom) then
+        call setrhoforfieldsolve3d(nxlocal,nylocal,nzlocal,rho,
+     &                             nxp,nyp,nzp,rhopin,
+     &                             nxguardrho,nyguardrho,nzguardrho,
+     &                             fsdecomp,ppdecomp)
+      end if
+
+#endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timesetrhoandphiforfieldsolve = timesetrhoandphiforfieldsolve + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine setrhoforfieldsolve3d(nxlocal,nylocal,nzlocal,rho,
+     &                                 nxp,nyp,nzp,rhop,
+     &                                 nxguardrho,nyguardrho,nzguardrho,
+     &                                 fsdecomp,ppdecomp)
+      use Subtimersw3d
+      use Decompositionmodule
+      integer(ISZ):: nxlocal,nylocal,nzlocal,nxp,nyp,nzp
+      integer(ISZ):: nxguardrho,nyguardrho,nzguardrho
+      real(kind=8):: rho(-nxguardrho:nxlocal+nxguardrho,
+     &                   -nyguardrho:nylocal+nyguardrho,
+     &                   -nzguardrho:nzlocal+nzguardrho)
+      real(kind=8):: rhop(-nxguardrho:nxp+nxguardrho,
+     &                    -nyguardrho:nyp+nyguardrho,
+     &                    -nzguardrho:nzp+nzguardrho)
+      type(Decomposition):: fsdecomp,ppdecomp
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+#ifdef MPIPARALLEL
+
+      call transfersourceptosource3d(1,nxp,nyp,nzp,rhop,
+     &                               nxlocal,nylocal,nzlocal,rho,
+     &                               nxguardrho,nyguardrho,nzguardrho,
+     &                               ppdecomp,fsdecomp)
+
+c     call parallelbarrier()
+c     call sumsourcepondomainboundaries(1,nxp,nyp,nzp,
+c    &                                  nxguardrho,nyguardrho,nzguardrho,
+c    &                                  rhop,ppdecomp)
+c     call parallelbarrier()
+c     call setsourceforfieldsolve3d_parallel(1,nxlocal,nylocal,nzlocal,rho,
+c    &                                       nxp,nyp,nzp,rhop,
+c    &                                       nxguardrho,nyguardrho,nzguardrho,
+c    &                                       fsdecomp,ppdecomp)
+
+#endif
+
+!$OMP MASTER
+      if (lw3dtimesubs)
+     &  timesetrhoforfieldsolve3d = timesetrhoforfieldsolve3d +
+     &     wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine setupFields3dParticles()
+      use InGen,Only: fstype
+      use InPart,Only: depos_order,efetch
+      use Picglb3d
+      use InMesh3d
+      use Fields3dParticles
+      use Subcycling,Only:nrhopndtscopies,nsndts,nsndtsphi
+      use SelfB,Only: nsselfb
+      use w3d_interfaces
+#ifdef MPIPARALLEL
+      use Parallel
+#endif
+
+c Ensures that the phip and rhop arrays are setup properly.
+
+      integer(ISZ):: ng
+
+      if (fstype == 12) return
+
+#ifndef MPIPARALLEL
+      nxp = nxlocal
+      nyp = nylocal
+      nzp = nzlocal
+      xmminp = xmminlocal
+      xmmaxp = xmmaxlocal
+      ymminp = ymminlocal
+      ymmaxp = ymmaxlocal
+      zmminp = zmminlocal
+      zmmaxp = zmmaxlocal
+#else
+      nxp = ppdecomp%nx(iprocgrid(0))
+      nyp = ppdecomp%ny(iprocgrid(1))
+      nzp = ppdecomp%nz(iprocgrid(2))
+      xmminp = xmmin + ppdecomp%ix(iprocgrid(0))*dx
+      xmmaxp = xmmin + (ppdecomp%ix(ixproc) + ppdecomp%nx(ixproc))*dx
+      ymminp = ymmin + ppdecomp%iy(iprocgrid(1))*dy
+      ymmaxp = ymmin + (ppdecomp%iy(iyproc) + ppdecomp%ny(iyproc))*dy
+      zmminp = zmmin + ppdecomp%iz(iprocgrid(2))*dz
+      zmmaxp = zmmin + (ppdecomp%iz(izproc) + ppdecomp%nz(izproc))*dz
+#endif
+
+      ng = MAXVAL(depos_order)
+      if (nxp > 0) nxguardrho = max(nxguardrho,ng - 1)
+      if (nyp > 0) nyguardrho = max(nyguardrho,ng - 1)
+      if (nzp > 0) nzguardrho = max(nzguardrho,ng - 1)
+      if (nxp > 0) nxguardphi = max(nxguardphi,ng)
+      if (nyp > 0) nyguardphi = max(nyguardphi,ng)
+      if (nzp > 0) nzguardphi = max(nzguardphi,ng)
+      if (nxp > 0) nxguarde = max(nxguarde,ng - 1)
+      if (nyp > 0) nyguarde = max(nyguarde,ng - 1)
+      if (nzp > 0) nzguarde = max(nzguarde,ng - 1)
+
+      nrhopndtscopies3d = nrhopndtscopies
+      nsndts3d = nsndts
+      nsndtsphi3d = nsndtsphi
+      nsselfb3d = nsselfb
+      call gchange("Fields3dParticles",0)
+
+c     --- rhop and phip have the special values for the species which are
+c     --- incremented every time step.
+      if (associated(rhopndts) .and. associated(phipndts)) then
+        call assignrhopandphipforparticles(rhopndts(:,:,:,nrhopndtscopies-1,0),
+     &                                     phipndts(:,:,:,0))
+      endif
+
+c     --- Note that special coding is needed to clean up the rhopndts array
+c     --- for cases when there are no longer certain values of ndts. This
+c     --- code will need the full list of particle groups so it can check
+c     --- all values of ndts to find any that are no longer used. This could
+c     --- be fairly important to conserve memory since having extra copies of
+c     --- rhop is expensive.
+
+      return
+      end
+c=============================================================================
+      subroutine fetche3d(pgroup,ipmin,ip,is)
+      use Subtimersw3d
+      use ParticleGroupmodule
+      use Particles, toppgroup => pgroup
+      use GlobalVars
+      use Subtimersw3d
+      use Picglb
+      use Picglb3d
+      use InGen,Only: fstype
+      use InPart,Only: efetch,depos_order
+      use InGen3d
+      use InMesh3d
+      use Subcycling
+      use Fields3dParticles
+      use FieldSolveAPI
+      type(ParticleGroup),target:: pgroup
+      integer(ISZ):: ipmin,ip,is
+
+c     --- Obtain the self-field from the electrostatic potential
+
+      real(kind=8),pointer:: ex(:),ey(:),ez(:)
+      integer(ISZ):: indts,tmpnsndts,getnsndtsforsubcycling,i1,i2
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Don't do anything if there are no particles input.
+      if (ip == 0) return
+
+      i1 = ipmin
+      i2 = ipmin + ip - 1
+
+      ex => pgroup%ex(i1:i2)
+      ey => pgroup%ey(i1:i2)
+      ez => pgroup%ez(i1:i2)
+
+c     --- Zero out the particle's E field if requested (the default)
+      if (lresetparticlee) then
+        ex = 0.
+        ey = 0.
+        ez = 0.
+      endif
+
+c     --- Just return if the efetch is turned off.
+      if (efetch(is) == 0) return
+
+      if(fstype == 12) then
+        pgroupfsapi => pgroup
+        jsfsapi = pgroup%sid(is - 1)
+        ndtsfsapi = pgroup%ndts(is - 1)
+        ipminfsapi = ipmin
+        npfsapi = ip
+        call callpythonfunc("fetcheregistered","field_solvers.fieldsolver")
+        NULLIFY(pgroupfsapi)
+        jsfsapi = -1
+        npfsapi = 0
+        ndtsfsapi = 0
+      elseif(solvergeom==XYZgeom) then
+        if (.not. associated(phipndts)) return
+        tmpnsndts = getnsndtsforsubcycling()
+        indts = min(tmpnsndts-1,ndtstorho(pgroup%ndts(is-1)))
+        call allocateselfepforparticles(.false.)
+        call sete3d(phipndts(:,:,:,indts),selfep,ip,
+     &              pgroup%xp(i1:i2),pgroup%yp(i1:i2),pgroup%zp(i1:i2),
+     &              zgridprv,xmminp,ymminp,zmminp,dx,dy,dz,
+     &              nxp,nyp,nzp,nxguardphi,nyguardphi,nzguardphi,
+     &              nxguarde,nyguarde,nzguarde,
+     &              efetch(is),depos_order(:,is),
+     &              ex,ey,ez,l2symtry,l4symtry,solvergeom==RZgeom)
+      elseif(solvergeom==RZgeom) then
+        call setemgridrz(ipmin,ip,is,ex,ey,ez,pgroup)
+      elseif(solvergeom==XZgeom) then
+         call fieldweightxz(pgroup%xp(i1:i2),pgroup%zp(i1:i2),ex,ez,ip,
+     &                      zgridprv,efetch(is))
+      elseif(solvergeom==XYgeom) then
+         call fieldweightxz(pgroup%xp(i1:i2),pgroup%yp(i1:i2),ex,ey,ip,0.,
+     &                      efetch(is))
+      elseif(solvergeom==Zgeom) then
+         call fieldweightz(pgroup%zp(i1:i2),ez,ip,zgridprv)
+      elseif(solvergeom==Rgeom) then
+         call fieldweightr(pgroup%xp(i1:i2),pgroup%yp(i1:i2),ex,ey,ip)
+      elseif(solvergeom==AMRgeom) then
+        call cho_gete3d(ip,pgroup%xp(i1:i2),pgroup%yp(i1:i2),pgroup%zp(i1:i2),
+     &                  zgridprv,ex,ey,ez,is,(ipmin-pgroup%ins(is))/nparpgrp)
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timefetche3d = timefetche3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine fetche3dfrompositions(jsid,ndts,n,x,y,z,ex,ey,ez,bx,by,bz)
+      use GlobalVars
+      use Subtimersw3d
+      use Picglb
+      use Picglb3d
+      use InGen,Only: fstype
+      use InPart,Only: efetch,depos_order
+      use InGen3d
+      use InMesh3d
+      use Subcycling,Only: nsndts,ndtstorho
+      use Fields3dParticles
+      use FieldSolveAPI
+      integer(ISZ):: jsid,ndts,n
+      real(kind=8),target:: x(n),y(n),z(n)
+      real(kind=8),target:: ex(n),ey(n),ez(n)
+      real(kind=8),target:: bx(n),by(n),bz(n)
+
+c     --- Obtain the self-field from the electrostatic potential
+c     --- This is nearly the same as fetche except that the positions
+c     --- are passed in via the argument list rather than through the
+c     --- particles group.
+
+c     --- Note that the B fields are passed in and are only used by fstype==12.
+
+      integer(ISZ):: indts,tmpnsndts,getnsndtsforsubcycling,is
+      integer:: alloc_status
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Don't do anything if there are no particles input.
+      if (n == 0) return
+
+      if (fstype == -1) return
+
+c     --- Zero out the particle's field if requested (the default)
+      if (lresetparticlee) then
+        ex = 0.
+        ey = 0.
+        ez = 0.
+      endif
+      if (lresetparticleb) then
+        bx = 0.
+        by = 0.
+        bz = 0.
+      endif
+
+c     --- Get the species number for efetch
+      if (jsid < 0) then
+        is = 1
+      else
+        is = jsid + 1
+      endif
+
+      if(fstype == 12) then
+#if defined(XLF) || defined(XLF2)
+c       --- The pointer assignment breaks with the xlf compilers, so instead
+c       --- new arrays are allocated and those are used as the work space.
+c       --- This is less efficient since there is overhead in the allocation
+c       --- and the data needs to be copied around.
+        allocate(xfsapi(n),yfsapi(n),zfsapi(n),
+       &         exfsapi(n),eyfsapi(n),ezfsapi(n),
+       &         bxfsapi(n),byfsapi(n),bzfsapi(n), stat=alloc_status)
+        if (alloc_status /= 0) then
+          print*,"Error:fetche3dfrompositions: xfsapi et al could not be allocated"
+          stop
+        endif
+        xfsapi = x
+        yfsapi = y
+        zfsapi = z
+        exfsapi = ex
+        eyfsapi = ey
+        ezfsapi = ez
+        bxfsapi = bx
+        byfsapi = by
+        bzfsapi = bz
+#else
+        xfsapi => x
+        yfsapi => y
+        zfsapi => z
+        exfsapi => ex
+        eyfsapi => ey
+        ezfsapi => ez
+        bxfsapi => bx
+        byfsapi => by
+        bzfsapi => bz
+#endif
+        npfsapi = n
+        jsfsapi = jsid
+        ndtsfsapi = ndts
+        call callpythonfunc("fetcheregistered","field_solvers.fieldsolver")
+        npfsapi = 0
+        jsfsapi = -1
+        ndtsfsapi = 0
+#if defined(XLF) || defined(XLF2)
+        ex = exfsapi
+        ey = eyfsapi
+        ez = ezfsapi
+        bx = bxfsapi
+        by = byfsapi
+        bz = bzfsapi
+        deallocate(xfsapi,yfsapi,zfsapi)
+        deallocate(exfsapi,eyfsapi,ezfsapi)
+        deallocate(bxfsapi,byfsapi,bzfsapi)
+#endif
+        NULLIFY(xfsapi)
+        NULLIFY(yfsapi)
+        NULLIFY(zfsapi)
+        NULLIFY(exfsapi)
+        NULLIFY(eyfsapi)
+        NULLIFY(ezfsapi)
+        NULLIFY(bxfsapi)
+        NULLIFY(byfsapi)
+        NULLIFY(bzfsapi)
+      elseif(solvergeom==XYZgeom) then
+        tmpnsndts = getnsndtsforsubcycling()
+        indts = min(tmpnsndts-1,ndtstorho(ndts))
+        if (indts < 0 .or. indts > nsndts-1) then
+          print*,"Error: fetche3dfrompositions: An improper value on indts has been passed in"
+          return
+        endif
+        call allocateselfepforparticles(.false.)
+        call sete3d(phipndts(:,:,:,indts),selfep,n,x,y,z,
+     &              zgridprv,xmminp,ymminp,zmminp,dx,dy,dz,
+     &              nxp,nyp,nzp,nxguardphi,nyguardphi,nzguardphi,
+     &              nxguarde,nyguarde,nzguarde,
+     &              efetch(is),depos_order(:,is),
+     &              ex,ey,ez,l2symtry,l4symtry,solvergeom==RZgeom)
+      elseif(solvergeom==RZgeom) then
+        call fieldweightrz(x,y,z,ex,ey,ez,n,zgridprv,efetch(is))
+      elseif(solvergeom==XZgeom) then
+        call fieldweightxz(x,z,ex,ez,n,zgridprv,efetch(is))
+      elseif(solvergeom==XYgeom) then
+        call fieldweightxz(x,y,ex,ey,n,0.,efetch(is))
+      elseif(solvergeom==Zgeom) then
+        call fieldweightz(z,ez,n,zgridprv)
+      elseif(solvergeom==Rgeom) then
+        call fieldweightr(x,y,ex,ey,n)
+      elseif(solvergeom==AMRgeom) then
+        call cho_gete3d(n,x,y,z,zgridprv,ex,ey,ez,jsid,-1)
+      else
+        ex = 0.
+        ey = 0.
+        ez = 0.
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timefetche3dfrompositions = timefetche3dfrompositions + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine fetchb3d(pgroup,ipmin,ip,is)
+      use Subtimersw3d
+      use ParticleGroupmodule
+      use FieldSolveAPI
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: ipmin,ip,is
+
+      integer(ISZ):: jsid,ndts,i1,i2
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Don't do anything if there are no particles input.
+      if (ip == 0) return
+
+      i1 = ipmin
+      i2 = ipmin + ip - 1
+
+      jsid = pgroup%sid(is-1)
+      ndts = pgroup%ndts(is-1)
+      ipminfsapi = ipmin
+      call fetchb3dfrompositions(jsid,ndts,ip,
+     &                           pgroup%xp(i1:i2),pgroup%yp(i1:i2),
+     &                           pgroup%zp(i1:i2),
+     &                           pgroup%bx(i1:i2),pgroup%by(i1:i2),
+     &                           pgroup%bz(i1:i2))
+
+!$OMP MASTER
+      if (lw3dtimesubs) timefetchb3d = timefetchb3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine particlegridboundaries3d(pgroup,js)
+      use Subtimersw3d
+      use ParticleGroupmodule
+      use Picglb3d,Only: dx,dy,dz
+      use InMesh3d,Only: xmmin,nx,ymmin,ny,zmmin,nz
+      use InGen3d,Only: l4symtry,l2symtry,solvergeom,RZgeom,Rgeom,XZgeom
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: js
+
+c     --- Impose the grid boundaries conditions on the particles.
+c     --- This handles particles at the edge of the grid as well as
+c     --- exchanging particles among processors.
+
+      integer(ISZ):: js1,js2
+      real(kind=8):: xmin,xmax,ymin,ymax
+      logical(ISZ):: lrz,lxz
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (js == -1) then
+c       --- Include all species
+        js1 = 0
+        js2 = pgroup%ns - 1
+      else
+        js1 = js
+        js2 = js
+      endif
+
+      call getparticleextent(xmmin,xmmin+nx*dx,ymmin,xmmin+ny*dy,
+     &                       l2symtry,l4symtry,solvergeom,
+     &                       xmin,xmax,ymin,ymax)
+
+      lrz = (solvergeom == RZgeom) .or. (solvergeom == Rgeom)
+      lxz = (solvergeom == XZgeom)
+      call xparticleboundaries(pgroup,js1,js2,xmax,xmin,.true.,
+     &                         l4symtry,lrz)
+      call yparticleboundaries(pgroup,js1,js2,ymax,ymin,.true.,
+     &                         l2symtry .or. l4symtry,lrz .or. lxz)
+      call zparticleboundaries(pgroup,js1,js2,zmmin+nz*dz,zmmin,.true.)
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeparticlegridboundaries3d = timeparticlegridboundaries3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine particleboundaries3d(pgroup,js_in,lcallcontrollers)
+      use ParticleGroupmodule
+      use Subtimersw3d
+      use InGen
+      use InGen3d
+      use InPart
+      use InMesh3d
+      use Picglb
+      use Picglb3d
+      use LostParticles,Only: lresetlostpart,npslost
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: js_in
+      logical(ISZ):: lcallcontrollers
+
+c Does everything needed to apply particle boundary conditions.
+c Note that particleboundariesxy should mirror this routine. Any changes here
+c should also be made there.
+
+      integer(ISZ):: js1,js2,js
+      real(kind=8):: xmin,xmax,ymin,ymax
+      logical(ISZ):: lrz,lxz
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+      call printentering("particleboundaries3d", 2)
+
+c     --- Make sure that the group is properly setup. This is needed
+c     --- for the paralel version, to ensure the pgroup.npid is
+c     --- consistent with top.npid, so that it is consistent
+c     --- across the parallel domains.
+      call setuppgroup(pgroup)
+
+      if (js_in == -1) then
+c       --- Include all species
+        js1 = 0
+        js2 = pgroup%ns - 1
+      else
+        js1 = js_in
+        js2 = js_in
+      endif
+
+c     --- Reset lost particles counter if requested
+      if (lresetlostpart) then
+        do js=js1,js2
+c         --- do it only if species was advanced on this time step
+          if (pgroup%ldts(js) .and. pgroup%lboundaries(js)) then
+            npslost(js+1)=0
+          end if
+        end do
+      end if
+
+      if (lcallcontrollers .and. lbeforescraper)
+     &  call callpythonfunc("beforescraper","controllers")
+
+c     --- Apply particle boundary conditions
+      call getparticleextent(xmmin,xmmin+nx*dx,ymmin,ymmin+ny*dy,
+     &                       l2symtry,l4symtry,solvergeom,
+     &                       xmin,xmax,ymin,ymax)
+      lrz = (solvergeom == RZgeom) .or. (solvergeom == Rgeom)
+      lxz = (solvergeom == XZgeom)
+      call xparticleboundaries(pgroup,js1,js2,xmax,xmin,.true.,
+     &                         l4symtry,lrz)
+      call yparticleboundaries(pgroup,js1,js2,ymax,ymin,.true.,
+     &                         l2symtry .or. l4symtry,lrz .or. lxz)
+      call zparticleboundaries(pgroup,js1,js2,zmmin+nz*dz,zmmin,.true.)
+
+c     --- absorb particles passing through semitransparent disc
+      call semitransparent_disc(pgroup,dz)
+
+      do js=js1,js2
+        if (pgroup%ldts(js) .and. pgroup%nps(js+1) > 0 .and. pgroup%lboundaries(js)) then
+           call stckxy3d(pgroup,js,zbeam,.true.)
+        endif
+      enddo
+
+      if (lcallcontrollers .and. lcallscraper)
+     &  call callpythonfunc("callscraper","controllers")
+
+      do js=js1,js2
+c       --- do it only if species was advanced on this time step
+        if (pgroup%ldts(js) .and. pgroup%lboundaries(js)) then
+          call processlostpart(pgroup,js+1,clearlostpart,
+     &                         time+dt*pgroup%ndts(js),zbeam)
+        endif
+      enddo
+
+      if (lcallcontrollers .and. lafterscraper)
+     &  call callpythonfunc("afterscraper","controllers")
+
+      call printexiting("particleboundaries3d", 2)
+!$OMP MASTER
+      if (lw3dtimesubs) timeparticleboundaries3d = timeparticleboundaries3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine particleboundariesxy(pgroup,js_in,lcallcontrollers)
+      use ParticleGroupmodule
+      use Subtimersw3d
+      use InGen
+      use InGen3d
+      use InPart
+      use InMesh3d
+      use Picglb
+      use Picglb3d
+      use LostParticles,Only: lresetlostpart,npslost
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: js_in
+      logical(ISZ):: lcallcontrollers
+
+c Does everything needed to apply transverse particle boundary conditions.
+c Note that this routine is almost identical to particleboundaries3d, but
+c with the call to zparticleboundaries commented out.
+
+      integer(ISZ):: js1,js2,js
+      real(kind=8):: xmin,xmax,ymin,ymax
+      logical(ISZ):: lrz,lxz
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (js_in == -1) then
+c       --- Include all species
+        js1 = 0
+        js2 = pgroup%ns - 1
+      else
+        js1 = js_in
+        js2 = js_in
+      endif
+
+c     --- Reset lost particles counter if requested
+      if (lresetlostpart) then
+        do js=js1,js2
+c         --- do it only if species was advanced on this time step
+          if (pgroup%ldts(js) .and. pgroup%lboundaries(js)) then
+            npslost(js+1)=0
+          end if
+        end do
+      end if
+
+      if (lcallcontrollers .and. lbeforescraper)
+     &  call callpythonfunc("beforescraper","controllers")
+
+c     --- Apply particle boundary conditions
+      call getparticleextent(xmmin,xmmin+nx*dx,ymmin,ymmin+ny*dy,
+     &                       l2symtry,l4symtry,solvergeom,
+     &                       xmin,xmax,ymin,ymax)
+      lrz = (solvergeom == RZgeom) .or. (solvergeom == Rgeom)
+      lxz = (solvergeom == XZgeom)
+      call xparticleboundaries(pgroup,js1,js2,xmax,xmin,.true.,
+     &                         l4symtry,lrz)
+      call yparticleboundaries(pgroup,js1,js2,ymax,ymin,.true.,
+     &                         l2symtry .or. l4symtry,lrz .or. lxz)
+c     ---  This is skipped in the xy version.
+c     call zparticleboundaries(pgroup,js1,js2,zmmin+nz*dz,zmmin,.true.)
+
+c     --- absorb particles passing through semitransparent disc
+      call semitransparent_disc(pgroup,dz)
+
+      do js=js1,js2
+        if (pgroup%ldts(js) .and. pgroup%nps(js+1) > 0 .and. pgroup%lboundaries(js)) then
+           call stckxy3d(pgroup,js,zbeam,.true.)
+        endif
+      enddo
+
+      if (lcallcontrollers .and. lcallscraper)
+     &  call callpythonfunc("callscraper","controllers")
+
+      do js=js1,js2
+c       --- do it only if species was advanced on this time step
+        if (pgroup%ldts(js) .and. pgroup%lboundaries(js)) then
+          call processlostpart(pgroup,js+1,clearlostpart,
+     &                         time+dt*pgroup%ndts(js),zbeam)
+        endif
+      enddo
+
+      if (lcallcontrollers .and. lafterscraper)
+     &  call callpythonfunc("afterscraper","controllers")
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeparticleboundariesxy = timeparticleboundariesxy + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine stckxy3d(pgroup,js,zbeam,lcountaslost)
+      use ParticleGroupmodule
+      use Subtimersw3d
+      use GlobalVars
+      use Z_arrays
+      type(ParticleGroup):: pgroup
+      integer(ISZ):: js
+      real(kind=8):: zbeam
+      logical(ISZ):: lcountaslost
+
+c Enforces transverse absorbing boundary conditions on user specified
+c boundaries.
+c Particles are considered absorbed when outside a z-dependent aperture of
+c radius prwallz, centered at (prwallxz, prwallyz).
+c gaminv is used to flag particles that are lost.
+c Rectangular boundary capability added, where the values of the xmaxz,xminz,
+c ymaxz,yminz arrays are used as a rectangular sticky boundary when
+c their values(z) are within the grid.
+c If lcountaslost is not true, then the uzp of the lost particles is
+c set to zero - those particles then won't be added to the count of
+c lost particles.
+
+      integer(ISZ):: ip,iz
+      logical(ISZ):: lstckxy
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Check values of rectangular boundary arrays to see if they have
+c     --- been specified.
+      lstckxy = .false.
+      do iz = 0, nzzarr
+        if(xmaxz(iz) < +LARGEPOS) lstckxy = .true.
+        if(xminz(iz) > -LARGEPOS) lstckxy = .true.
+        if(ymaxz(iz) < +LARGEPOS) lstckxy = .true.
+        if(yminz(iz) > -LARGEPOS) lstckxy = .true.
+      enddo
+
+      if(lstckxy) then
+!$OMP PARALLEL DO PRIVATE(iz)
+        do ip = pgroup%ins(js+1),pgroup%ins(js+1)+pgroup%nps(js+1)-1
+          iz = max(0,min(nzzarr,int((pgroup%zp(ip) - zzmin - zbeam)*dzzi)))
+          if (     pgroup%xp(ip) >= xmaxz(iz)
+     &        .or. pgroup%yp(ip) >= ymaxz(iz)
+     &        .or. pgroup%xp(ip) <= xminz(iz)
+     &        .or. pgroup%yp(ip) <= yminz(iz) ) then
+            pgroup%gaminv(ip) = 0.
+            if (.not. lcountaslost) pgroup%gaminv(ip) = -1.
+          endif
+        enddo
+!$OMP END PARALLEL DO
+      endif
+
+      if (MINVAL(prwallz) < LARGEPOS) then
+!$OMP PARALLEL DO PRIVATE(iz)
+        do ip = pgroup%ins(js+1),pgroup%ins(js+1)+pgroup%nps(js+1)-1
+          iz = max(0,min(nzzarr,int((pgroup%zp(ip) - zzmin - zbeam)*dzzi)))
+          if ((((pgroup%xp(ip)-prwallxz(iz))*prwelipz(iz))**2 +
+     &          (pgroup%yp(ip)-prwallyz(iz))**2)
+     &            >= (prwallz(iz)*prwelipz(iz))**2) then
+            pgroup%gaminv(ip) = 0.
+            if (.not. lcountaslost) pgroup%gaminv(ip) = -1.
+          endif
+        enddo
+!$OMP END PARALLEL DO
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timestckxy3d = timestckxy3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine getparticleextent(xmmin,xmmax,ymmin,ymmax,
+     &                             l2symtry,l4symtry,solvergeom,
+     &                             xmin,xmax,ymin,ymax)
+      use InGen3d,Only: RZgeom,XZgeom
+      real(kind=8):: xmmin,xmmax,ymmin,ymmax
+      logical(ISZ):: l2symtry,l4symtry
+      integer(ISZ):: solvergeom
+      real(kind=8):: xmin,xmax,ymin,ymax
+
+c Given the system size and the symmetries and geometry, return the full
+c extent of the particles. When there are symmetries, the full extent
+c goes from -mmax to +mmax. With RZ geometry, the extent in both x and y
+c goes from -xmmax to xmmax. In XZ geometry, the extent in y is infinite.
+
+      xmin = xmmin
+      xmax = xmmax
+      ymin = ymmin
+      ymax = ymmax
+      if (l2symtry) then
+        ymin = -ymmax
+      elseif (l4symtry) then
+        xmin = -xmmax
+        ymin = -ymmax
+      endif
+      if(solvergeom==RZgeom) then
+        xmin = -xmmax
+        ymin = -xmmax
+        ymax =  xmmax
+      else if(solvergeom==XZgeom) then
+        if(l2symtry .or. l4symtry) then
+          xmin = -xmmax
+        endif
+        ymin = -LARGEPOS
+        ymax =  LARGEPOS
+      endif
+
+      return
+      end
+c=============================================================================
+      subroutine setupgridextent()
+      use Picglb3d,Only: dx,dy,dz
+      use InMesh3d
+      use InGen3d
+      use Mesh3d
+
+c  Calculate mesh dimensioning quantities
+
+      integer(ISZ):: i,j,k
+
+      if (nx .ne. 0) dx = (xmmax - xmmin) / nx
+      if (ny .ne. 0) dy = (ymmax - ymmin) / ny
+      if (nz .ne. 0) dz = (zmmax - zmmin) / nz
+      if(solvergeom==RZgeom) then
+        dy = dx
+      elseif(solvergeom==XZgeom) then
+        dy = 1.
+      elseif(solvergeom==XYgeom) then
+        dz = 1.
+      elseif(solvergeom==Zgeom) then
+        dx = 1.
+        dy = 1.
+      elseif(solvergeom==Rgeom) then
+        dy = 1.
+        dz = 1.
+      end if
+
+      call gchange("Mesh3d", 0)
+
+      do i = 0, nx
+         xmesh(i) = i*dx + xmmin
+      enddo
+      do j = 0, ny
+         ymesh(j) = j*dy + ymmin
+      enddo
+      do k = 0, nz
+         zmesh(k) = k*dz + zmmin
+      enddo
+      do i = 0, nxlocal
+         xmeshlocal(i) = i*dx + xmminlocal
+      enddo
+      do j = 0, nylocal
+         ymeshlocal(j) = j*dy + ymminlocal
+      enddo
+      do k = 0, nzlocal
+         zmeshlocal(k) = k*dz + zmminlocal
+      enddo
+
+      return
+      end
+c=============================================================================
+      subroutine fixgridextent()
+      use InMesh3d
+      use InGen3d
+
+c      --- Put ny to zero for RZ geometry
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom) then
+        ny = 0
+      elseif(solvergeom==XYgeom) then
+        nz = 0
+      elseif(solvergeom==Zgeom) then
+        nx = 0
+        ny = 0
+      elseif(solvergeom==Rgeom) then
+        ny = 0
+        nz = 0
+      endif
+
+c     --- Put grid min's to zero as appropriate for the symmetry
+      if(solvergeom==XYZgeom) then
+        if (l2symtry) then
+          ymmin = 0.
+        elseif (l4symtry) then
+          xmmin = 0.
+          ymmin = 0.
+        endif
+      else if(solvergeom==XZgeom) then
+        ymmin = 0.
+        if (l2symtry .or. l4symtry) xmmin = 0.
+      else if(solvergeom==RZgeom .or. solvergeom==Zgeom .or. solvergeom==Rgeom) then
+        l2symtry=.false.
+        l4symtry=.false.
+        xmmin = 0.
+        ymmin = 0.
+      endif
+
+      return
+      end
+c=============================================================================
+      subroutine setrstar(rstar,nz,dz,zmmin,zgrid)
+      use Subtimersw3d
+      integer(ISZ):: nz
+      real(kind=8):: rstar(-1:nz+1)
+      real(kind=8):: dz,zmmin,zgrid
+
+c  Loads radius of curvature of reference orbit into rstar array, so that
+c  r_star is known on mesh points for purposes of field solution.
+
+      integer(ISZ):: iz
+      real(kind=8):: zz(-1:nz+1),vz(-1:nz+1),gi(-1:nz+1)
+      real(kind=8):: bendres(-1:nz+1)
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Fill temporary arrays. Note that getbend expects the pair vz and dt,
+c     --- but this passes in the pair 1 and dz which is equivalent.
+      do iz = -1,nz+1
+        zz(iz) = zmmin + iz*dz + zgrid
+        vz(iz) = 1.
+        gi(iz) = 1.
+      enddo
+
+c     --- Kludgy fix for the end point. The getbend routine relies on the
+c     --- internal lattice arrays which only range from 0 to nz. The points
+c     --- 0 and nz+1 are outside that range. The fix is to replace then with
+c     --- the neighboring point inside the internal lattice range. Note
+c     --- that this may give incorrect results, but less so than using
+c     --- garbage out of the array bounds.
+      zz(-1) = zz(0)
+      zz(nz+1) = zz(nz)
+
+c     --- Get the bend radius of curvature and residence fraction at the
+c     --- list of z points.
+      call getbend(nz+3,nz+3,zz,vz,gi,bendres,rstar,-0.5*dz,0.5*dz,.false.)
+
+c     --- Scale the radius by the reciprical of the residence fraction.
+c     --- Also, make sure the rstar is non-zero.
+      do iz = -1,nz+1
+        if (bendres(iz) > 0.) rstar(iz) = rstar(iz)/bendres(iz)
+        if (rstar(iz) == 0.) rstar(iz) = LARGEPOS
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timesetrstar = timesetrstar + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine fetchphi(n,x,y,z,p)
+      use Subtimersw3d
+      use InGen
+      use InGen3d
+      use Picglb
+      use FieldSolveAPI
+      integer(ISZ):: n
+      real(kind=8),target:: x(n),y(n),z(n),p(n)
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c     --- Don't do anything if there are no particles input.
+      if (n == 0) return
+
+c     --- Call the appropriate routine to get the phi
+      if (fstype == 12) then
+        jsfsapi = -1
+        ndtsfsapi = 1
+        npfsapi = n
+        xfsapi => x
+        yfsapi => y
+        zfsapi => z
+        phifsapi => p
+        call callpythonfunc("fetchphiregistered","field_solvers.fieldsolver")
+        npfsapi = 0
+        NULLIFY(xfsapi)
+        NULLIFY(yfsapi)
+        NULLIFY(zfsapi)
+        NULLIFY(phifsapi)
+      elseif (solvergeom==XYZgeom) then
+        call fetchphi3d(n,x,y,z,p,zgridprv)
+      elseif (solvergeom==RZgeom) then
+        call setphirz(n,x,y,z,p,zgrid)
+      elseif (solvergeom==XZgeom) then
+        call setphixz(n,x,y,z,p,zgrid)
+      elseif (solvergeom==XYgeom) then
+        call kaboom("fetchphi not implemented in XY.")
+      elseif (solvergeom==Zgeom) then
+        call setphiz(n,z,p,zgrid)
+      elseif (solvergeom==AMRgeom) then
+        call cho_getphi3d(n,x,y,z,0.,p,-1,-1)
+      else
+        p = 0.
+      endif
+
+      call fetchphi_from_pgrd(n,x,y,z,p)
+
+!$OMP MASTER
+      if (lw3dtimesubs) timefetchphi = timefetchphi + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================
+      subroutine fetchphi3d(n,x,y,z,p,zgridprv)
+      use InGen3d
+      use InMesh3d
+      use Picglb3d
+      use Fields3dSolver
+      use Fields3dParticles
+      integer(ISZ):: n
+      real(kind=8):: x(n),y(n),z(n),p(n)
+      real(kind=8):: zgridprv
+
+c Fetch phi at points.
+
+      integer(ISZ):: ix,iy,iz,ii
+      integer(ISZ):: ixp1,iyp1,izp1
+      real(kind=8):: wx,wy,wz
+      real(kind=8):: dxi,dyi,dzi
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      if (l4symtry) then
+        do ii=1,n
+          ix = (abs(x(ii)) - xmminp)*dxi
+          iy = (abs(y(ii)) - ymminp)*dyi
+          iz =     (z(ii)  - zmminp - zgridprv)*dzi
+          wx = (abs(x(ii)) - xmminp)*dxi - ix
+          wy = (abs(y(ii)) - ymminp)*dyi - iy
+          wz =     (z(ii)  - zmminp - zgridprv)*dzi - iz
+          ixp1 = ix + 1
+          iyp1 = iy + 1
+          izp1 = iz + 1
+          if (abs(x(ii)) == xmmaxp) ixp1 = ix
+          if (abs(y(ii)) == ymmaxp) iyp1 = iy
+          if (abs(z(ii)) == zmmaxp+dz+zgridprv) izp1 = iz
+          if (xmminp <= abs(x(ii)) .and. abs(x(ii)) <= xmmaxp .and.
+     &        ymminp <= abs(y(ii)) .and. abs(y(ii)) <= ymmaxp .and.
+     &        zmminp-dz+zgridprv <= z(ii)  .and.
+     &        z(ii)  <= zmmaxp+dz+zgridprv) then
+            p(ii) = phip(ix  ,iy,  iz  )*(1.-wx)*(1.-wy)*(1.-wz) +
+     &              phip(ixp1,iy,  iz  )*    wx *(1.-wy)*(1.-wz) +
+     &              phip(ix  ,iyp1,iz  )*(1.-wx)*    wy *(1.-wz) +
+     &              phip(ixp1,iyp1,iz  )*    wx *    wy *(1.-wz) +
+     &              phip(ix  ,iy,  izp1)*(1.-wx)*(1.-wy)*    wz  +
+     &              phip(ixp1,iy,  izp1)*    wx *(1.-wy)*    wz  +
+     &              phip(ix  ,iyp1,izp1)*(1.-wx)*    wy *    wz  +
+     &              phip(ixp1,iyp1,izp1)*    wx *    wy *    wz
+          endif
+        enddo
+      else if (l2symtry) then
+        do ii=1,n
+          ix =     (x(ii)  - xmminp)*dxi
+          iy = (abs(y(ii)) - ymminp)*dyi
+          iz =     (z(ii)  - zmminp - zgridprv)*dzi
+          wx =     (x(ii)  - xmminp)*dxi - ix
+          wy = (abs(y(ii)) - ymminp)*dyi - iy
+          wz =     (z(ii)  - zmminp - zgridprv)*dzi - iz
+          ixp1 = ix + 1
+          iyp1 = iy + 1
+          izp1 = iz + 1
+          if (abs(x(ii)) == xmmaxp) ixp1 = ix
+          if (abs(y(ii)) == ymmaxp) iyp1 = iy
+          if (abs(z(ii)) == zmmaxp+dz+zgridprv) izp1 = iz
+          if (xmminp <=     x(ii)  .and.     x(ii)  <= xmmaxp .and.
+     &        ymminp <= abs(y(ii)) .and. abs(y(ii)) <= ymmaxp .and.
+     &        zmminp-dz+zgridprv <= z(ii)  .and.
+     &        z(ii)  <= zmmaxp+dz+zgridprv) then
+            p(ii) = phip(ix  ,iy,  iz  )*(1.-wx)*(1.-wy)*(1.-wz) +
+     &              phip(ixp1,iy,  iz  )*    wx *(1.-wy)*(1.-wz) +
+     &              phip(ix  ,iyp1,iz  )*(1.-wx)*    wy *(1.-wz) +
+     &              phip(ixp1,iyp1,iz  )*    wx *    wy *(1.-wz) +
+     &              phip(ix  ,iy,  izp1)*(1.-wx)*(1.-wy)*    wz  +
+     &              phip(ixp1,iy,  izp1)*    wx *(1.-wy)*    wz  +
+     &              phip(ix  ,iyp1,izp1)*(1.-wx)*    wy *    wz  +
+     &              phip(ixp1,iyp1,izp1)*    wx *    wy *    wz
+          endif
+        enddo
+      else
+        do ii=1,n
+          ix = (x(ii) - xmminp)*dxi
+          iy = (y(ii) - ymminp)*dyi
+          iz = (z(ii) - zmminp - zgridprv)*dzi
+          wx = (x(ii) - xmminp)*dxi - ix
+          wy = (y(ii) - ymminp)*dyi - iy
+          wz = (z(ii) - zmminp - zgridprv)*dzi - iz
+          ixp1 = ix + 1
+          iyp1 = iy + 1
+          izp1 = iz + 1
+          if (abs(x(ii)) == xmmaxp) ixp1 = ix
+          if (abs(y(ii)) == ymmaxp) iyp1 = iy
+          if (abs(z(ii)) == zmmaxp+dz+zgridprv) izp1 = iz
+          if (xmminp <= x(ii) .and. x(ii) <= xmmaxp .and.
+     &        ymminp <= y(ii) .and. y(ii) <= ymmaxp .and.
+     &        zmminp-dz+zgridprv <= z(ii) .and.
+     &        z(ii) <= zmmaxp+dz+zgridprv) then
+            p(ii) = phip(ix  ,iy,  iz  )*(1.-wx)*(1.-wy)*(1.-wz) +
+     &              phip(ixp1,iy,  iz  )*    wx *(1.-wy)*(1.-wz) +
+     &              phip(ix  ,iyp1,iz  )*(1.-wx)*    wy *(1.-wz) +
+     &              phip(ixp1,iyp1,iz  )*    wx *    wy *(1.-wz) +
+     &              phip(ix  ,iy,  izp1)*(1.-wx)*(1.-wy)*    wz  +
+     &              phip(ixp1,iy,  izp1)*    wx *(1.-wy)*    wz  +
+     &              phip(ix  ,iyp1,izp1)*(1.-wx)*    wy *    wz  +
+     &              phip(ixp1,iyp1,izp1)*    wx *    wy *    wz
+          endif
+        enddo
+      endif
+
+      return
+      end
+c===========================================================================
+      subroutine sete3d_aperture(np,xp,yp,zp,zgrid,xmminp,ymminp,zmminp,
+     &                           zmmaxp,dx,dy,dz,nzp,ex,ey,
+     &                           l2symtry,l4symtry)
+      use Subtimersw3d
+      use Apertures
+      integer(ISZ):: np,nzp
+      real(kind=8):: zgrid,xmminp,ymminp,zmminp,zmmaxp,dx,dy,dz
+      real(kind=8):: xp(np), yp(np), zp(np)
+      real(kind=8):: ex(np), ey(np)
+      logical(ISZ):: l2symtry,l4symtry
+
+c Replaces the transverse E field for particles near an aperture described by
+c the variables in the group Apertures. This relys on the routine
+c set_aperture_e being called to fill the aper_ex and aper_ey arrays.
+
+      real(kind=8):: zs,ze
+      integer(ISZ):: ip,i,j,k,ia,izs,ize
+      real(kind=8):: dxi,dyi,dzi,u0,u1,v0,v1,w0,w1,ysign,xsign
+      real(kind=8):: sx,sy
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (napertures == 0) return
+
+c  Evaluation of E, vectorized over particles
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+c     --- Loop over apertures
+      do ia=1,napertures
+        zs = aper_zs(ia)
+        ze = aper_ze(ia)
+        izs = nzp - int((zmmaxp - zs + zgrid) * dzi)
+        ize = int((ze - zgrid - zmminp) * dzi)
+
+c       --- Only do calculation if aperture is within the grid.
+        if (0 < ize .and. izs < nzp .and. izs <= ize) then
+
+          if (.not. (l2symtry .or. l4symtry)) then
+            do ip = 1, np
+
+              k =  (zp(ip) - zgrid - zmminp) * dzi
+              if (izs-1 <= k .and. k < ize+1) then
+
+                i =  (xp(ip) - xmminp) * dxi
+                j =  (yp(ip) - ymminp) * dyi
+
+                u1 = (xp(ip) - xmminp) * dxi - i
+                v1 = (yp(ip) - ymminp) * dyi - j
+                w1 = (zp(ip) - zgrid - zmminp) * dzi - k
+
+                u0 = 1. - u1
+                v0 = 1. - v1
+                w0 = 1. - w1
+
+                ex(ip) = u0*v0*w0*aper_ex(i  ,j  ,k-izs  ,ia)
+     &                 + u1*v0*w0*aper_ex(i+1,j  ,k-izs  ,ia)
+     &                 + u0*v1*w0*aper_ex(i  ,j+1,k-izs  ,ia)
+     &                 + u1*v1*w0*aper_ex(i+1,j+1,k-izs  ,ia)
+     &                 + u0*v0*w1*aper_ex(i  ,j  ,k-izs+1,ia)
+     &                 + u1*v0*w1*aper_ex(i+1,j  ,k-izs+1,ia)
+     &                 + u0*v1*w1*aper_ex(i  ,j+1,k-izs+1,ia)
+     &                 + u1*v1*w1*aper_ex(i+1,j+1,k-izs+1,ia)
+
+                ey(ip) = u0*v0*w0*aper_ey(i  ,j  ,k-izs  ,ia)
+     &                 + u1*v0*w0*aper_ey(i+1,j  ,k-izs  ,ia)
+     &                 + u0*v1*w0*aper_ey(i  ,j+1,k-izs  ,ia)
+     &                 + u1*v1*w0*aper_ey(i+1,j+1,k-izs  ,ia)
+     &                 + u0*v0*w1*aper_ey(i  ,j  ,k-izs+1,ia)
+     &                 + u1*v0*w1*aper_ey(i+1,j  ,k-izs+1,ia)
+     &                 + u0*v1*w1*aper_ey(i  ,j+1,k-izs+1,ia)
+     &                 + u1*v1*w1*aper_ey(i+1,j+1,k-izs+1,ia)
+
+              endif
+
+            enddo
+
+          else
+
+c           --- Set the signs of the E field for particles on negative side of
+c           --- the axis of symmetry.
+            sy = -1.
+            sx = 1.
+            if (l4symtry) sx = -1.
+
+c           --- special loop symmetry is used
+            do ip = 1, np
+
+              k =  (zp(ip) - zgrid - zmminp)*dzi
+              if (izs-1 <= k .and. k < ize+1) then
+                i =  (abs(xp(ip)) - xmminp)*dxi
+                j =  (abs(yp(ip)) - ymminp)*dyi
+
+                u1 = (abs(xp(ip)) - xmminp)*dxi - i
+                v1 = (abs(yp(ip)) - ymminp)*dyi - j
+                w1 = (zp(ip) - zgrid - zmminp)*dzi - k
+
+                u0 = 1. - u1
+                v0 = 1. - v1
+                w0 = 1. - w1
+
+c               --- Adjust sign of E field for approiate quadrant.
+                xsign = 1.
+                ysign = 1.
+                if (xp(ip) < 0.) xsign = sx
+                if (yp(ip) < 0.) ysign = sy
+
+                ex(ip) = xsign*(u0*v0*w0*aper_ex(i  ,j  ,k-izs  ,ia)
+     &                        + u1*v0*w0*aper_ex(i+1,j  ,k-izs  ,ia)
+     &                        + u0*v1*w0*aper_ex(i  ,j+1,k-izs  ,ia)
+     &                        + u1*v1*w0*aper_ex(i+1,j+1,k-izs  ,ia)
+     &                        + u0*v0*w1*aper_ex(i  ,j  ,k-izs+1,ia)
+     &                        + u1*v0*w1*aper_ex(i+1,j  ,k-izs+1,ia)
+     &                        + u0*v1*w1*aper_ex(i  ,j+1,k-izs+1,ia)
+     &                        + u1*v1*w1*aper_ex(i+1,j+1,k-izs+1,ia))
+
+                ey(ip) = ysign*(u0*v0*w0*aper_ey(i  ,j  ,k-izs  ,ia)
+     &                        + u1*v0*w0*aper_ey(i+1,j  ,k-izs  ,ia)
+     &                        + u0*v1*w0*aper_ey(i  ,j+1,k-izs  ,ia)
+     &                        + u1*v1*w0*aper_ey(i+1,j+1,k-izs  ,ia)
+     &                        + u0*v0*w1*aper_ey(i  ,j  ,k-izs+1,ia)
+     &                        + u1*v0*w1*aper_ey(i+1,j  ,k-izs+1,ia)
+     &                        + u0*v1*w1*aper_ey(i  ,j+1,k-izs+1,ia)
+     &                        + u1*v1*w1*aper_ey(i+1,j+1,k-izs+1,ia))
+
+              endif
+            enddo
+
+c         --- End of if for types of symmetry
+          endif
+
+c       --- End of if checking if aperture is within the grid
+        endif
+
+c     --- End of loop over apertures
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timesete3d_aperture = timesete3d_aperture + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine set_aperture_e()
+      use Subtimersw3d
+      use InGen3d
+      use Picglb
+      use Picglb3d
+      use InMesh3d
+      use Fields3dParticles
+      use Apertures
+
+c Explicitly calculate the E field in the plane of the apertures which
+c scrape particles. This method was found empirically to give the
+c smoothest variation of E near the edge of the aperture (and therefore
+c the lowest emittance). The resulting phase space agrees fairly well with
+c the phase space from a much higher resolution simulation, except that in
+c the high resolution simulation, there are particles right at the edge of
+c the beam that are pushed out the phase space ellipse from the fields
+c right at the aperture. Which version more closely models the actual
+c behavior of particles near the edge of the aperture I don't know.
+c
+c There are four different regions which are treated differently.
+c   - for point far inside the aperture, the standard finite difference is used
+c   - for points right next to the aperture, the standard finite difference is
+c     also used, but assuming that the potential at the nearby point within
+c     the conductor is obtained from exptrapolation from the current point to
+c     the conductor surface.
+c   - for points in the conductor that are near the perpendicular axis
+c     (y-axis for Ex and x-axis for Ey), the E field is extrapolated from the
+c     two points off to one side along the axis of the E-field which are not
+c     in the conductor
+c   - for the rest of the points in the conductor, the extrapolation is done
+c     from the two points off to one side along the axis perpendicular to the
+c     E-field.
+
+
+      integer(ISZ):: midx,midy,minx,maxx,miny,maxy
+      integer(ISZ):: minxm1,maxxp1,minym1,maxyp1
+      integer(ISZ):: ixmin,ixmax,iymin,iymax
+      integer(ISZ):: ia,ix,iy,iz,ixs,iys,izs,ize,iza
+      real(kind=8):: zs,ze,xx,yy,wx,wy
+      real(kind=8):: tdxi,tdyi,dzi
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+      if (napertures == 0) return
+
+      tdxi = 0.5/dx
+      tdyi = 0.5/dy
+      dzi = 1./dz
+
+c     --- Zero out E field arrays
+c     call zeroarry(aper_ex,(nx+1)*(ny+1)*(2+aper_zmax)*napertures)
+c     call zeroarry(aper_ey,(nx+1)*(ny+1)*(2+aper_zmax)*napertures)
+      aper_ex = 0.
+      aper_ey = 0.
+
+c     --- Loop over apertures.
+      do ia=1,napertures
+        zs = aper_zs(ia)
+        ze = aper_ze(ia)
+        izs = nzp - int((zmmaxp - zs + zgrid) * dzi)
+        ize = int((ze - zgrid - zmminp) * dzi)
+
+c       --- Only do calculation if aperture is within the grid.
+        if (0 < ize .and. izs < nzp .and. izs <= ize) then
+
+        midx=max(0,min(nxp,int((aper_x(ia)                - xmminp)/dx + 0.5)))
+        midy=max(0,min(nyp,int((aper_y(ia)                - ymminp)/dy + 0.5)))
+        minx=max(0,min(nxp,int((aper_x(ia) - aper_rad(ia) - xmminp)/dx + 1  )))
+        miny=max(0,min(nyp,int((aper_y(ia) - aper_rad(ia) - ymminp)/dy + 1  )))
+        maxx=max(0,min(nxp,int((aper_x(ia) + aper_rad(ia) - xmminp)/dx      )))
+        maxy=max(0,min(nyp,int((aper_y(ia) + aper_rad(ia) - ymminp)/dy      )))
+        minxm1 = max(0,minx-1)
+        maxxp1 = min(nxp,maxx+1)
+        minym1 = max(0,miny-1)
+        maxyp1 = min(nyp,maxy+1)
+
+c       -----------------------------------------------------------------------
+c       --- Calculate Ex and Ey for all points using standard finite
+c       --- difference.  For the planes before and after the aperture,
+c       --- do the calculation over the full transverse extent of the grid.
+c       --- Those points near the conductor will be recalculated below.
+        do iz=izs-1,ize+1
+          iza = iz - izs
+          if (iz == izs-1 .or. iz == ize+1) then
+            ixmin = 0
+            ixmax = nxp-1
+            iymin = 0
+            iymax = nyp-1
+          else
+            ixmin = minxm1
+            ixmax = maxxp1
+            iymin = minym1
+            iymax = maxyp1
+          endif
+          do iy=iymin,iymax
+            do ix=ixmin,ixmax
+             aper_ex(ix,iy,iza,ia)=tdxi*(phip(abs(ix-1),iy,iz)-phip(ix+1,iy,iz))
+             aper_ey(ix,iy,iza,ia)=tdyi*(phip(ix,abs(iy-1),iz)-phip(ix,iy+1,iz))
+            enddo
+          enddo
+        enddo
+
+        do iz=izs,ize
+          iza = iz - izs
+
+c         -------------------------------------------------------------------
+c         --- Calculate Ex, first looping over the range of y which is within
+c         --- the aperture.
+
+c         --- First quadrant (x > midx, y > midy)
+          do iy=midy,maxy
+            xx = sqrt(abs(aper_rad(ia)**2 - (iy*dy - aper_y(ia) + ymminp)**2)) +
+     &           aper_x(ia) - xmminp
+            ixs = int(xx/dx)
+            ixmax = min(ixs+2,maxxp1)
+            do ix=ixs,ixmax
+              if (ix*dx < xx) then
+                wx = xx/dx - ix
+                aper_ex(ix,iy,iza,ia) = tdxi*(phip(ix-1,iy,iz) - phip(ix,iy,iz)+
+     &                                  (phip(ix  ,iy,iz) - aper_volt(ia))/wx)
+              elseif (ix*dx == xx) then
+                aper_ex(ix,iy,iza,ia) = tdxi*2.*(phip(ix-1,iy,iz)-aper_volt(ia))
+              else
+                if (iy-midy < 2) then
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix-1,iy,iza,ia) -
+     &                                       aper_ex(ix-2,iy,iza,ia)
+                else
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix,iy-1,iza,ia) -
+     &                                       aper_ex(ix,iy-2,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Second quadrant (x < midx, y > midy)
+          do iy=midy,maxy
+            xx = -sqrt(abs(aper_rad(ia)**2 - (iy*dy - aper_y(ia) + ymminp)**2))+
+     &           aper_x(ia) - xmminp
+            ixs = nx - int(nx-xx/dx)
+            ixmin = max(ixs - 2,minxm1)
+            do ix=ixs,ixmin,-1
+              if (ix*dx > xx) then
+                wx = ix - xx/dx
+                aper_ex(ix,iy,iza,ia) = tdxi*(phip(ix,iy,iz) - phip(ix+1,iy,iz)-
+     &                                  (phip(ix,iy,iz) - aper_volt(ia))/wx)
+              elseif (ix*dx == xx) then
+                aper_ex(ix,iy,iza,ia) = tdxi*2.*(aper_volt(ia)-phip(ix+1,iy,iz))
+              else
+                if (iy-midy < 2) then
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix+1,iy,iza,ia) -
+     &                                       aper_ex(ix+2,iy,iza,ia)
+                else
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix,iy-1,iza,ia) -
+     &                                       aper_ex(ix,iy-2,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Third quadrant (x > midx, y < midy)
+          do iy=midy-1,miny,-1
+            xx = sqrt(abs(aper_rad(ia)**2 - (iy*dy - aper_y(ia) + ymminp)**2)) +
+     &           aper_x(ia) - xmminp
+            ixs = int(xx/dx)
+            ixmax = min(ixs+2,maxxp1)
+            do ix=ixs,ixmax
+              if (ix*dx < xx) then
+                wx = xx/dx - ix
+                aper_ex(ix,iy,iza,ia) = tdxi*(phip(ix-1,iy,iz) - phip(ix,iy,iz)+
+     &                                  (phip(ix  ,iy,iz) - aper_volt(ia))/wx)
+              elseif (ix*dx == xx) then
+                aper_ex(ix,iy,iza,ia) = tdxi*2.*(phip(ix-1,iy,iz)-aper_volt(ia))
+              else
+                if (iy-midy > -2) then
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix-1,iy,iza,ia) -
+     &                                       aper_ex(ix-2,iy,iza,ia)
+                else
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix,iy+1,iza,ia) -
+     &                                       aper_ex(ix,iy+2,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Fourth quadrant (x < midx, y < midy)
+          do iy=midy-1,miny,-1
+            xx = -sqrt(abs(aper_rad(ia)**2 - (iy*dy - aper_y(ia) + ymminp)**2))+
+     &           aper_x(ia) - xmminp
+            ixs = nx - int(nx-xx/dx)
+            ixmin = max(ixs - 2,minxm1)
+            do ix=ixs,ixmin,-1
+              if (ix*dx > xx) then
+                wx = ix - xx/dx
+                aper_ex(ix,iy,iza,ia) = tdxi*(phip(ix,iy,iz) - phip(ix+1,iy,iz)-
+     &                                  (phip(ix,iy,iz) - aper_volt(ia))/wx)
+              elseif (ix*dx == xx) then
+                aper_ex(ix,iy,iza,ia) = tdxi*2.*(aper_volt(ia)-phip(ix+1,iy,iz))
+              else
+                if (iy-midy < 2) then
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix+1,iy,iza,ia) -
+     &                                       aper_ex(ix+2,iy,iza,ia)
+                else
+                  aper_ex(ix,iy,iza,ia) = 2.*aper_ex(ix,iy+1,iza,ia) -
+     &                                       aper_ex(ix,iy+2,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Now set the lines just above and below the aperture, only going
+c         --- as far out in x as needed.
+          if (maxyp1 == maxy + 1) then
+c           --- Find min x
+            if (minxm1 == minx - 1) then
+              xx = -sqrt(abs(aper_rad(ia)**2-(maxy*dy-aper_y(ia)+ymminp)**2))+
+     &             aper_x(ia) - xmminp
+              ixmin = int(xx/dx)
+            else
+              ixmin = minx
+            endif
+c           --- Find max x
+            if (maxxp1 == maxx + 1) then
+              xx = sqrt(abs(aper_rad(ia)**2-(maxy*dy-aper_y(ia)+ymminp)**2))+
+     &             aper_x(ia) - xmminp
+              ixmax = int(xx/dx) + 1
+            else
+              ixmax = maxx
+            endif
+c           --- Do the work
+            do ix=ixmin,ixmax
+              aper_ex(ix,maxyp1,iza,ia) = 2.*aper_ex(ix,maxyp1-1,iza,ia) -
+     &                                       aper_ex(ix,maxyp1-2,iza,ia)
+            enddo
+          endif
+
+          if (minym1 == miny - 1) then
+c           --- Find min x
+            if (minxm1 == minx - 1) then
+              xx = -sqrt(abs(aper_rad(ia)**2-(miny*dy-aper_y(ia)+ymminp)**2))+
+     &             aper_x(ia) - xmminp
+              ixmin = int(xx/dx)
+            else
+              ixmin = minx
+            endif
+c           --- Find max x
+            if (maxxp1 == maxx + 1) then
+              xx = sqrt(abs(aper_rad(ia)**2-(miny*dy-aper_y(ia)+ymminp)**2))+
+     &             aper_x(ia) - xmminp
+              ixmax = int(xx/dx) + 1
+            else
+              ixmax = maxx
+            endif
+c           --- Do the work
+            do ix=ixmin,ixmax
+              aper_ex(ix,minym1,iza,ia) = 2.*aper_ex(ix,minym1+1,iza,ia) -
+     &                                       aper_ex(ix,minym1+2,iza,ia)
+            enddo
+          endif
+
+c         -------------------------------------------------------------------
+c         --- Calculate Ey, first looping over the range of x which is within
+c         --- the aperture.
+
+c         --- First quadrant (x > midx, y > midy)
+          do ix=midx,maxx
+            yy = sqrt(abs(aper_rad(ia)**2 - (ix*dx - aper_x(ia) + xmminp)**2)) +
+     &           aper_y(ia) - ymminp
+            iys = int(yy/dy)
+            iymax = min(iys+2,maxyp1)
+            do iy=iys,iymax
+              if (iy*dy < yy) then
+                wy = yy/dy - iy
+                aper_ey(ix,iy,iza,ia) = tdyi*(phip(ix,iy-1,iz) - phip(ix,iy,iz)+
+     &                                  (phip(ix,iy  ,iz) - aper_volt(ia))/wy)
+              elseif (iy*dy == yy) then
+                aper_ey(ix,iy,iza,ia) = tdyi*2.*(phip(ix,iy-1,iz)-aper_volt(ia))
+              else
+                if (ix-midx < 2) then
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix,iy-1,iza,ia) -
+     &                                       aper_ey(ix,iy-2,iza,ia)
+                else
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix-1,iy,iza,ia) -
+     &                                       aper_ey(ix-2,iy,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Second quadrant (x < midx, y > midy)
+          do ix=midx-1,minx,-1
+            yy = sqrt(abs(aper_rad(ia)**2 - (ix*dx - aper_x(ia) + xmminp)**2)) +
+     &           aper_y(ia) - ymminp
+            iys = int(yy/dy)
+            iymax = min(iys+2,maxyp1)
+            do iy=iys,iymax
+              if (iy*dy < yy) then
+                wy = yy/dy - iy
+                aper_ey(ix,iy,iza,ia) = tdyi*(phip(ix,iy-1,iz) - phip(ix,iy,iz)+
+     &                                  (phip(ix,iy  ,iz) - aper_volt(ia))/wy)
+              elseif (iy*dy == yy) then
+                aper_ey(ix,iy,iza,ia) = tdyi*2.*(phip(ix,iy-1,iz)-aper_volt(ia))
+              else
+                if (ix-midx > -2) then
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix,iy-1,iza,ia) -
+     &                                       aper_ey(ix,iy-2,iza,ia)
+                else
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix+1,iy,iza,ia) -
+     &                                       aper_ey(ix+2,iy,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Third quadrant (x > midx, y < midy)
+          do ix=midx,maxx
+            yy = -sqrt(abs(aper_rad(ia)**2 - (ix*dx - aper_x(ia) + xmminp)**2)) +
+     &           aper_y(ia) - ymminp
+            iys = ny - int(ny-yy/dy)
+            iymin = max(iys-2,minym1)
+            do iy=iys,iymin,-1
+              if (iy*dy > yy) then
+                wy = iy - yy/dy
+                aper_ey(ix,iy,iza,ia) = tdyi*(phip(ix,iy,iz) - phip(ix,iy+1,iz)-
+     &                                  (phip(ix,iy,iz) - aper_volt(ia))/wy)
+              elseif (iy*dy == yy) then
+                aper_ey(ix,iy,iza,ia) = tdyi*2.*(aper_volt(ia)-phip(ix,iy+1,iz))
+              else
+                if (ix-midx < 2) then
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix,iy+1,iza,ia) -
+     &                                       aper_ey(ix,iy+2,iza,ia)
+                else
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix-1,iy,iza,ia) -
+     &                                       aper_ey(ix-2,iy,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Fourth quadrant (x < midx, y < midy)
+          do ix=midx-1,minx,-1
+            yy = -sqrt(abs(aper_rad(ia)**2 - (ix*dx - aper_x(ia) + xmminp)**2)) +
+     &           aper_y(ia) - ymminp
+            iys = ny - int(ny-yy/dy)
+            iymin = max(iys-2,minym1)
+            do iy=iys,iymin,-1
+              if (iy*dy > yy) then
+                wy = iy - yy/dy
+                aper_ey(ix,iy,iza,ia) = tdyi*(phip(ix,iy,iz) - phip(ix,iy+1,iz)-
+     &                                  (phip(ix,iy,iz) - aper_volt(ia))/wy)
+              elseif (iy*dy == yy) then
+                aper_ey(ix,iy,iza,ia) = tdyi*2.*(aper_volt(ia)-phip(ix,iy+1,iz))
+              else
+                if (ix-midx < 2) then
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix,iy+1,iza,ia) -
+     &                                       aper_ey(ix,iy+2,iza,ia)
+                else
+                  aper_ey(ix,iy,iza,ia) = 2.*aper_ey(ix+1,iy,iza,ia) -
+     &                                       aper_ey(ix+2,iy,iza,ia)
+                endif
+              endif
+            enddo
+          enddo
+
+c         --- Now set the lines just to the left and right of the aperture
+          if (maxxp1 == maxx + 1) then
+c           --- Find min y
+            if (minym1 == miny - 1) then
+              yy = -sqrt(abs(aper_rad(ia)**2-(maxx*dx-aper_x(ia)+xmminp)**2))+
+     &             aper_y(ia) - ymminp
+              iymin = int(yy/dy)
+            else
+              iymin = miny
+            endif
+c           --- Find max y
+            if (maxyp1 == maxy + 1) then
+              yy = sqrt(abs(aper_rad(ia)**2-(maxx*dx-aper_x(ia)+xmminp)**2))+
+     &             aper_y(ia) - ymminp
+              iymax = int(yy/dy) + 1
+            else
+              iymax = maxy
+            endif
+c           --- Do the work
+            do iy=iymin,iymax
+              aper_ey(maxxp1,iy,iza,ia) = 2.*aper_ey(maxxp1-1,iy,iza,ia) -
+     &                                       aper_ey(maxxp1-2,iy,iza,ia)
+            enddo
+          endif
+          if (minxm1 == minx - 1) then
+c           --- Find min y
+            if (minym1 == miny - 1) then
+              yy = -sqrt(abs(aper_rad(ia)**2-(minx*dx-aper_x(ia)+xmminp)**2))+
+     &             aper_y(ia) - ymminp
+              iymin = int(yy/dy)
+            else
+              iymin = miny
+            endif
+c           --- Find max y
+            if (maxyp1 == maxy + 1) then
+              yy = sqrt(abs(aper_rad(ia)**2-(minx*dx-aper_x(ia)+xmminp)**2))+
+     &             aper_y(ia) - ymminp
+              iymax = int(yy/dy) + 1
+            else
+              iymax = maxy
+            endif
+c           --- Do the work
+            do iy=iymin,iymax
+              aper_ey(minxm1,iy,iza,ia) = 2.*aper_ey(minxm1+1,iy,iza,ia) -
+     &                                       aper_ey(minxm1+2,iy,iza,ia)
+            enddo
+          endif
+
+c       --- End of loop over z planes
+        enddo
+
+c       --- End of if checking if aperture is within the grid
+        endif
+
+c     --- End of loop over apertures
+      enddo
+
+!$OMP MASTER
+      if (lw3dtimesubs) timeset_aperture_e = timeset_aperture_e + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine getphipforparticles(indts)
+      use Subtimersw3d
+#ifdef MPIPARALLEL
+      use InGen3d
+      use InMesh3d
+      use Fields3dSolver
+      use Fields3dParticles
+      use Parallel
+#endif
+      integer(ISZ):: indts
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+#ifdef MPIPARALLEL
+c     --- Distribute phi among the processes so each has phi in its
+c     --- particle domain.
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom .or. solvergeom==XYgeom .or. solvergeom==Zgeom) then
+        call getphiforparticlesrz()
+      elseif (solvergeom==XYZgeom) then
+        call getphipforparticles3d(1,nxlocal,nylocal,nzlocal,
+     &                             nxguardphi,nyguardphi,nzguardphi,
+     &                             phi,
+     &                             nxp,nyp,nzp,phipndts(:,:,:,indts),
+     &                             fsdecomp,ppdecomp)
+      end if
+#endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timegetphipforparticles = timegetphipforparticles + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine getphipforparticles3d(nc,nxlocal,nylocal,nzlocal,
+     &                                 nxguardphi,nyguardphi,nzguardphi,
+     &                                 phi,
+     &                                 nxp,nyp,nzp,phip,
+     &                                 fsdecomp,ppdecomp)
+      use Decompositionmodule
+      integer(ISZ):: nc,nxlocal,nylocal,nzlocal
+      integer(ISZ):: nxguardphi,nyguardphi,nzguardphi
+      integer(ISZ):: nxp,nyp,nzp
+      real(kind=8):: phi(0:nc-1,-nxguardphi:nxlocal+nxguardphi,
+     &                          -nyguardphi:nylocal+nyguardphi,
+     &                          -nzguardphi:nzlocal+nzguardphi)
+      real(kind=8):: phip(0:nc-1,-nxguardphi:nxp+nxguardphi,
+     &                           -nyguardphi:nyp+nyguardphi,
+     &                           -nzguardphi:nzp+nzguardphi)
+      type(Decomposition):: fsdecomp,ppdecomp
+
+#ifdef MPIPARALLEL
+        call getphipforparticles3d_parallel(nc,nxlocal,nylocal,nzlocal,
+     &                                      nxguardphi,nyguardphi,nzguardphi,
+     &                                      phi,
+     &                                      nxp,nyp,nzp,phip,
+     &                                      fsdecomp,ppdecomp)
+#endif
+
+      return
+      end
+c===========================================================================
+      subroutine getphiforfields()
+      use Subtimersw3d
+      use InGen3d
+      use InMesh3d
+      use Fields3dSolver
+      use Fields3dParticles
+
+c This gets the phi at iz=nzlocal and in the guard cells. It is only needed for
+c the 3d FFT and tridiagonal based solvers for the parallel version.
+
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+#ifdef MPIPARALLEL
+
+c     --- Distribute phi among the processes so each has phi in its
+c     --- particle domain.
+      if(solvergeom==RZgeom .or. solvergeom==XZgeom .or. solvergeom==Zgeom) then
+c       call getphiforparticlesrz()
+c      else if(solvergeom==Zgeom) then
+c        call getphiforparticlesz()
+      elseif (solvergeom==XYZgeom) then
+        call getphiforfields3d(nxlocal,nylocal,nzlocal,
+     &                         nxguardphi,nyguardphi,nzguardphi,
+     &                         phi)
+      end if
+#endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timegetphiforfields = timegetphiforfields + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine setinhomogeneousboundaries(phi,nxlocal,nylocal,nzlocal,
+     &                                      nxguardphi,nyguardphi,nzguardphi,
+     &                                      dx,dy,dz,
+     &                                      bound0,boundnz,boundxy,
+     &                                      l2symtry,l4symtry)
+      use Constant
+      use GlobalVars
+      integer(ISZ):: nxlocal,nylocal,nzlocal
+      integer(ISZ):: nxguardphi,nyguardphi,nzguardphi
+      real(kind=8):: phi(-nxguardphi:nxlocal+nxguardphi,
+     &                   -nyguardphi:nylocal+nyguardphi,
+     &                   -nzguardphi:nzlocal+nzguardphi)
+      real(kind=8):: dx,dy,dz
+      integer(ISZ):: bound0,boundnz,boundxy
+      logical(ISZ):: l2symtry,l4symtry
+
+c Modify phi (which has rho copied into it), adding in an effective source
+c term to include inhomogeneous Dirichlet boundary conditions.
+c The algorithm is embarassingly simple.
+c Write phi = phi_interior + phi_boundary, where
+c phi_interior = 0 at the boundary and phi_boundary = 0 in the interior.
+c Then the Poisson equation becomes
+c del**2 phi_interior = - rho/eps0 - del**2 phi_boundary
+c When phi_interior is calculated, the term del**2 phi_boundary is trivially
+c evaluated and is only nonzero at the grid points one grid cell from the
+c boundary. For example, at ix = nx-1,
+c del**2 phi_boundary = phi_boundary(ix=nx)/dx**2
+c
+c Note that the effective source terms are multiplied by eps0 since it
+c will be treated the same way as rho and be divided by eps0.
+
+      integer(ISZ):: ixmin,ixmax,iymin,iymax,izmin,izmax
+
+      ixmin = 0
+      ixmax = nxlocal
+      iymin = 0
+      iymax = nylocal
+      izmin = 0
+      izmax = nzlocal
+      if (bound0 == dirichlet) izmin = 1
+      if (boundnz == dirichlet) izmax = nzlocal - 1
+
+      if (boundxy == dirichlet) then
+        if (.not. l4symtry) ixmin = 1
+        if (.not. l2symtry .and. .not. l4symtry) iymin = 1
+        ixmax = nxlocal - 1
+        iymax = nylocal - 1
+        if (.not. l4symtry) then
+          phi(1,iymin:iymax,izmin:izmax) = phi(1,iymin:iymax,izmin:izmax) +
+     &                           phi(0,iymin:iymax,izmin:izmax)/dx**2*eps0
+        endif
+        if (.not. l2symtry .and. .not. l4symtry) then
+          phi(ixmin:ixmax,1,izmin:izmax) = phi(ixmin:ixmax,1,izmin:izmax) +
+     &                           phi(ixmin:ixmax,0,izmin:izmax)/dy**2*eps0
+        endif
+        phi(nxlocal-1,iymin:iymax,izmin:izmax) = phi(nxlocal-1,iymin:iymax,izmin:izmax) +
+     &                           phi(nxlocal,iymin:iymax,izmin:izmax)/dx**2*eps0
+        phi(ixmin:ixmax,nylocal-1,izmin:izmax) = phi(ixmin:ixmax,nylocal-1,izmin:izmax) +
+     &                           phi(ixmin:ixmax,nylocal,izmin:izmax)/dy**2*eps0
+      endif
+
+c     --- Note that these lines are not needed since the Dirichlet boundary
+c     --- in z is already handled using the tridiagonal solver, which directly
+c     --- includes the boundary value of phi.
+c     if (bound0 == dirichlet) then
+c       phi(ixmin:ixmax,iymin:iymax,1) = phi(ixmin:ixmax,iymin:iymax,1) +
+c    &                         phi(ixmin:ixmax,iymin:iymax,0)/dz**2*eps0
+c     endif
+
+c     if (boundnz == dirichlet) then
+c       phi(ixmin:ixmax,iymin:iymax,nzlocal-1) = phi(ixmin:ixmax,iymin:iymax,nzlocal-1) +
+c    &                         phi(ixmin:ixmax,iymin:iymax,nzlocal)/dz**2*eps0
+c     endif
+
+      return
+      end
+c===========================================================================
+      subroutine fieldsol3d(iwhich)
+      use GlobalVars
+      use Subtimersw3d
+      use Timers
+      use InGen
+      use Picglb, only: zgrid
+      use InGen3d
+      use InMesh3d
+      use Picglb3d
+      use Fields3dSolver
+      use Subcycling
+      use Fields3dParticles
+      use LatticeInternal
+      use InjectVars
+      use GridBoundary3d
+      use Parallel,Only:izproc,nzprocs,fsdecomp
+      use w3d_interfaces
+      use Decompositionmodule
+      integer(ISZ):: iwhich
+
+c  Field solver for 3d warped Cartesian geometry.
+c  Enter with charge density in rho array, old potential in phi array.
+c  Exit with new potential in phi array, and rho unchanged.
+c
+c  For field solve in a bend there are two possible cases:
+c      1) Call to an SOR field solver.
+c      2) Iteration loop for a perturbative calculation of fields.
+c         The loop is in bendfieldsol3d
+
+      real(kind=8):: timetemp
+      real(kind=8):: substarttime,wtime
+      integer(ISZ):: ixmin,ixmax,iymin,iymax,izmin,izmax
+      integer(ISZ):: indts,tmpnsndts,getnsndtsforsubcycling
+      integer(ISZ):: isndts
+      logical(ISZ):: linbendturnedoff
+      if (lw3dtimesubs) substarttime = wtime()
+      timetemp = wtime()
+      call printentering("fieldsol3d", 2)
+
+c     --- If no field solve, return
+      if ( fstype == -1) then
+        call printexiting("fieldsol3d@1", 2)
+        return
+      endif
+
+      if (l4symtry .and. l2symtry) then
+        call kaboom("fieldsol3d: both l4symtry and l2symtry are set to true")
+      endif
+
+c     --- turn off the bends for the fieldsolve when computing in a boosted frame
+      if ( boost_gamma>1. .and. linbend) then
+        linbend=.false.
+        linbendturnedoff=.true.
+      else
+        linbendturnedoff=.false.
+      endif
+
+c     --- If a field solver is registered, call it and return.
+      if (fstype == 12) then
+c       --- The registered field solvers shouldn't be called unless a full
+c       --- field solve is being called for.
+        if (iwhich > 0) then
+c          --- turn back on the bends after the fieldsolve when computing in a boosted frame
+           if (linbendturnedoff) then
+             linbend=.true.
+           end if
+           call printexiting("fieldsol3d@2", 2)
+           return
+        endif
+        call callpythonfunc("fieldsolregistered","field_solvers.fieldsolver")
+
+c       --- turn back on the bends after the fieldsolve when computing in a boosted frame
+        if (linbendturnedoff) then
+          linbend=.true.
+        end if
+
+!$OMP MASTER
+        if (lw3dtimesubs) timefieldsol3d = timefieldsol3d + wtime() - substarttime
+        fstime = fstime + (wtime() - timetemp)
+!$OMP END MASTER
+
+        call printexiting("fieldsol3d@3", 2)
+        return
+      endif
+
+      call gchange("Fields3dSolver", 0)
+
+c     --- This is always done with the built in solvers
+c     --- (even with the RZ solver which does use the w3d.rho array)
+      call setupFields3dParticles()
+
+c     --- Make sure that rho has been finalized and is ready for the solve
+      if (.not. lrhofinalized) call finalizerho()
+
+c     --- Do some error checking.
+      if (.not. ASSOCIATED(rhopndts) .or. .not. ASSOCIATED(phipndts)) then
+        call kaboom("fieldsol: the rho and phi arrays have not been allocated")
+        return
+      endif
+
+c     --- Calculate rstar here since it is only used by the field solver and
+c     --- to ensure that it is set when the field solver is called.
+      if (linbend) call setrstar(rstar,nzlocal,dz,zmminlocal,zgrid)
+
+c     --- Make sure the bounds array is up to date with any changes in the
+c     --- flags.
+      call setboundsfromflags(bounds,boundxy,bound0,boundnz,l2symtry,l4symtry)
+
+c     --- Loop over the subcyling groups and do any field solves that
+c     --- are necessary.
+c     --- Do loop in reverse order so that rho and phi end up with the arrays
+c     --- for the speices with the smallest timestep.
+      tmpnsndts = getnsndtsforsubcycling()
+      do indts=tmpnsndts-1,0,-1
+        isndts = min(indts,nsndtsphi3d-1)
+
+c       --- If ldts is not associated, then ignore it.
+        if (ASSOCIATED(ldts)) then
+          if (.not. ldts(indts) .and.
+     &        ((ndtsaveraging == 0 .or. ndtsaveraging == 1)
+     &         .and. .not. any(ldts))) cycle
+        endif
+
+c       --- For serial version, the arrays rho and phi are pointed to the
+c       --- appropriate arrays for the current ndts group.
+c       --- For parallel version, each processor sends rho to neighboring
+c       --- processors whose field solve region overlap its particle region.
+        call assignrhoandphiforfieldsolve(rhopndts(:,:,:,nrhopndtscopies-1,indts),
+     &                                    phipndts(:,:,:,isndts))
+
+        if (fstype == 3 .or. fstype == 7 .or. fstype == 11 .or. fstype == 13) then
+c         --- SOR and multigrid field solvers - deal with bends directly and
+c         --- set axial boundary conditions (call to perphi3d is not needed)
+c         --- Chombo knows nothing of bends and does its own b.c.'s
+          call vp3d(iwhich)
+
+        else if (.not. linbend) then
+c         --- If not in bend, call VP3D
+          if (iwhich .ne. 1 .and.
+     &        (fstype == 0 .or. fstype == 1 .or. fstype == 2 .or.
+     &         fstype == 4 .or. fstype == 5 .or. fstype == 6 .or.
+     &         fstype == 8 .or. fstype == 9)) then
+            ixmin = 0
+            ixmax = nxlocal
+            iymin = 0
+            iymax = nylocal
+            izmin = 0
+            izmax = nzlocal
+            if (boundxy == dirichlet) then
+              if (.not. l4symtry) ixmin = 1
+              ixmax = nxlocal - 1
+              if (.not. l2symtry .and. .not. l4symtry) iymin = 1
+              iymax = nylocal - 1
+            endif
+            if (bound0  == dirichlet .and. izproc == 0) izmin = 1
+            if (boundnz == dirichlet .and. izproc >= nzprocs-1) izmax = nzlocal-1
+c           --- When copying rho into phi, be careful not to overwrite any
+c           --- boundary conditions in phi.
+#ifndef MPIPARALLEL
+            phipndts(ixmin:ixmax,iymin:iymax,izmin:izmax,isndts) =
+     &        rhopndts(ixmin:ixmax,iymin:iymax,izmin:izmax,nrhopndtscopies-1,indts)
+#else
+            phi(ixmin:ixmax,iymin:iymax,izmin:izmax) =
+     &        rho(ixmin:ixmax,iymin:iymax,izmin:izmax)
+#endif
+c           --- Apply inhomogeneous Dirichlet boundary conditions
+            call setinhomogeneousboundaries(phi,nxlocal,nylocal,nzlocal,
+     &                                      nxguardphi,nyguardphi,nzguardphi,
+     &                                      dx,dy,dz,
+     &                                      bound0,boundnz,boundxy,
+     &                                      l2symtry,l4symtry)
+          endif
+          call vp3d(iwhich)
+          call getphiforfields()
+          call applyboundaryconditions3d(nxlocal,nylocal,nzlocal,
+     &                                   nxguardphi,nyguardphi,nzguardphi,
+     &                                   phi,1,bounds,.true.,.false.)
+#ifdef MPIPARALLEL
+          call mgexchange_phi_periodic(1,nxlocal,nylocal,nzlocal,phi,
+     &                                 nxguardphi,nyguardphi,nzguardphi,
+     &                                 -1,0,bounds,fsdecomp)
+c         --- This is what should be here, but this is causing a problem
+c         --- under certain conditions, giving a seg fault deep inside of
+c         --- the MPI call. I am hoping that there is a bug in MPI that
+c         --- will be fixed. The routine that this calls have been heavily
+c         --- tested and otherwise work OK.
+c         call mgexchange_phi2(1,nxlocal,nylocal,nzlocal,phi,
+c    &                         nxguardphi,nyguardphi,nzguardphi,
+c    &                         -1,-1,0,1,fsdecomp)
+c         --- This does the same thing, but less efficiently, but doesn't
+c         --- exihibit the seg fault.
+          call mgexchange_phi2(1,nxlocal,nylocal,nzlocal,phi,
+     &                         nxguardphi,nyguardphi,nzguardphi,
+     &                         -1,-1,1,1,fsdecomp)
+          call mgexchange_phi2(1,nxlocal,nylocal,nzlocal,phi,
+     &                          nxguardphi,nyguardphi,nzguardphi,
+     &                         -1,-1,0,0,fsdecomp)
+#endif
+c         --- Note that perphi3d is only called for the RZ solver.
+          if (bound0==periodic) call perphi3d()
+
+        else
+c         --- Call perturbative bent beam field solver
+          call bendfieldsol3d()
+          call getphiforfields()
+          call applyboundaryconditions3d(nxlocal,nylocal,nzlocal,
+     &                                   nxguardphi,nyguardphi,nzguardphi,
+     &                                   phi,1,bounds,.true.,.false.)
+#ifdef MPIPARALLEL
+          call mgexchange_phi_periodic(1,nxlocal,nylocal,nzlocal,phi,
+     &                                 nxguardphi,nyguardphi,nzguardphi,
+     &                                 -1,0,bounds,fsdecomp)
+c         --- See comments above
+c         call mgexchange_phi2(1,nxlocal,nylocal,nzlocal,phi,
+c    &                         nxguardphi,nyguardphi,nzguardphi,
+c    &                         -1,-1,0,1,fsdecomp)
+          call mgexchange_phi2(1,nxlocal,nylocal,nzlocal,phi,
+     &                         nxguardphi,nyguardphi,nzguardphi,
+     &                         -1,-1,1,1,fsdecomp)
+          call mgexchange_phi2(1,nxlocal,nylocal,nzlocal,phi,
+     &                         nxguardphi,nyguardphi,nzguardphi,
+     &                         -1,-1,0,0,fsdecomp)
+#endif
+c         --- Note that perphi3d is only called for the RZ solver.
+          if (bound0==periodic) call perphi3d()
+
+        endif
+
+c       --- Distribute phi among the processes so each has phi in its
+c       --- particle domain.
+        call getphipforparticles(indts)
+
+      enddo
+c     --- End loop over ndts groups
+
+#ifndef MPIPARALLEL
+c     --- Points to the values that are used by the most frequently time
+c     --- advanced group. This is not done in for the parallel code since
+c     --- the rho and phi arrays are independently allocated.
+      call assignrhoandphiforfieldsolve(rhopndts(:,:,:,nrhopndtscopies-1,0),
+     &                                  phipndts(:,:,:,0))
+#endif
+
+c     --- turn back on the bends after the fieldsolve when computing in a boosted frame
+      if (linbendturnedoff) then
+        linbend=.true.
+      end if
+
+      call printexiting("fieldsol3d", 2)
+!$OMP MASTER
+      if (lw3dtimesubs) timefieldsol3d = timefieldsol3d + wtime() - substarttime
+      fstime = fstime + (wtime() - timetemp)
+!$OMP END MASTER
+      return
+      end
+c===========================================================================
+      subroutine bendfieldsol3d()
+      use Constant
+      use InGen
+      use InGen3d
+      use InMesh3d
+      use Picglb
+      use Picglb3d
+      use Fields3dSolver
+
+c Does the FFT field solve in bends.
+
+      integer(ISZ):: i,j,k
+      real(kind=8):: ccmult,rs,dhdz,cutoff,x,r,phiref,rskm1,rskp1,dxi,dzi
+      character(80):: outstr
+      dxi = 1./dx
+      dzi = 1./dz
+
+      bndfit = 0
+ 1000 continue
+      bndfit = bndfit + 1
+
+c     --- save phi on midplane for error measure
+      do k = 0, nzlocal
+         do i = 0, nxlocal
+            phiprv(i,k) = phi(i,nylocal/2,k)
+         enddo
+      enddo
+
+c     --- set multiplier for "jump term" (curvature change term)
+      ccmult = 0.
+      if (bnjtflag) ccmult = 1.
+c     --- loop over slices in y, computing source with bend correction
+      do j = 0, ny
+c        --- save phi this slice, for future algebra
+         do k = 0, nzlocal
+            do i = 0, nxlocal
+               phisav(i,k) = phi(i,j,k)
+            enddo
+         enddo
+         do i = 0, nxlocal
+            phisav(i,-1) = phisav(i,nzlocal-1)
+         enddo
+c        --- loop over mesh points in z
+         do k = 0, nzlocal-1
+            rs = rstar(k)
+            rskm1 = rstar(k-1)
+            rskp1 = rstar(k+1)
+            dhdz = (1./rskp1 - 1./rskm1) *0.5*dzi
+c           --- only modify source if actually in a bend, or at entrance/exit
+            cutoff = LARGEPOS*1.e-6
+            if ((abs(rskm1) < cutoff).or.(abs(rskp1) < cutoff))then
+               do i = 1, nxlocal-1
+                  x = xmmin + i*dx
+                  r = 1./(rs + x)
+                  phi(i,j,k) = rho(i,j,k)*rs*r
+     &             + eps0 * ( (phisav(i+1,k) - phisav(i-1,k)) *0.5*dxi*r
+     &                  + (phisav(i,k+1) - 2.*phisav(i,k) + phisav(i,k-1))
+     &                  * (-2.*x*r + x**2*r**2) * dzi**2
+     &                  - ccmult * (phisav(i,k+1) - phisav(i,k-1)) * 0.5*dzi
+     &                  * (rs*r)**3 * x * dhdz
+     &                      )
+               enddo
+            else
+               do i = 1, nxlocal-1
+                  phi(i,j,k) = rho(i,j,k)
+               enddo
+            endif
+         enddo
+      enddo
+
+c     --- call Cartesian field solver
+      call vp3d(-1)
+
+c     --- compute error
+      bndferr = 0.
+      phiref = 0.
+      do k = 0, nzlocal
+         do i = 0, nxlocal
+            bndferr = max( bndferr, abs(phi(i,nylocal/2,k)-phiprv(i,k)) )
+            phiref = max( phiref, phi(i,nylocal/2,k) )
+         enddo
+      enddo
+
+c     --- For the parallel version, find global max of errors.
+#ifdef MPIPARALLEL
+      call parallelmaxrealarray(phiref,1)
+#endif
+      bndferr = bndferr / dvnz(phiref)
+#ifdef MPIPARALLEL
+      call parallelmaxrealarray(bndferr,1)
+#endif
+
+c     --- for debug, print out the error
+      if (bnprflag) then
+        write (outstr,9985) it, bndfit, bndferr
+ 9985   format ("It =",i7," Bent field iteration",i3," Rel Change = ", 1pe12.4)
+        call remark(outstr)
+      endif
+
+c     --- if error too big, repeat main loop - provided iters remain
+      if ( (bndferr > bndftol) .and. (bndfit < bndfitmx) ) go to 1000
+
+c     --- if failure to converge, report the bad news to user
+      if (bndferr > bndftol) then
+        print*,"*** NONCONVERGENCE in bent field iteration"
+        print*,"Relative change = ",bndferr," after ",bndfit," iterations."
+      endif
+
+      return
+      end
+c=============================================================================
+      subroutine vp3d(iwhich)
+      use Subtimersw3d
+      use Constant
+      use InGen
+      use InGen3d
+      use InMesh3d
+      use Picglb3d
+      use Picglb
+      use GridBoundary3d
+      use Fields3dSolver
+      use LatticeInternal
+      use BoltzmannElectrons
+      use Parallel
+      integer(ISZ):: iwhich
+
+      real(kind=8):: xlen,ylen,zlen
+      real(kind=8):: substarttime,wtime
+      if (lw3dtimesubs) substarttime = wtime()
+
+c  Interface to VPOIS3D using variables from database of package 3D
+
+c LatticeInternal is included to have access to the variable linbend.
+
+c fstype
+c   0  only 3d fft on rectangular mesh, square pipe
+c   1  3d fft and Kz capacity matrix for variable pipe shape
+c   2  3d fft and 3d capacity matrix for internal quadrupole conductors
+c   3  3d SOR field solve
+c   4  2d fft in transverse plane, tridiag solve in z
+
+      if (fstype .ne. -1 .and. fstype .ne. 12) then
+        if(solvergeom==RZgeom .or.
+     &     solvergeom==XZgeom .or.
+     &     solvergeom==XYgeom .or.
+     &     solvergeom==Rgeom  .or.
+     &     solvergeom==Zgeom) fstype=10
+        if(solvergeom==AMRgeom) fstype = 11
+      endif
+
+      if (iwhich==0 .or. iwhich==1) then
+        call callpythonfunc("initfieldsolver","field_solvers.fieldsolver")
+      endif
+
+c Note that the select case statement was giving the f90 compiler on HPUX
+c fits and so was replaced with if statements.
+
+      xlen = nx*dx
+      ylen = ny*dy
+      zlen = nz*dz
+
+      nmxy  = max(nx,ny)
+      nmxyz = max(nx,ny,nz)
+      call gchange("Fields3dSolver", 0)
+
+      if (fstype == 0) then
+          call vpois3d(iwhich,phi,phi,kxsq,kysq,kzsq,
+     &                 attx,atty,attz,filt,xlen,ylen,zlen,
+     &                 nx,ny,nzlocal,nz,
+     &                 nxguardphi,nyguardphi,nzguardphi,
+     &                 scrtch,xywork3d,zwork,0,l2symtry,l4symtry,
+     &                 bound0,boundnz,boundxy)
+      elseif (fstype == 1) then
+          call pipe3df(iwhich,pipeshpe,rho,phi,
+     &                 kxsq,kysq,kzsq,attx,atty,attz,filt,
+     &                 xlen,ylen,zlen,
+     &                 nx,ny,nzlocal,nz,
+     &                 nxguardphi,nyguardphi,nzguardphi,
+     &                 nxguardrho,nyguardrho,nzguardrho,
+     &                 scrtch,xywork3d,
+     &                 zwork,l2symtry,l4symtry,bound0,boundnz,boundxy)
+      elseif (fstype == 2) then
+          call vcap3d(iwhich,rho,phi,
+     &                kxsq,kysq,kzsq,attx,atty,attz,filt,
+     &                xlen,ylen,zlen,nx,ny,nzlocal,nz,
+     &                nxguardphi,nyguardphi,nzguardphi,
+     &                nxguardrho,nyguardrho,nzguardrho,
+     &                scrtch,xywork3d,zwork,
+     &                xmmin+nx*dx,zmminlocal,zgrid,pipeshpe,
+     &                l2symtry,l4symtry,bound0,boundnz,boundxy)
+      elseif (fstype == 3) then
+          call kaboom("field solver type 3 (SOR) is no longer available, use 7 (multigrid) instead")
+      elseif (fstype == 4) then
+          if (iwhich == 1 .or. iwhich == 0) then
+            call vpois3d(1,phi,phi,kxsq,kysq,kzsq,
+     &                   attx,atty,attz,filt,xlen,ylen,zlen,
+     &                   nx,ny,nzlocal,nz,
+     &                   nxguardphi,nyguardphi,nzguardphi,
+     &                   scrtch,xywork3d,zwork,0,l2symtry,l4symtry,
+     &                   bound0,boundnz,boundxy)
+          endif
+          if (iwhich == -1 .or. iwhich == 0) then
+            call vpois3d(12,phi,phi,kxsq,kysq,kzsq,
+     &                   attx,atty,attz,filt,xlen,ylen,zlen,
+     &                   nx,ny,nzlocal,nz,
+     &                   nxguardphi,nyguardphi,nzguardphi,
+     &                   scrtch,xywork3d,zwork,0,l2symtry,l4symtry,
+     &                   bound0,boundnz,boundxy)
+            call vpois3d(14,phi,phi,kxsq,kysq,kzsq,
+     &                   attx,atty,attz,filt,xlen,ylen,zlen,
+     &                   nx,ny,nzlocal,nz,
+     &                   nxguardphi,nyguardphi,nzguardphi,
+     &                   scrtch,xywork3d,zwork,0,l2symtry,l4symtry,
+     &                   bound0,boundnz,boundxy)
+            call vpois3d(13,phi,phi,kxsq,kysq,kzsq,
+     &                   attx,atty,attz,filt,xlen,ylen,zlen,
+     &                   nx,ny,nzlocal,nz,
+     &                   nxguardphi,nyguardphi,nzguardphi,
+     &                   scrtch,xywork3d,zwork,0,l2symtry,l4symtry,
+     &                   bound0,boundnz,boundxy)
+          endif
+
+      elseif (fstype == 5) then
+c         --- General capacity matrix solver in kz space
+          call capmatkz3d(iwhich,phi,rho,
+     &                    kxsq,kysq,kzsq,attx,atty,attz,
+     &                    filt,xlen,ylen,zlen,
+     &                    nx,ny,nzlocal,nz,
+     &                    nxguardphi,nyguardphi,nzguardphi,
+     &                    nxguardrho,nyguardrho,nzguardrho,
+     &                    dx,dy,dz,
+     &                    xmmin,ymmin,zmminlocal,scrtch,
+     &                    xywork3d,zwork,l2symtry,l4symtry,
+     &                    bound0,boundnz,boundxy)
+      elseif (fstype == 6) then
+c         --- General capacity matrix solver
+          call capmat3df(iwhich,phi,rho,
+     &                   kxsq,kysq,kzsq,attx,atty,attz,
+     &                   filt,xlen,ylen,zlen,
+     &                   nx,ny,nzlocal,nz,
+     &                   nxguardphi,nyguardphi,nzguardphi,
+     &                   nxguardrho,nyguardrho,nzguardrho,
+     &                   dx,dy,dz,
+     &                   xmmin,ymmin,zmminlocal,scrtch,
+     &                   xywork3d,zwork,l2symtry,l4symtry,
+     &                   bound0,boundnz,boundxy)
+
+      elseif (fstype == 7) then
+        if (minval(electrontemperature) == 0) then
+          call multigrid3df(iwhich,nx,ny,nz,nxlocal,nylocal,nzlocal,
+     &                      nxguardphi,nyguardphi,nzguardphi,
+     &                      nxguardrho,nyguardrho,nzguardrho,
+     &                      dx,dy,dz,phi,rho,rstar,
+     &                      linbend,bound0,boundnz,boundxy,l2symtry,l4symtry,
+     &                      xmmin,ymmin,zmmin,zbeam,zgrid)
+        else
+          call multigridbe3df(iwhich,nx,ny,nz,
+     &                        dx,dy,dz,phi,rho,
+     &                        rstar,linbend,
+     &                        bound0,boundnz,boundxy,l2symtry,l4symtry,
+     &                        xmmin,ymmin,zmmin,zbeam,zgrid)
+        endif
+
+#ifdef MPIPARALLEL
+      elseif (fstype == 8) then
+c         --- Experimental parallel solver
+c         --- Combines local tridiag solves with iteration to exchange
+c         --- boundary data.
+          call paralleltridiag(phi,kxsq,kysq,kzsq,
+     &                         attx,atty,attz,filt,xlen,ylen,zlen,
+     &                         nx,ny,nzlocal,
+     &                         nxguardphi,nyguardphi,nzguardphi,
+     &                         scrtch,xywork3d,zwork,l2symtry,l4symtry,
+     &                         bound0,boundnz,boundxy)
+      elseif (fstype == 9) then
+c         --- Experimental parallel solver based on the method
+c         --- put forward by Lantz
+          call lantzsolver(iwhich,phi,kxsq,kysq,kzsq,
+     &                     attx,atty,attz,filt,xlen,ylen,zlen,
+     &                     nx,ny,nzlocal,
+     &                     nxguardphi,nyguardphi,nzguardphi,
+     &                     scrtch,xywork3d,zwork,l2symtry,l4symtry,
+     &                     bound0,boundnz,boundxy)
+
+#endif
+      elseif (fstype == 10) then
+c       --- RZ full-multigrid solver
+       if (solvergeom==RZgeom .or. solvergeom==XZgeom .or. solvergeom==Zgeom) then
+         call multigridrzf(iwhich,phi,rho,nxlocal,nzlocal)
+       elseif (solvergeom==XYgeom) then
+         call multigridxyf2(iwhich,phi(:,:,0),rho,nxlocal,nylocal)
+       endif
+      elseif (fstype == 11) then
+c         --- Chombo AMR  full-multigrid solver
+        call cho_solve3d(iwhich,nxlocal,nylocal,nzlocal,nz,
+     &                   dx,dy,dz,
+     &                   l2symtry,l4symtry,xmmin,ymmin,zmminlocal,zmmin)
+      elseif (fstype == 12) then
+        if (iwhich <= 0) then
+          call callpythonfunc("fieldsolregistered","field_solvers.fieldsolver")
+        endif
+
+      elseif (fstype == 13) then
+
+        call multigridbe3df(iwhich,nx,ny,nz,
+     &                      dx,dy,dz,phi,rho,
+     &                      rstar,linbend,
+     &                      bound0,boundnz,boundxy,l2symtry,l4symtry,
+     &                      xmmin,ymmin,zmmin,zbeam,zgrid)
+
+      endif
+
+!$OMP MASTER
+      if (lw3dtimesubs) timevp3d = timevp3d + wtime() - substarttime
+!$OMP END MASTER
+      return
+      end
+c=============================================================================

@@ -1,0 +1,82 @@
+README for pygist-2.2*
+------------------------------------------------------------------------
+Original documentation by Lee Busby and Zane Motteler,
+Modifications and updates by Dave Grote
+------------------------------------------------------------------------
+
+Python Gist
+
+The Python Gist Scientific Graphics Package, version 2.2, written by
+Lee Busby and Zane Motteler of Lawrence Livermore National Laboratory,
+is a set of Python modules for production of general scientific graphics.
+We abbreviate the name to "PyGist" here and elsewhere.
+
+Description
+
+Gist is a scientific graphics library written by David H. Munro of Lawrence
+Livermore National Laboratory, as part of the Yorick language. It features
+support for three common graphics output devices: X-Windows, (Color)
+PostScript, and ANSI/ISO Standard Computer Graphics Metafiles (CGM). The
+library is small (written directly to Xlib), portable, efficient, and
+full-featured. It produces x-vs-y plots with "good" tick marks and tick
+labels, 2-D quadrilateral mesh plots with contours, vector fields, or
+pseudocolor maps on such meshes, and a selection of 3-D plots.
+
+The Python Gist module utilizes the numpy package. It is therefore fast and
+able to handle large datasets. The Gist module includes an X-windows event
+dispatcher which can be dynamically added to the Python interpreter. This
+makes fast mouse-controlled zoom, pan, and other graphic operations available
+to the researcher while maintaining the usual Python command-line interface.
+
+------------------------------------------------------------------------
+IMPLEMENTATION APPROACHES / CURRENT STATUS
+------------------------------------------------------------------------
+
+PyGist setups the event loop for interactive graphics by setting
+PyOS_inputHook (rl_event_hook) to u_wait_stdin. This approach was developed
+by Michiel de Hoon and implemented in PyGist. This approach works everywhere
+tested.
+
+------------------------------------------------------------------------
+INSTALLATION
+------------------------------------------------------------------------
+
+On all systems, install using the following two commands:
+
+python setup.py config
+python setup.py install
+
+This installs both the Python interface and the cgm file viewer, gist.
+
+Prerequisites:
+
+- We assume that you have Python (2.6 or later) with numpy.
+- PyGist requires the Gnu readline package.
+
+PyGist depends on portions of the Yorick library. To avoid a
+complete installation of Yorick, the relevant subdirectories (gist and play)
+have been extracted from Yorick and included in the src directory of the
+PyGist distribution.
+
+In addition to installing the extension and Python modules in the appropriate
+place in the Python installation, the installation also installs Gist data
+files in a subdirectory "g" and the gist browser in the "bin" directory
+of the Python installation directory. In some cases, the GISTPATH environment
+variable will need to be set so that gist can find the style and palette files.
+
+Test:
+-----
+
+To test PyGist:
+
+  python
+  import gistdemolow
+  gistdemomlow.run()
+  (ctrl-d)
+
+For online help:
+
+  python
+  from gist import *
+  help(plm)    for info on plm (plot mesh)
+

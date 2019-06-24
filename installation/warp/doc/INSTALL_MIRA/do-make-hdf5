@@ -1,0 +1,19 @@
+#!/bin/bash
+#COBALT -n 1 -t 60 -q default -O LOG.make -M hvincenti@lbl.gov -A PICSSAR 
+
+
+if [ -z $COBALT_PARTNAME  ] ; then
+  echo "Not in job, submitting self"
+  exec qsub $0 "$@"
+fi
+
+make 2>&1 $1
+status=$?
+
+echo
+echo "do-make: make completed with status: $status"
+echo
+
+exit $status
+
+

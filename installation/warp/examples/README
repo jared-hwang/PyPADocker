@@ -1,0 +1,15 @@
+Example applications of Warp
+----------------------------
+
+FODO3d.py: Ion beam propagation in a magnetic quadruple FODO lattice
+
+Pierce_diode.py: Run space-charge limited ion beam injection with a Pierce diode, using either time dependent or iterative gun method
+
+Solenoid_transport.py: Run time dependent space-charge limited ion beam injection with a Pierce diode, with subsequent transport into a solenoid lattice
+
+plasma_acceleration:
+    lpa_boostedframe_script.py: Laser plasma acceleration in the Lorentz boosted frame
+    lpa_script.py: Laser plasma acceleration in the laboratory frame
+    restart_after_lpa_script.py: Restart an LPA simulation from a dump file
+    test_antenna.py: Example setup of an antenna that launches a laser pulse
+

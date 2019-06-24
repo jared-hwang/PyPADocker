@@ -1,0 +1,7813 @@
+#include "top.h"
+
+subroutine depose_j_n_1dz(jx,jy,jz,np,zp,uxp,uyp,uzp,gaminv,w,q,zmin, &
+                          dt,dz,nz,nzguard,noz,l_particles_weight)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nz,nzguard,noz
+   real(kind=8), dimension(-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dz,zmin
+   logical(ISZ) :: l_particles_weight
+
+   real(kind=8) :: dzi,dtsdz,zint
+   real(kind=8),dimension(-int(noz/2)-1:int((noz+1)/2)+1) :: wz,sdz
+   real(kind=8) :: zold,zmid,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1z,s2z,invvol,invdtdx,invdtdy,invdtdz,ozint,ozintsq,zintsq
+   real(kind=8), DIMENSION(-int(noz/2)-1:int((noz+1)/2)+1) :: sz, sz0, dsz
+   integer(ISZ) :: ikxp0,ikxp,ip,diz,idz,k,izmin,izmax
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+      sz0=0.
+      
+      dzi = 1./dz
+      dtsdz = dt*dzi
+      dts2dz = 0.5*dtsdz
+      invvol = 1./dz
+      invdtdx = 1./(dt*dz)
+      invdtdy = 1./(dt*dz)
+      invdtdz = 1./(dt)
+
+      do ip=1,np
+      
+        ! --- computes current position in grid units
+        z = (zp(ip)-zmin)*dzi
+        
+        ! --- computes velocity
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        ! --- computes old position in grid units
+        zold=z-dtsdz*vz
+
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqy = wq*invdtdy
+        wqz = wq*invdtdz
+
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        if (noz==2*(noz/2)) then
+          ikxp0=nint(z)
+        else
+          ikxp0=floor(z)
+        end if
+
+        ! --- computes distance between particle and node for current positions
+        zint=z-ikxp0
+
+        ! --- computes coefficients for node centered quantities
+        select case(noz)
+         case(0)
+          sz0( 0) = 1.
+         case(1)
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+        end select        
+
+        ! --- finds node of cell containing particles for old positions 
+        ! --- (different for odd/even spline orders)
+        if (noz==2*(noz/2)) then
+          ikxp=nint(zold)
+        else
+          ikxp=floor(zold)
+        end if
+         ! --- computes distance between particle and node for old positions
+       zint = zold-ikxp
+
+        ! --- computes node separation between old and current positions
+        diz = ikxp-ikxp0
+
+        ! --- zero out coefficients (needed because of different dix and diz for each particle)
+        sz=0.
+
+        ! --- computes coefficients for quantities centered between nodes
+        select case(noz)
+         case(0)
+          sz( 0+diz) = 1.
+         case(1)
+          sz( 0+diz) = 1.-zint
+          sz( 1+diz) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1+diz) = 0.5*(0.5-zint)**2
+          sz( 0+diz) = 0.75-zintsq
+          sz( 1+diz) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1+diz) = onesixth*ozintsq*ozint
+          sz( 0+diz) = twothird-zintsq*(1.-zint/2)
+          sz( 1+diz) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2+diz) = onesixth*zintsq*zint
+        end select        
+
+        ! --- computes coefficients difference
+        dsz = sz - sz0
+        
+        ! --- computes min/max positions of current contributions
+        izmin = min(0,diz)-int(noz/2)
+        izmax = max(0,diz)+int((noz+1)/2)
+
+        do k=izmin, izmax
+          jx(ikxp0+k) = jx(ikxp0+k) + wq*vx*invvol*( sz0(k)+0.5*dsz(k) )
+          jy(ikxp0+k) = jy(ikxp0+k) + wq*vy*invvol*( sz0(k)+0.5*dsz(k) )
+        end do        
+        do k=izmin, izmax-1
+          sdz(k)  = wqz*dsz(k)
+          if (k>izmin) sdz(k)=sdz(k)+sdz(k-1)
+          jz(ikxp0+k) = jz(ikxp0+k)+sdz(k)
+        end do        
+
+        ! Esirkepov deposition of Jz is over; now starts linear deposition of Jx and Jy
+!        zmid=z-dts2dz*vz
+
+!        wqx = wq*vx*dzi
+!        wqy = wq*vy*dzi
+      
+!        if (noz==2*(noz/2)) then
+!          ikxp=nint(zmid)
+!        else
+!          ikxp=floor(zmid)
+!        end if
+
+!        zint = zmid-ikxp
+
+!        select case(noz)
+!         case(0)
+!          sz( 0) = 1.
+!         case(1)
+!          sz( 0) = 1.-zint
+!          sz( 1) = zint
+!         case(2)
+!          zintsq = zint*zint
+!          sz(-1) = 0.5*(0.5-zint)**2
+!          sz( 0) = 0.75-zintsq
+!          sz( 1) = 0.5*(0.5+zint)**2
+!         case(3)
+!          ozint = 1.-zint
+!          zintsq = zint*zint
+!          ozintsq = ozint*ozint
+!          sz(-1) = onesixth*ozintsq*ozint
+!          sz( 0) = twothird-zintsq*(1.-zint/2)
+!          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+!          sz( 2) = onesixth*zintsq*zint
+!        end select        
+
+        ! --- computes min/max positions of current contributions
+!        izmin = -int(noz/2)
+!        izmax = int((noz+1)/2)
+!        do k=izmin, izmax
+!          jx(ikxp+k) = jx(ikxp+k)+sz(k)*wqx
+!          jy(ikxp+k) = jy(ikxp+k)+sz(k)*wqy
+!        end do
+        
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_j_n_1dz
+
+! THIS SUBROUTINE IS NOT IN EM3D.v file 
+subroutine depose_j_serial_1d(jx,jy,jz,np,zp,uxp,uyp,uzp,gaminv,w,q,zmin, &
+                                                 dt,dz,nz,l_particles_weight)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nz
+   real(kind=8), dimension(-1:nz+1), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dz,zmin
+   logical(ISZ) :: l_particles_weight
+
+   real(kind=8) :: dzi,dtsdz,zint
+   real(kind=8),dimension(-1:2) :: wx,wy,wz,sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz
+   real(kind=8), DIMENSION(-1:2) :: sx, sy, sz, sx0, sy0, sz0, dsx, dsy, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+      sx0=0.;sy0=0.;sz0=0.
+      
+      dzi = 1./dz
+      dtsdz = dt*dzi
+      dts2dz = 0.5*dtsdz
+      invvol = 1./dz
+      invdtdx = 1./(dt*dz)
+      invdtdy = 1./(dt*dz)
+      invdtdz = 1./(dt)
+
+      do ip=1,np
+      
+        z = (zp(ip)-zmin)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        zold=z-dtsdz*vz
+
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqy = wq*invdtdy
+        wqz = wq*invdtdz
+
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        ikxp0=floor(z)
+
+        zint=z-ikxp0
+
+        sz0(0) = 1.-zint
+        sz0(1) = zint
+
+        ikxp=floor(zold)
+        zint = zold-ikxp
+
+        diz = ikxp-ikxp0
+
+        sz(0+diz) = 1.-zint
+        sz(1+diz) = zint
+
+        dsz = sz - sz0
+
+        do k = -1, 1
+          sdz(k)  = wqz*dsz(k)
+          if (k>-1) sdz(k)=sdz(k)+sdz(k-1)
+          jz(ikxp0+K) = jz(ikxp0+k)+sdz(k)
+        end do        
+
+        ! Esirkepov deposition of Jz is over; now starts linear deposition of Jx and Jy
+        zmid=z-dts2dz*vz
+
+        wqx = wq*vx*dzi
+        wqy = wq*vy*dzi
+      
+        ikxp=floor(zmid)
+
+        zint = zmid-ikxp
+
+        s1z = 1.-zint
+        s2z = zint
+
+        jx(ikxp  )=jx(ikxp  )+s1z*wqx
+        jx(ikxp+1)=jx(ikxp+1)+s2z*wqx
+        jy(ikxp  )=jy(ikxp  )+s1z*wqy
+        jy(ikxp+1)=jy(ikxp+1)+s2z*wqy
+        
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_j_serial_1d
+
+subroutine depose_jxjy_esirkepov_linear_serial_2d(jx,jy,jz,np,xp,yp,xpold,ypold,uzp,gaminv,w,q, &
+                                                     xmin,ymin,dt,dx,dy,nx,ny,l_particles_weight)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny
+   real(kind=8), dimension(-1:nx+1,-1:ny+1), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,yp,xpold,ypold,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dy,xmin,ymin
+   logical(ISZ) :: l_particles_weight
+
+   real(kind=8) :: dxi,dyi,dtsdx,dtsdy,sd(18),xint,yint,wx(1:4,1:5),wy(1:5,1:4)
+   real(kind=8) :: xold,yold,xmid,ymid,x,y,wq,wqx,wqy,tmp,vx,vy,vz,dts2dx,dts2dy,s1x,s2x,s1y,s2y,invsurf,invdtdx,invdtdy
+   real(kind=8), DIMENSION(6) :: sx, sy, sx0, sy0, dsx, dsy
+   integer(ISZ) :: iixp0,ijxp0,iixp,ijxp,ip,dix,diy,idx,idy
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dtsdx = dt*dxi
+      dtsdy = dt*dyi
+      dts2dx = 0.5*dtsdx
+      dts2dy = 0.5*dtsdy
+      invsurf = 1./(dx*dy)
+      invdtdx = 1./(dt*dx)
+      invdtdy = 1./(dt*dy)
+      
+      dsx = 0.
+      dsy = 0.
+      
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        
+        vx = (xp(ip)-xpold(ip))/dt
+        vy = (yp(ip)-ypold(ip))/dt
+        vz = gaminv(ip)*uzp(ip)
+        
+        xold=x-dtsdx*vx
+        yold=y-dtsdy*vy
+
+        xmid = 0.5*(x+xold)
+        ymid = 0.5*(y+yold)
+
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdy
+        wqy = wq*invdtdx
+
+!       computation of current at x n+1/2 v n+1/2
+
+        iixp0=floor(xold)
+        ijxp0=floor(yold)
+
+        xint=xold-iixp0
+        yint=yold-ijxp0
+
+        sx(1)=0.;sx(2)=0.;sx(5)=0.;sx(6)=0.
+        sy(1)=0.;sy(2)=0.;sy(5)=0.;sy(6)=0.
+
+!        sx0(1,iv) = 0.
+        sx0(2) = 0.
+        sx0(3) = 1.-xint
+        sx0(4) = xint
+        sx0(5) = 0.
+!        sx0(6,iv) = 0.
+
+!        sy0(1,iv) = 0.
+        sy0(2) = 0.
+        sy0(3) = 1.-yint
+        sy0(4) = yint
+        sy0(5) = 0.
+!        sy0(6,iv) = 0.
+
+        iixp=floor(x)
+        ijxp=floor(y)
+        xint = x-iixp
+        yint = y-ijxp
+
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+
+        sx=0.;sy=0.
+        sx(2+dix) = 0.
+        sx(3+dix) = 1.-xint
+        sx(4+dix) = xint
+        sx(5+dix) = 0.       
+
+        sy(2+diy) = 0.
+        sy(3+diy) = 1.-yint
+        sy(4+diy) = yint
+        sy(5+diy) = 0.       
+       
+
+        idx = MIN(0,dix)
+        idy = MIN(0,diy)
+
+        iixp0 = iixp0+idx
+        ijxp0 = ijxp0+idy
+
+        dsx(2)=sx(2)-sx0(2);dsx(3)=sx(3)-sx0(3)
+        dsx(4)=sx(4)-sx0(4);dsx(5)=sx(5)-sx0(5)
+        dsy(2)=sy(2)-sy0(2);dsy(3)=sy(3)-sy0(3)
+        dsy(4)=sy(4)-sy0(4);dsy(5)=sy(5)-sy0(5)
+
+        tmp = (sy0(3+idy)+0.5*dsy(3+idy))*wqx; wx(2,1) = dsx(3+idx)*tmp
+                                               wx(3,1) = dsx(4+idx)*tmp
+                                               wx(4,1) = dsx(5+idx)*tmp
+        tmp = (sy0(4+idy)+0.5*dsy(4+idy))*wqx; wx(2,2) = dsx(3+idx)*tmp
+                                               wx(3,2) = dsx(4+idx)*tmp
+                                               wx(4,2) = dsx(5+idx)*tmp
+        tmp = (sy0(5+idy)+0.5*dsy(5+idy))*wqx; wx(2,4) = dsx(3+idx)*tmp
+                                               wx(3,4) = dsx(4+idx)*tmp
+                                               wx(4,4) = dsx(5+idx)*tmp
+
+        tmp = (sx0(3+idx)+0.5*dsx(3+idx))*wqy; wy(2,1) = dsy(3+idy)*tmp
+                                               wy(2,2) = dsy(4+idy)*tmp
+                                               wy(2,4) = dsy(5+idy)*tmp
+        tmp = (sx0(4+idx)+0.5*dsx(4+idx))*wqy; wy(3,1) = dsy(3+idy)*tmp
+                                               wy(3,2) = dsy(4+idy)*tmp
+                                               wy(3,4) = dsy(5+idy)*tmp
+        tmp = (sx0(5+idx)+0.5*dsx(5+idx))*wqy; wy(4,1) = dsy(3+idy)*tmp
+                                               wy(4,2) = dsy(4+idy)*tmp
+                                               wy(4,4) = dsy(5+idy)*tmp
+!        write(0,*) dix,idx,diy,idy,dsx(2+idx),dsy(2+idy)
+        sd(1) = wx(2,1)
+        sd(2) = wx(3,1)+sd(1)
+        sd(3) = wx(4,1)+sd(2)
+
+        sd(4) = wx(2,2)
+        sd(5) = wx(3,2)+sd(4)
+        sd(6) = wx(4,2)+sd(5)
+
+        sd(7) = wx(2,4)
+        sd(8) = wx(3,4)+sd(7)
+        sd(9) = wx(4,4)+sd(8)
+
+        sd(10) = wy(2,1)
+        sd(13) = wy(2,2)+sd(10)
+        sd(16) = wy(2,4)+sd(13)
+
+        sd(11) = wy(3,1)
+        sd(14) = wy(3,2)+sd(11)
+        sd(17) = wy(3,4)+sd(14)
+
+        sd(12) = wy(4,1)
+        sd(15) = wy(4,2)+sd(12)
+        sd(18) = wy(4,4)+sd(15)
+
+        jx(iixp0,  ijxp0  )=jx(iixp0  ,ijxp0  )-sd(1)
+        jx(iixp0+1,ijxp0  )=jx(iixp0+1,ijxp0  )-sd(2)
+        jx(iixp0+2,ijxp0  )=jx(iixp0+2,ijxp0  )-sd(3)
+        jx(iixp0,  ijxp0+1)=jx(iixp0  ,ijxp0+1)-sd(4)
+        jx(iixp0+1,ijxp0+1)=jx(iixp0+1,ijxp0+1)-sd(5)
+        jx(iixp0+2,ijxp0+1)=jx(iixp0+2,ijxp0+1)-sd(6)
+        jx(iixp0,  ijxp0+2)=jx(iixp0  ,ijxp0+2)-sd(7)
+        jx(iixp0+1,ijxp0+2)=jx(iixp0+1,ijxp0+2)-sd(8)
+        jx(iixp0+2,ijxp0+2)=jx(iixp0+2,ijxp0+2)-sd(9)
+            
+        jz(iixp0,  ijxp0  )=jz(iixp0  ,ijxp0  )-sd(10)
+        jz(iixp0+1,ijxp0  )=jz(iixp0+1,ijxp0  )-sd(11)
+        jz(iixp0+2,ijxp0  )=jz(iixp0+2,ijxp0  )-sd(12)
+        jz(iixp0,  ijxp0+1)=jz(iixp0  ,ijxp0+1)-sd(13)
+        jz(iixp0+1,ijxp0+1)=jz(iixp0+1,ijxp0+1)-sd(14)
+        jz(iixp0+2,ijxp0+1)=jz(iixp0+2,ijxp0+1)-sd(15)
+        jz(iixp0,  ijxp0+2)=jz(iixp0  ,ijxp0+2)-sd(16)
+        jz(iixp0+1,ijxp0+2)=jz(iixp0+1,ijxp0+2)-sd(17)
+        jz(iixp0+2,ijxp0+2)=jz(iixp0+2,ijxp0+2)-sd(18)
+      
+        ! Esirkepov deposition of Jx and Jz is over; now starts linear deposition of Jy
+        wq = wq*vz*invsurf
+      
+        iixp=floor(xmid)
+        ijxp=floor(ymid)
+
+        xint = xmid-iixp
+        yint = ymid-ijxp
+
+        s1x = 1.-xint
+        s2x = xint
+
+        s1y = 1.-yint
+        s2y = yint
+
+        jy(iixp  ,ijxp  )=jy(iixp  ,ijxp  )+s1x*s1y*wq
+        jy(iixp+1,ijxp  )=jy(iixp+1,ijxp  )+s2x*s1y*wq
+        jy(iixp  ,ijxp+1)=jy(iixp  ,ijxp+1)+s1x*s2y*wq
+        jy(iixp+1,ijxp+1)=jy(iixp+1,ijxp+1)+s2x*s2y*wq
+        
+      
+    end do
+    write(0,*) '*** sum j',sum(jx(:,:)),sum(jy(:,:)),sum(jz(:,:))
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjy_esirkepov_linear_serial_2d
+
+subroutine depose_jxjyjz_esirkepov_n_2d(jx,jy,jz,np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q,xmin,zmin, &
+                                                 dt,dx,dz,nx,nz,nxguard,nzguard, &
+                                                 nox,noz,l_particles_weight,l4symtry,l_2drz,type_rz_depose)
+   use Constant, only: clight
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard,type_rz_depose
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry,l_2drz
+
+   real(kind=8) :: dxi,dzi,dtsdx,dtsdz,xint,yint,zint
+   real(kind=8),dimension(:,:), allocatable :: sdx,sdz
+   real(kind=8) :: xold,yold,zold,rold,xmid,zmid,x,y,z,r,c,s,wq,wqx,wqz, &
+                   tmp,vx,vy,vz,dts2dx,dts2dz, &
+                   s1x,s2x,s1z,s2z,invvol,invdtdx,invdtdz, &
+                   oxint,ozint,xintsq,zintsq,oxintsq,ozintsq, &
+                   dtsdx0,dtsdz0,dts2dx0,dts2dz0
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8), dimension(:), allocatable :: sx, sx0, dsx, sz, sz0, dsz
+   integer(ISZ) :: iixp0,ikxp0,iixp,ikxp,ip,dix,diz,idx,idz,i,k,ic,kc, &
+                   ixmin, ixmax, izmin, izmax, icell, ncells, ndtodx, ndtodz, &
+                   xl,xu,zl,zu
+   real(kind=8):: starttime, wtime
+   integer:: alloc_status
+
+   starttime = wtime()
+
+    ndtodx = int(clight*dt/dx)
+    ndtodz = int(clight*dt/dz)
+    xl = -int(nox/2)-1-ndtodx
+    xu = int((nox+1)/2)+1+ndtodx
+    zl = -int(noz/2)-1-ndtodz
+    zu = int((noz+1)/2)+1+ndtodz
+    allocate(sdx(xl:xu,zl:zu),sdz(xl:xu,zl:zu), &
+             sx(xl:xu), sx0(xl:xu), dsx(xl:xu), &
+             sz(zl:zu), sz0(zl:zu), dsz(zl:zu), stat=alloc_status)
+    if (alloc_status /= 0) then
+      print*,"Error:depose_jxjyjz_esirkepov_n_2d: sdx et al could not be allocated"
+      stop
+    endif
+
+    sx0=0.;sz0=0.
+    sdx=0.;sdz=0.
+      
+    ! Davoine method : limited to order 1 in r
+    if (type_rz_depose==2) then
+       nox = 1
+    endif
+
+      dxi = 1./dx
+      dzi = 1./dz
+      invvol = 1./(dx*dz)
+      dtsdx0 = dt*dxi
+      dtsdz0 = dt*dzi
+      dts2dx0 = 0.5*dtsdx0
+      dts2dz0 = 0.5*dtsdz0
+      invdtdx = 1./(dt*dz)
+      invdtdz = 1./(dt*dx)
+
+      do ip=1,np
+      
+        ! --- computes current position in grid units
+        x = xp(ip)
+        if (l_2drz) then
+          y = yp(ip)
+          r=sqrt(x*x+y*y)
+          if (r*dxi>1.e-10) then
+            c = x/r 
+            s = y/r
+          else
+            c = 1.
+            s = 0.
+          end if
+          x = r
+        end if
+        x=x*dxi
+        z = zp(ip)*dzi
+          
+        ! --- computes velocity
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+
+        ! --- computes old position in grid units
+        if (l_2drz) then
+          xold = xp(ip)-dt*vx
+          yold = yp(ip)-dt*vy
+          rold = sqrt(xold*xold+yold*yold)
+          xold=rold*dxi
+          vy = -vx*s+vy*c
+          vx = (x-xold)/dtsdx0
+        else
+          xold=x-dtsdx0*vx
+        end if
+        zold=z-dtsdz0*vz
+ 
+        ! --- applies 4-fold symmetry
+        if (l4symtry) then
+          x=abs(x)
+          xold=abs(xold)
+          vx = (x-xold)/dtsdx0
+        end if
+
+        ! --- sets positions relative to grid  start
+        x = x-xmin*dxi
+        z = z-zmin*dzi
+        xold = xold-xmin*dxi
+        zold = zold-zmin*dzi
+        
+        ! computes maximum number of cells traversed by particle in a given dimension
+        ncells = 1!+max( int(abs(x-xold)), int(abs(z-zold)))
+        
+        dtsdx = dtsdx0/ncells
+        dtsdz = dtsdz0/ncells
+        dts2dx = dts2dx0/ncells
+        dts2dz = dts2dz0/ncells
+        
+        x=xold
+        z=zold
+        
+        do icell = 1,ncells
+
+        xold = x
+        zold = z
+
+        x = x+dtsdx*vx
+        z = z+dtsdz*vz
+
+        ! --- computes particles "weights"
+        if (l_particles_weight) then
+           wq=q*w(ip)
+        else
+           wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqz = wq*invdtdz
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          iixp0=nint(x)
+        else
+          iixp0=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          ikxp0=nint(z)
+        else
+          ikxp0=floor(z)
+        end if
+
+        ! --- computes distance between particle and node for current positions
+        xint=x-iixp0
+        zint=z-ikxp0
+
+        ! --- computes coefficients for node centered quantities
+        if (type_rz_depose == 2) then ! Davoine method, modified particle shapes in r
+           sx0(0) = 1. - xint  + 1./(4*iixp0+2)*( -xint + xint**2 )
+           sx0(1) = 1. - sx0(0)
+        else! Standard method, canonical shapes in r 
+           select case(nox)
+           case(0)
+              sx0( 0) = 1.
+           case(1)
+              sx0( 0) = 1.-xint
+              sx0( 1) = xint
+           case(2)
+              xintsq = xint*xint
+              sx0(-1) = 0.5*(0.5-xint)**2
+              sx0( 0) = 0.75-xintsq
+              sx0( 1) = 0.5*(0.5+xint)**2
+           case(3)
+              oxint = 1.-xint
+              xintsq = xint*xint
+              oxintsq = oxint*oxint
+              sx0(-1) = onesixth*oxintsq*oxint
+              sx0( 0) = twothird-xintsq*(1.-xint/2)
+              sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+              sx0( 2) = onesixth*xintsq*xint
+           end select
+        endif
+
+        select case(noz)
+        case(0)
+           sz0( 0) = 1.
+        case(1)
+           sz0( 0) = 1.-zint
+           sz0( 1) = zint
+        case(2)
+           zintsq = zint*zint
+           sz0(-1) = 0.5*(0.5-zint)**2
+           sz0( 0) = 0.75-zintsq
+           sz0( 1) = 0.5*(0.5+zint)**2
+        case(3)
+           ozint = 1.-zint
+           zintsq = zint*zint
+           ozintsq = ozint*ozint
+           sz0(-1) = onesixth*ozintsq*ozint
+           sz0( 0) = twothird-zintsq*(1.-zint/2)
+           sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+           sz0( 2) = onesixth*zintsq*zint
+        end select
+
+        ! --- finds node of cell containing particles for old positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+           iixp=nint(xold)
+        else
+           iixp=floor(xold)
+        end if
+        if (noz==2*(noz/2)) then
+           ikxp=nint(zold)
+        else
+           ikxp=floor(zold)
+        end if
+
+        ! --- computes distance between particle and node for old positions
+        xint = xold-iixp
+        zint = zold-ikxp
+
+        ! --- computes node separation between old and current positions
+        dix = iixp-iixp0
+        diz = ikxp-ikxp0
+
+        ! --- zero out coefficients (needed because of different dix and diz for each particle)
+        sx=0.;sz=0.
+
+        ! --- computes coefficients for quantities centered between nodes
+        if (type_rz_depose == 2) then ! Davoine method, modified particle shapes in r
+           sx(0) = 1. - xint  + 1./(4*iixp+2)*( -xint + xint**2 )
+           sx(1) = 1. - sx(0)
+        else! Standard method, canonical shapes in r 
+           select case(nox)
+           case(0)
+              sx( 0+dix) = 1.
+           case(1)
+              sx( 0+dix) = 1.-xint
+              sx( 1+dix) = xint
+           case(2)
+              xintsq = xint*xint
+              sx(-1+dix) = 0.5*(0.5-xint)**2
+              sx( 0+dix) = 0.75-xintsq
+              sx( 1+dix) = 0.5*(0.5+xint)**2
+           case(3)
+              oxint = 1.-xint
+              xintsq = xint*xint
+              oxintsq = oxint*oxint
+              sx(-1+dix) = onesixth*oxintsq*oxint
+              sx( 0+dix) = twothird-xintsq*(1.-xint/2)
+              sx( 1+dix) = twothird-oxintsq*(1.-oxint/2)
+              sx( 2+dix) = onesixth*xintsq*xint
+           end select
+        endif
+        
+        select case(noz)
+        case(0)
+           sz( 0+diz) = 1.
+        case(1)
+           sz( 0+diz) = 1.-zint
+           sz( 1+diz) = zint
+        case(2)
+           zintsq = zint*zint
+           sz(-1+diz) = 0.5*(0.5-zint)**2
+           sz( 0+diz) = 0.75-zintsq
+           sz( 1+diz) = 0.5*(0.5+zint)**2
+        case(3)
+           ozint = 1.-zint
+           zintsq = zint*zint
+           ozintsq = ozint*ozint
+           sz(-1+diz) = onesixth*ozintsq*ozint
+           sz( 0+diz) = twothird-zintsq*(1.-zint/2)
+           sz( 1+diz) = twothird-ozintsq*(1.-ozint/2)
+           sz( 2+diz) = onesixth*zintsq*zint
+        end select
+
+        ! --- computes coefficients difference
+        dsx = sx - sx0
+        dsz = sz - sz0
+
+        ! --- computes min/max positions of current contributions
+        ixmin = min(0,dix)-int(nox/2)
+        ixmax = max(0,dix)+int((nox+1)/2)
+        izmin = min(0,diz)-int(noz/2)
+        izmax = max(0,diz)+int((noz+1)/2)
+        
+        ! --- add current contributions
+        ! --- NB : the current is later divided by the cylindrical cell volume in applybc_j
+        do k=izmin, izmax
+           do i=ixmin, ixmax
+              ic = iixp0+i
+              kc = ikxp0+k
+
+              ! -- Jx
+              if(i<ixmax) then
+                 sdx(i,k)  = wqx*dsx(i)*( sz0(k) + 0.5*dsz(k) )    ! Wx coefficient from esirkepov
+                 if (i>ixmin) sdx(i,k)=sdx(i,k)+sdx(i-1,k)         ! Integration of Wx along x
+                 jx(ic,kc) = jx(ic,kc) + sdx(i,k)              ! Deposition on the current
+              end if
+              
+              ! -- Jy (2D Esirkepov scheme)
+              jy(ic,kc) = jy(ic,kc) + wq*vy*invvol/ncells* &
+                   ( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i) )
+
+              ! -- Jz
+              if(k<izmax) then
+                 sdz(i,k)  = wqz*dsz(k)*(sx0(i)+0.5*dsx(i))        ! Wz coefficient from esirkepov
+                 if (k>izmin) sdz(i,k)=sdz(i,k)+sdz(i,k-1)         ! Integration of Wz along z
+                 jz(ic,kc) = jz(ic,kc) + sdz(i,k)              ! Deposition on the current
+                 
+              end if
+           end do
+        end do
+
+     end do
+
+    end do
+    
+    deallocate(sdx,sdz,sx,sx0,dsx,sz,sz0,dsz)
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_esirkepov_n_2d
+
+subroutine depose_jxjyjz_esirkepov_n_2d_circ(jx,jy,jz,jx_circ,jy_circ,jz_circ,circ_m,np,xp,yp,zp,uxp,uyp,uzp,gaminv, &
+     w,q,xmin,zmin,dt,dx,dz,nx,nz,nxguard,nzguard,nox,noz,l_particles_weight,type_rz_depose)
+   use Constant, only: clight
+  use Timers, Only: deposetime
+  implicit none
+  integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard,circ_m,type_rz_depose
+  real(kind=8), dimension(-nxguard:nx+nxguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+  complex(kind=8), dimension(-nxguard:nx+nxguard,-nzguard:nz+nzguard,circ_m), intent(in out) :: jx_circ,jy_circ,jz_circ
+  real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+  real(kind=8) :: q,dt,dx,dz,xmin,zmin
+  logical(ISZ) :: l_particles_weight
+
+  real(kind=8) :: dxi,dzi,dtsdx,dtsdz,xint,yint,zint, invr, dti
+   real(kind=8),dimension(:,:), allocatable :: sdx,sdz
+  real(kind=8), dimension(1:circ_m) :: wqt, invdtm
+  real(kind=8) :: xold,yold,zold,rold,xmid,ymid,zmid,x,y,z,r,c,s,wq,wqx,wqz, &
+       tmp,vx,vy,vz,dts2dx,dts2dz, &
+       s1x,s2x,s1z,s2z,invvol,invdtdx,invdtdz, &
+       oxint,ozint,xintsq,zintsq,oxintsq,ozintsq, &
+       dtsdx0,dtsdz0,dts2dx0,dts2dz0,rmid,cold,cmid,sold,smid
+  real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8), dimension(:), allocatable :: sx, sx0, dsx, sz, sz0, dsz
+  integer(ISZ) :: iixp0,ikxp0,iixp,ikxp,ip,dix,diz,idx,idz,i,k,ic,kc, &
+       ixmin, ixmax, izmin, izmax, icell, ncells, m, ndtodx, ndtodz, &
+                   xl,xu,zl,zu
+  complex(kind=8) :: xymid,xymid0,xy,xy0,xyold,xyold0, im
+  real(kind=8):: starttime, wtime
+  integer:: alloc_status
+
+  starttime = wtime()
+
+  im = cmplx(0.,1.)
+
+  ndtodx = int(clight*dt/dx)
+  ndtodz = int(clight*dt/dz)
+  xl = -int(nox/2)-1-ndtodx
+  xu = int((nox+1)/2)+1+ndtodx
+  zl = -int(noz/2)-1-ndtodz
+  zu = int((noz+1)/2)+1+ndtodz
+  allocate(sdx(xl:xu,zl:zu),sdz(xl:xu,zl:zu), &
+           sx(xl:xu), sx0(xl:xu), dsx(xl:xu), &
+           sz(zl:zu), sz0(zl:zu), dsz(zl:zu), stat=alloc_status)
+  if (alloc_status /= 0) then
+    print*,"Error:depose_jxjyjz_esirkepov_n_2d_circ: sdx et al could not be allocated"
+    stop
+  endif
+
+  sx0=0.;sz0=0.
+  sdx=0.;sdz=0.
+
+  ! Davoine method : limited to order 1 in r
+  if (type_rz_depose==2) then
+     nox = 1
+  endif
+
+  dxi = 1./dx
+  dzi = 1./dz
+  dti = 1./dt
+  invvol = 1./(dx*dz)
+  dtsdx0 = dt*dxi
+  dtsdz0 = dt*dzi
+  dts2dx0 = 0.5*dtsdx0
+  dts2dz0 = 0.5*dtsdz0
+  invdtdx = 1./(dt*dz)
+  invdtdz = 1./(dt*dx)
+  do m = 1, circ_m
+     invdtm(m) = invdtdx/m
+  enddo
+
+  do ip=1,np
+
+     ! --- computes current position in grid units
+     x = xp(ip)
+     y = yp(ip)
+     xmid = 0.5*x
+     ymid = 0.5*y
+     r=sqrt(x*x+y*y)
+     if (r*dxi>1.e-10) then
+        invr = 1./r
+        c = x*invr 
+        s = y*invr
+     else
+        c = 1.
+        s = 0.
+     end if
+     xy0 = cmplx(c,s)
+     x = r
+     x = x*dxi
+     z = zp(ip)*dzi
+
+     ! --- computes velocity
+     vx = uxp(ip)*gaminv(ip)
+     vy = uyp(ip)*gaminv(ip)
+     vz = uzp(ip)*gaminv(ip)
+
+     ! --- computes old position in grid units
+     xold = xp(ip)-dt*vx
+     yold = yp(ip)-dt*vy
+     rold = sqrt(xold*xold+yold*yold)
+     if (rold*dxi>1.e-10) then
+        invr = 1./rold
+        cold = xold*invr 
+        sold = yold*invr
+     else
+        cold = 1.
+        sold = 0.
+     end if
+     xyold0 = cmplx(cold, sold)
+     xmid = xmid + 0.5*xold
+     ymid = ymid + 0.5*yold
+     rmid=sqrt(xmid*xmid+ymid*ymid)
+     if (rmid*dxi>1.e-10) then
+        invr = 1./rmid
+        cmid = xmid*invr 
+        smid = ymid*invr
+     else
+        cmid = 1.
+        smid = 0.
+     end if
+     xymid0 = cmplx(cmid,smid)
+     xold=rold*dxi
+     vy = -vx*smid+vy*cmid
+     vx = (x-xold)*dx*dti
+     zold=z-dtsdz0*vz
+
+     ! --- sets positions relative to grid start
+     x = x-xmin*dxi
+     z = z-zmin*dzi
+     xold = xold-xmin*dxi
+     zold = zold-zmin*dzi
+
+     ! computes maximum number of cells traversed by particle in a given dimension
+     ncells = 1!+max( int(abs(x-xold)), int(abs(z-zold)))
+     dtsdx = dtsdx0/ncells
+     dtsdz = dtsdz0/ncells
+     dts2dx = dts2dx0/ncells
+     dts2dz = dts2dz0/ncells
+
+     x=xold
+     z=zold
+
+     do icell = 1,ncells
+
+        xold = x
+        zold = z
+
+        x = x+dtsdx*vx
+        z = z+dtsdz*vz
+
+        ! --- computes particles "weights"
+        if (l_particles_weight) then
+           wq=q*w(ip)
+        else
+           wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqz = wq*invdtdz
+        wqt(:) = wq*invdtm(:)
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+           iixp0=nint(x)
+        else
+           iixp0=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+           ikxp0=nint(z)
+        else
+           ikxp0=floor(z)
+        end if
+
+        ! --- computes distance between particle and node for current positions
+        xint=x-iixp0
+        zint=z-ikxp0
+
+        ! --- computes coefficients for node centered quantities
+        if (type_rz_depose == 2) then ! Davoine method, modified particle shapes in r
+           sx0(0) = 1. - xint + 1./(4*iixp0+2)*( -xint + xint**2 )
+           sx0(1) = 1. - sx0(0)
+        else                          ! Standard method, canonical shapes in r
+           select case(nox)
+           case(0)
+              sx0( 0) = 1.
+           case(1)
+              sx0( 0) = 1.-xint
+              sx0( 1) = xint
+           case(2)
+              xintsq = xint*xint
+              sx0(-1) = 0.5*(0.5-xint)**2
+              sx0( 0) = 0.75-xintsq
+              sx0( 1) = 0.5*(0.5+xint)**2
+           case(3)
+              oxint = 1.-xint
+              xintsq = xint*xint
+              oxintsq = oxint*oxint
+              sx0(-1) = onesixth*oxintsq*oxint
+              sx0( 0) = twothird-xintsq*(1.-xint/2)
+              sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+              sx0( 2) = onesixth*xintsq*xint
+           end select
+        endif
+
+        select case(noz)
+        case(0)
+           sz0( 0) = 1.
+        case(1)
+           sz0( 0) = 1.-zint
+           sz0( 1) = zint
+        case(2)
+           zintsq = zint*zint
+           sz0(-1) = 0.5*(0.5-zint)**2
+           sz0( 0) = 0.75-zintsq
+           sz0( 1) = 0.5*(0.5+zint)**2
+        case(3)
+           ozint = 1.-zint
+           zintsq = zint*zint
+           ozintsq = ozint*ozint
+           sz0(-1) = onesixth*ozintsq*ozint
+           sz0( 0) = twothird-zintsq*(1.-zint/2)
+           sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+           sz0( 2) = onesixth*zintsq*zint
+        end select
+
+        ! --- finds node of cell containing particles for old positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+           iixp=nint(xold)
+        else
+           iixp=floor(xold)
+        end if
+        if (noz==2*(noz/2)) then
+           ikxp=nint(zold)
+        else
+           ikxp=floor(zold)
+        end if
+
+        ! --- computes distance between particle and node for old positions
+        xint = xold-iixp
+        zint = zold-ikxp
+
+        ! --- computes node separation between old and current positions
+        dix = iixp-iixp0
+        diz = ikxp-ikxp0
+
+        ! --- zero out coefficients (needed because of different dix and diz for each particle)
+        sx=0.;sz=0.
+
+        ! --- computes coefficients for quantities centered between nodes
+        if (type_rz_depose == 2) then ! Davoine method, modified particle shapes in r
+           sx(0+dix) = 1. - xint + 1./(4*iixp+2)*( -xint + xint**2 )
+           sx(1+dix) = 1. - sx(0+dix)
+        else! Standard method, canonical shapes in r 
+           select case(nox)
+           case(0)
+              sx( 0+dix) = 1.
+           case(1)
+              sx( 0+dix) = 1.-xint
+              sx( 1+dix) = xint
+           case(2)
+              xintsq = xint*xint
+              sx(-1+dix) = 0.5*(0.5-xint)**2
+              sx( 0+dix) = 0.75-xintsq
+              sx( 1+dix) = 0.5*(0.5+xint)**2
+           case(3)
+              oxint = 1.-xint
+              xintsq = xint*xint
+              oxintsq = oxint*oxint
+              sx(-1+dix) = onesixth*oxintsq*oxint
+              sx( 0+dix) = twothird-xintsq*(1.-xint/2)
+              sx( 1+dix) = twothird-oxintsq*(1.-oxint/2)
+              sx( 2+dix) = onesixth*xintsq*xint
+           end select
+        endif
+
+        select case(noz)
+        case(0)
+           sz( 0+diz) = 1.
+        case(1)
+           sz( 0+diz) = 1.-zint
+           sz( 1+diz) = zint
+        case(2)
+           zintsq = zint*zint
+           sz(-1+diz) = 0.5*(0.5-zint)**2
+           sz( 0+diz) = 0.75-zintsq
+           sz( 1+diz) = 0.5*(0.5+zint)**2
+        case(3)
+           ozint = 1.-zint
+           zintsq = zint*zint
+           ozintsq = ozint*ozint
+           sz(-1+diz) = onesixth*ozintsq*ozint
+           sz( 0+diz) = twothird-zintsq*(1.-zint/2)
+           sz( 1+diz) = twothird-ozintsq*(1.-ozint/2)
+           sz( 2+diz) = onesixth*zintsq*zint
+        end select
+
+        ! --- computes coefficients difference
+        dsx = sx - sx0
+        dsz = sz - sz0
+
+        ! --- computes min/max positions of current contributions
+        ixmin = min(0,dix)-int(nox/2)
+        ixmax = max(0,dix)+int((nox+1)/2)
+        izmin = min(0,diz)-int(noz/2)
+        izmax = max(0,diz)+int((noz+1)/2)
+
+        ! --- add current contributions
+        ! -- NB : the current is later divided by the cylindrical cell volume in applybc_j
+        do k=izmin, izmax
+           do i=ixmin, ixmax
+              ic = iixp0+i
+              kc = ikxp0+k
+
+              ! -- Jr
+              if(i<ixmax) then
+                 sdx(i,k)  = wqx*dsx(i)*( sz0(k) + 0.5*dsz(k) )    ! Wr coefficient from esirkepov
+                 if (i>ixmin) sdx(i,k)=sdx(i,k)+sdx(i-1,k)         ! Integration of Wr along r
+                 jx(ic,kc) = jx(ic,kc) + sdx(i,k)              ! Deposition on the mode m = 0
+                 xymid = xymid0 ! Throughout the following loop, xymid takes the value e^{i m theta}
+                 do m = 1, circ_m                                  ! Deposition on the modes m>0
+                    jx_circ(ic,kc,m) = jx_circ(ic,kc,m) + 2.*sdx(i,k)*xymid
+                    ! The factor 2 comes from the normalization of the modes
+                    xymid = xymid*xymid0
+                 enddo
+              end if
+
+              ! -- Jtheta
+              ! Mode m = 0 : similar to the 2D Esirkepov scheme
+              jy(ic,kc) = jy(ic,kc) + wq*vy*invvol/ncells* &
+                   ( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i) )
+              ! Mode m > 0 : see Davidson et al. JCP 281 (2014)
+              xy = xy0 ; xymid = xymid0 ; xyold = xyold0
+              ! Throughout the following loop, xy_ takes the value e^{i m theta_}
+              do m = 1, circ_m
+                 jy_circ(ic,kc,m) = jy_circ(ic,kc,m) - 2*im*(ic+xmin*dxi)*wqt(m) * &
+                      ( sx0(i)*sz0(k)*(xy-xymid) + sx(i)*sz(k)*(xymid-xyold) )
+                 ! The factor 2 comes from the normalization of the modes
+                 ! The minus sign comes from the different convention with respect to Davidson et al.
+                 xy = xy*xy0 ; xymid = xymid*xymid0 ; xyold = xyold*xyold0
+              enddo
+
+              ! -- Jz
+              if(k<izmax) then
+                 sdz(i,k)  = wqz*dsz(k)*(sx0(i)+0.5*dsx(i))        ! Wz coefficient from esirkepov
+                 if (k>izmin) sdz(i,k)=sdz(i,k)+sdz(i,k-1)         ! Integration of Wz along z
+                 jz(ic,kc) = jz(ic,kc) + sdz(i,k)              ! Deposition on the mode m=0
+                 xymid = xymid0 ! Throughout the following loop, xymid takes the value e^{i m theta}
+                 do m = 1, circ_m                                  ! Deposition on the modes m>0
+                    jz_circ(ic,kc,m) = jz_circ(ic,kc,m) + 2.*sdz(i,k)*xymid
+                    ! The factor 2 comes from the normalization of the modes
+                    xymid = xymid*xymid0
+                 enddo
+              end if
+           end do
+        end do
+
+     end do
+
+  end do
+
+  deallocate(sdx,sdz,sx,sx0,dsx,sz,sz0,dsz)
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_esirkepov_n_2d_circ
+
+subroutine depose_jxjyjz_villasenor_n_2d(jx,jy,jz,np,xp,zp,uxp,uyp,uzp,gaminv,w,q,xmin,zmin, &
+                                                 dt,dx,dz,nx,nz,nxguard,nzguard, &
+                                                 nox,noz,l_particles_weight,l4symtry)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dzi,dtsdx,dtsdz,xint,yint,zint
+   real(kind=8),dimension(-int(nox/2)-1:int((nox+1)/2)+1, &
+                          -int(noz/2)-1:int((noz+1)/2)+1) :: sdx,sdz
+   real(kind=8) :: xold,zold,xmid,zmid,x,z,wq,wqx,wqz,tmp,vx,vy,vz,deltx,deltz
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8)::xnode(-nxguard:nx+nxguard),znode(-nzguard:nz+nzguard),length, &
+                 x1,x2,z1,z2,qq(np),xx1,zz1,xx2,zz2,invvol,deltsx,deltsz,dtsdx0,dtsdz0, &
+                 lengood,wr1,wr2,wz1,wz2,curx,curz,xmoy,zmoy,lengthx,lengthz
+   integer(ISZ) :: iixp0,ikxp0,iixp,ikxp,ip,dix,diz,idx,idz,i,k,ic,kc, interx, interz, jn2,ln2,jni,lni,&
+                   ixmin, ixmax, izmin, izmax, icell, ncells,jn,ln,jn1,ln1,j,jtot,nloop
+   logical(ISZ) :: doit
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+   
+      dxi = 1./dx
+      dzi = 1./dz
+      invvol = 1./(dx*dz)
+      dtsdx0 = dt*dxi
+      dtsdz0 = dt*dzi
+
+      deltsx = 1. / 1.e10  
+      deltsz = 1. / 1.e10  
+      
+      do jn = -nxguard, nx+nxguard
+        xnode(jn) = xmin/dx + jn!*dx
+      end do
+
+      do ln = -nzguard, nz+nzguard
+        znode(ln) = zmin/dz + ln!*dz
+      end do
+
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        z = (zp(ip)-zmin)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        xold=x-dtsdx0*vx
+        zold=z-dtsdz0*vz
+ 
+        if (l4symtry) then
+          x=abs(x)
+          xold=abs(xold)
+          vx = (x-xold)/dtsdx0
+        end if
+       
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol
+        else
+          wq=q*w(1)*invvol
+        end if
+
+        jn1 = floor(xold)
+        ln1 = floor(zold)
+        jn2 = floor(x)
+        ln2 = floor(z)
+        jni = jn2
+        lni = ln2
+        
+        x1 = xold
+        z1 = zold
+        x2 = x
+        z2 = z
+
+        doit = .true.
+
+        nloop = 0
+        do while(doit)
+        
+          deltx = x2-x1
+          deltz = z2-z1
+
+          interx = 0
+          interz = 0
+          
+          if (jn1 .ne. jn2) then
+            if (jn2.gt.jn1) then
+              lengthx = abs ( (xnode (jn2) - xold ) / deltx)
+              interx = 1
+            else  
+              lengthx = abs ( (xnode (jn1) - xold ) / deltx)
+              interx = -1
+            endif
+          end if
+             
+          if (ln1 .ne. ln2) then
+            if (ln2.gt.ln1) then
+              lengthz = abs ( (znode (ln2) - zold ) / deltz)
+              interz = 1
+            else  
+              lengthz = abs ( (znode (ln1) - zold ) / deltz)
+              interz = -1
+            endif
+          end if
+
+          if (interx/=0 .and. interz/=0) then
+            if (lengthx<=lengthz) then
+              interz = 0
+            else 
+              interx = 0
+            end if
+          end if
+
+          if (interx/=0 .or. interz/=0) then
+            if (interx/=0) then
+              length = lengthx
+            else 
+              length = lengthz
+            end if
+            x2 = x1+length*deltx
+            z2 = z1+length*deltz
+            jn2=jn1+interx
+            ln2=ln1+interz
+          end if
+          
+        jn = jn1
+        ln = ln1
+
+        wr1 = (x1-xnode(jn))
+        wr2 = (x2-xnode(jn))
+!        wr1 = (x1**2-xnode(jn)**2)/((xnode(jn)+xnode(jn+1)))
+!        wr2 = (x2**2-xnode(jn)**2)/((xnode(jn)+xnode(jn+1)))
+
+        wz1 = (z1-znode(ln))
+        wz2 = (z2-znode(ln))
+
+        curx = (wr2-wr1) * dx * wq/dt
+        curz = (wz2-wz1) * dz * wq/dt
+
+        xmoy = 0.5*(wr1+wr2)
+        zmoy = 0.5*(wz1+wz2)
+
+        write(0,*) jn,ln,curx,curz,xmoy,zmoy,interx,interz,length
+
+        jx (jn,  ln  ) = jx (jn  ,ln  ) + curx * (1. - zmoy)
+        jx (jn,  ln+1) = jx (jn  ,ln+1) + curx * zmoy
+        jz (jn,  ln  ) = jz (jn  ,ln  ) + curz * (1. - xmoy)
+        jz (jn+1,ln  ) = jz (jn+1,ln  ) + curz * xmoy
+
+        if (interx/=0 .or. interz/=0) then
+          x1 = x2
+          z1 = z2
+          x2 = x
+          z2 = z
+          jn1 = jn2
+          ln1 = ln2
+          jn2 = jni
+          ln2 = lni
+        endif
+        nloop = nloop+1
+        doit = nloop<3 .and. (interx/=0 .or. interz/=0) 
+        write(0,*) 'doit',doit,nloop,interx,interz
+      enddo  
+    enddo  
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_villasenor_n_2d
+
+! THIS SUBROUTINE IS NOT IN EM3D.v file 
+subroutine depose_jxjyjz_esirkepov_linear_serialold(jx,jy,jz,np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q,xmin,ymin,zmin, &
+                                                 dt,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard,l_particles_weight)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) ::jx,jy,jz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight
+
+   real(kind=8) :: dxi,dyi,dzi,dtsdx,dtsdy,dtsdz,xint,yint,zint
+   real(kind=8),dimension(-1:2,-1:2,-1:2) :: wx,wy,wz,sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz
+   real(kind=8), DIMENSION(-1:2) :: sx, sy, sz, sx0, sy0, sz0, dsx, dsy, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k, &
+                   ixmin, ixmax, iymin, iymax, izmin, izmax
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+      sx0=0.;sy0=0.;sz0=0.
+      sdz=0.
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      dtsdx = dt*dxi
+      dtsdy = dt*dyi
+      dtsdz = dt*dzi
+      dts2dx = 0.5*dtsdx
+      dts2dy = 0.5*dtsdy
+      dts2dz = 0.5*dtsdz
+      invvol = 1./(dx*dy*dz)
+      invdtdx = 1./(dt*dy*dz)
+      invdtdy = 1./(dt*dx*dz)
+      invdtdz = 1./(dt*dx*dy)
+
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        xold=x-dtsdx*vx
+        yold=y-dtsdy*vy
+        zold=z-dtsdz*vz
+
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqy = wq*invdtdy
+        wqz = wq*invdtdz
+
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        iixp0=floor(x)
+        ijxp0=floor(y)
+        ikxp0=floor(z)
+
+        xint=x-iixp0
+        yint=y-ijxp0
+        zint=z-ikxp0
+
+        sx0(0) = 1.-xint
+        sx0(1) = xint
+        sy0(0) = 1.-yint
+        sy0(1) = yint
+        sz0(0) = 1.-zint
+        sz0(1) = zint
+
+        iixp=floor(xold)
+        ijxp=floor(yold)
+        ikxp=floor(zold)
+        xint = xold-iixp
+        yint = yold-ijxp
+        zint = zold-ikxp
+
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+        diz = ikxp-ikxp0
+
+        sx=0.;sy=0.;sz=0.
+        sx(0+dix) = 1.-xint
+        sx(1+dix) = xint
+        sy(0+diy) = 1.-yint
+        sy(1+diy) = yint
+        sz(0+diz) = 1.-zint
+        sz(1+diz) = zint
+
+        dsx = sx - sx0
+        dsy = sy - sy0
+        dsz = sz - sz0
+
+        ixmin = min(0,dix)
+        ixmax = max(0,dix)
+        iymin = min(0,diy)
+        iymax = max(0,diy)
+        izmin = min(0,diz)
+        izmax = max(0,diz)
+
+        do k=izmin, izmax+1
+          do j=iymin, iymax+1
+            do i=ixmin, ixmax+1
+              wx(i,j,k) = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+              wy(i,j,k) = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+              wz(i,j,k) = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+            end do
+          end do
+        end do
+
+        do i = ixmin, ixmax
+          sdx(i,:,:)  = wx(i,:,:)
+          if (i>ixmin) sdx(i,:,:)=sdx(i,:,:)+sdx(i-1,:,:)
+          jx(iixp0+i,ijxp0+iymin:ijxp0+iymax+1,ikxp0+izmin:ikxp0+izmax+1) = &
+          jx(iixp0+i,ijxp0+iymin:ijxp0+iymax+1,ikxp0+izmin:ikxp0+izmax+1) + sdx(i,iymin:iymax+1,izmin:izmax+1)
+        end do        
+        
+        do j = iymin, iymax
+          sdy(:,j,:)  = wy(:,j,:)
+          if (j>iymin) sdy(:,j,:)=sdy(:,j,:)+sdy(:,j-1,:)
+          jy(iixp0+ixmin:iixp0+ixmax+1,ijxp0+j,ikxp0+izmin:ikxp0+izmax+1) = &
+          jy(iixp0+ixmin:iixp0+ixmax+1,ijxp0+j,ikxp0+izmin:ikxp0+izmax+1) + sdy(ixmin:ixmax+1,j,izmin:izmax+1)
+        end do        
+
+        do k = izmin, izmax
+          sdz(:,:,k)  = wz(:,:,k)
+          if (k>izmin) sdz(:,:,k)=sdz(:,:,k)+sdz(:,:,k-1)
+          jz(iixp0+ixmin:iixp0+ixmax+1,ijxp0+iymin:ijxp0+iymax+1,ikxp0+K) = &
+          jz(iixp0+ixmin:iixp0+ixmax+1,ijxp0+iymin:ijxp0+iymax+1,ikxp0+k) + sdz(ixmin:ixmax+1,iymin:iymax+1,k)
+        end do        
+
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_esirkepov_linear_serialold
+
+! THIS SUBROUTINE IS NOT IN EM3D.v file 
+subroutine depose_jxjyjz_esirkepov_linear_serialnew(jx,jy,jz,np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q,xmin,ymin,zmin, &
+                                                 dt,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard, &
+                                                 l_particles_weight)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dyi,dzi,dtsdx,dtsdy,dtsdz,xint,yint,zint
+   real(kind=8),dimension(-1:2, &
+                          -1:2, &
+                          -1:2) :: sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz, &
+                   oxint,oyint,ozint,xintsq,yintsq,zintsq,oxintsq,oyintsq,ozintsq, &
+                   dtsdx0,dtsdy0,dtsdz0,dts2dx0,dts2dy0,dts2dz0
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8), DIMENSION(-1:2) :: sx, sx0, dsx
+   real(kind=8), DIMENSION(-1:2) :: sy, sy0, dsy
+   real(kind=8), DIMENSION(-1:2) :: sz, sz0, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k,ic,jc,kc, &
+                   ixmin, ixmax, iymin, iymax, izmin, izmax, icell, ncells, ixmin2, ixmax2, iymin2, iymax2, izmin2, izmax2 
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+    sx0=0.;sy0=0.;sz0=0.
+    sdz=0.
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      dtsdx0 = dt*dxi
+      dtsdy0 = dt*dyi
+      dtsdz0 = dt*dzi
+      dts2dx0 = 0.5*dtsdx0
+      dts2dy0 = 0.5*dtsdy0
+      dts2dz0 = 0.5*dtsdz0
+      invvol = 1./(dx*dy*dz)
+      invdtdx = 1./(dt*dy*dz)
+      invdtdy = 1./(dt*dx*dz)
+      invdtdz = 1./(dt*dx*dy)
+
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        xold=x-dtsdx0*vx
+        yold=y-dtsdy0*vy
+        zold=z-dtsdz0*vz
+ 
+        ! computes maximum number of cells traversed by particle in a given dimension
+        ncells = 1+max( int(abs(x-xold)), int(abs(y-yold)), int(abs(z-zold)))
+        
+        dtsdx = dtsdx0/ncells
+        dtsdy = dtsdy0/ncells
+        dtsdz = dtsdz0/ncells
+        dts2dx = dts2dx0/ncells
+        dts2dy = dts2dy0/ncells
+        dts2dz = dts2dz0/ncells
+        
+        x=xold
+        y=yold
+        z=zold
+        
+        do icell = 1,ncells
+
+        xold = x
+        yold = y
+        zold = z
+        
+        x = x+dtsdx*vx
+        y = y+dtsdy*vy
+        z = z+dtsdz*vz
+        
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqy = wq*invdtdy
+        wqz = wq*invdtdz
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        iixp0=floor(x)
+        ijxp0=floor(y)
+        ikxp0=floor(z)
+
+        xint=x-iixp0
+        yint=y-ijxp0
+        zint=z-ikxp0
+
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+
+        iixp=floor(xold)
+        ijxp=floor(yold)
+        ikxp=floor(zold)
+        xint = xold-iixp
+        yint = yold-ijxp
+        zint = zold-ikxp
+
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+        diz = ikxp-ikxp0
+
+        sx=0.;sy=0.;sz=0.
+
+          sx( 0+dix) = 1.-xint
+          sx( 1+dix) = xint
+          sy( 0+diy) = 1.-yint
+          sy( 1+diy) = yint
+          sz( 0+diz) = 1.-zint
+          sz( 1+diz) = zint
+
+        dsx = sx - sx0
+
+        dsy = sy - sy0
+
+        dsz = sz - sz0
+        
+        ixmin = min(0,dix)
+        ixmax = max(0,dix)+1
+        iymin = min(0,diy)
+        iymax = max(0,diy)+1
+        izmin = min(0,diz)
+        izmax = max(0,diz)+1
+
+        do k=izmin, izmax
+          i=ixmin
+          do j=iymin, iymax
+            sdx(i,j,k)  = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+          end do        
+          do i=ixmin+1, ixmax-1
+            do j=iymin, iymax
+               sdx(i,j,k)  = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+               sdx(i,j,k)=sdx(i,j,k)+sdx(i-1,j,k)
+            end do        
+          end do        
+        end do        
+
+        do k=izmin, izmax
+          j=iymin
+          do i=ixmin, ixmax
+            sdy(i,j,k)  = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+          end do
+          do j=iymin+1, iymax-1
+            do i=ixmin, ixmax
+              sdy(i,j,k)  = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+              sdy(i,j,k)=sdy(i,j,k)+sdy(i,j-1,k)
+            end do        
+          end do        
+        end do        
+
+
+        do j=iymin, iymax
+          k=izmin
+          do i=ixmin, ixmax
+            sdz(i,j,k)  = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+          end do
+          do k=izmin+1, izmax-1
+            do i=ixmin, ixmax
+              sdz(i,j,k)  = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+              sdz(i,j,k)=sdz(i,j,k)+sdz(i,j,k-1)
+            end do        
+          end do        
+        end do        
+        
+        ixmin2 = iixp0+ixmin
+        ixmax2 = iixp0+ixmax
+        iymin2 = ijxp0+iymin
+        iymax2 = ijxp0+iymax
+        izmin2 = ikxp0+izmin
+        izmax2 = ikxp0+izmax
+        jx(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) = jx(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) &
+                                                        + sdx(ixmin:ixmax,iymin:iymax,izmin:izmax)
+        jy(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) = jy(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) &
+                                                        + sdy(ixmin:ixmax,iymin:iymax,izmin:izmax)
+        jz(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) = jz(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) &
+                                                        + sdz(ixmin:ixmax,iymin:iymax,izmin:izmax)
+
+      end do
+ 
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_esirkepov_linear_serialnew
+
+subroutine depose_jxjyjz_esirkepov_linear_serial(jx,jy,jz,np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q,xmin,ymin,zmin, &
+                                                 dt,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard, &
+                                                 l_particles_weight)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dyi,dzi,dtsdx,dtsdy,dtsdz,xint,yint,zint
+   real(kind=8),dimension(-1:2, &
+                          -1:2, &
+                          -1:2) :: sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz, &
+                   oxint,oyint,ozint,xintsq,yintsq,zintsq,oxintsq,oyintsq,ozintsq, &
+                   dtsdx0,dtsdy0,dtsdz0,dts2dx0,dts2dy0,dts2dz0
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8), DIMENSION(-1:2) :: sx, sx0, dsx
+   real(kind=8), DIMENSION(-1:2) :: sy, sy0, dsy
+   real(kind=8), DIMENSION(-1:2) :: sz, sz0, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k,ic,jc,kc, &
+                   ixmin, ixmax, iymin, iymax, izmin, izmax, icell, ncells 
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+    sx0=0.;sy0=0.;sz0=0.
+    sdz=0.
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      dtsdx0 = dt*dxi
+      dtsdy0 = dt*dyi
+      dtsdz0 = dt*dzi
+      dts2dx0 = 0.5*dtsdx0
+      dts2dy0 = 0.5*dtsdy0
+      dts2dz0 = 0.5*dtsdz0
+      invvol = 1./(dx*dy*dz)
+      invdtdx = 1./(dt*dy*dz)
+      invdtdy = 1./(dt*dx*dz)
+      invdtdz = 1./(dt*dx*dy)
+
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        xold=x-dtsdx0*vx
+        yold=y-dtsdy0*vy
+        zold=z-dtsdz0*vz
+ 
+        ! computes maximum number of cells traversed by particle in a given dimension
+        ncells = 1!+max( int(abs(x-xold)), int(abs(y-yold)), int(abs(z-zold)))
+        
+        dtsdx = dtsdx0/ncells
+        dtsdy = dtsdy0/ncells
+        dtsdz = dtsdz0/ncells
+        dts2dx = dts2dx0/ncells
+        dts2dy = dts2dy0/ncells
+        dts2dz = dts2dz0/ncells
+        
+        x=xold
+        y=yold
+        z=zold
+        
+        do icell = 1,ncells
+
+        xold = x
+        yold = y
+        zold = z
+        
+        x = x+dtsdx*vx
+        y = y+dtsdy*vy
+        z = z+dtsdz*vz
+        
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqy = wq*invdtdy
+        wqz = wq*invdtdz
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        iixp0=floor(x)
+        ijxp0=floor(y)
+        ikxp0=floor(z)
+
+        xint=x-iixp0
+        yint=y-ijxp0
+        zint=z-ikxp0
+
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+
+        iixp=floor(xold)
+        ijxp=floor(yold)
+        ikxp=floor(zold)
+        xint = xold-iixp
+        yint = yold-ijxp
+        zint = zold-ikxp
+
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+        diz = ikxp-ikxp0
+
+        sx=0.;sy=0.;sz=0.
+
+          sx( 0+dix) = 1.-xint
+          sx( 1+dix) = xint
+          sy( 0+diy) = 1.-yint
+          sy( 1+diy) = yint
+          sz( 0+diz) = 1.-zint
+          sz( 1+diz) = zint
+
+        dsx = sx - sx0
+
+        dsy = sy - sy0
+
+        dsz = sz - sz0
+        
+        ixmin = min(0,dix)
+        ixmax = max(0,dix)+1
+        iymin = min(0,diy)
+        iymax = max(0,diy)+1
+        izmin = min(0,diz)
+        izmax = max(0,diz)+1
+
+        do k=izmin, izmax
+          do j=iymin, iymax
+            do i=ixmin, ixmax
+              ic = iixp0+i
+              jc = ijxp0+j
+              kc = ikxp0+k
+              if(i<ixmax) then
+                sdx(i,j,k)  = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+                if (i>ixmin) sdx(i,j,k)=sdx(i,j,k)+sdx(i-1,j,k)
+                jx(ic,jc,kc) = jx(ic,jc,kc) + sdx(i,j,k)
+              end if
+              if(j<iymax) then
+                sdy(i,j,k)  = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+                if (j>iymin) sdy(i,j,k)=sdy(i,j,k)+sdy(i,j-1,k)
+                jy(ic,jc,kc) = jy(ic,jc,kc) + sdy(i,j,k)
+              end if
+              if(k<izmax) then
+                sdz(i,j,k)  = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+                if (k>izmin) sdz(i,j,k)=sdz(i,j,k)+sdz(i,j,k-1)
+                jz(ic,jc,kc) = jz(ic,jc,kc) + sdz(i,j,k)
+              end if
+            end do        
+          end do        
+        end do        
+
+      end do
+ 
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_esirkepov_linear_serial
+
+! THIS SUBROUTINE IS NOT IN EM3D.v file 
+subroutine depose_jxjyjz_esirkepov_nnew(jx,jy,jz,np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q,xmin,ymin,zmin, &
+                                                 dt,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard, &
+                                                 nox,noy,noz,l_particles_weight,l4symtry)
+! although it vectorizes better, this version is slower than the old one
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dyi,dzi,dtsdx,dtsdy,dtsdz,xint,yint,zint
+   real(kind=8),dimension(-int(nox/2)-1:int((nox+1)/2)+1, &
+                          -int(noy/2)-1:int((noy+1)/2)+1, &
+                          -int(noz/2)-1:int((noz+1)/2)+1) :: sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz, &
+                   oxint,oyint,ozint,xintsq,yintsq,zintsq,oxintsq,oyintsq,ozintsq, &
+                   dtsdx0,dtsdy0,dtsdz0,dts2dx0,dts2dy0,dts2dz0
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8), DIMENSION(-int(nox/2)-1:int((nox+1)/2)+1) :: sx, sx0, dsx
+   real(kind=8), DIMENSION(-int(noy/2)-1:int((noy+1)/2)+1) :: sy, sy0, dsy
+   real(kind=8), DIMENSION(-int(noz/2)-1:int((noz+1)/2)+1) :: sz, sz0, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k,ic,jc,kc, &
+                   ixmin, ixmax, iymin, iymax, izmin, izmax, icell, ncells, ixmin2, ixmax2, iymin2, iymax2, izmin2, izmax2 
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+    sx0=0.;sy0=0.;sz0=0.
+    sdz=0.
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      dtsdx0 = dt*dxi
+      dtsdy0 = dt*dyi
+      dtsdz0 = dt*dzi
+      dts2dx0 = 0.5*dtsdx0
+      dts2dy0 = 0.5*dtsdy0
+      dts2dz0 = 0.5*dtsdz0
+      invvol = 1./(dx*dy*dz)
+      invdtdx = 1./(dt*dy*dz)
+      invdtdy = 1./(dt*dx*dz)
+      invdtdz = 1./(dt*dx*dy)
+
+      do ip=1,np
+      
+        x = xp(ip)*dxi
+        y = yp(ip)*dyi
+        z = zp(ip)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        xold=x-dtsdx0*vx
+        yold=y-dtsdy0*vy
+        zold=z-dtsdz0*vz
+ 
+        if (l4symtry) then
+          x=abs(x)
+          y=abs(y)
+          xold=abs(xold)
+          yold=abs(yold)
+          vx = (x-xold)/dtsdx0
+          vy = (y-yold)/dtsdy0
+        end if
+        
+        x = x - xmin*dxi
+        y = y - ymin*dyi
+        z = z - zmin*dzi
+        
+        ! computes maximum number of cells traversed by particle in a given dimension
+        ncells = 1!+max( int(abs(x-xold)), int(abs(y-yold)), int(abs(z-zold)))
+        
+        dtsdx = dtsdx0/ncells
+        dtsdy = dtsdy0/ncells
+        dtsdz = dtsdz0/ncells
+        dts2dx = dts2dx0/ncells
+        dts2dy = dts2dy0/ncells
+        dts2dz = dts2dz0/ncells
+        
+        x=xold
+        y=yold
+        z=zold
+        
+        do icell = 1,ncells
+
+        xold = x
+        yold = y
+        zold = z
+        
+        x = x+dtsdx*vx
+        y = y+dtsdy*vy
+        z = z+dtsdz*vz
+        
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqy = wq*invdtdy
+        wqz = wq*invdtdz
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        iixp0=floor(x)
+        ijxp0=floor(y)
+        ikxp0=floor(z)
+
+        xint=x-iixp0
+        yint=y-ijxp0
+        zint=z-ikxp0
+
+        select case(nox)
+         case(0)
+          sx0( 0) = 1.
+         case(1)
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         case(2)
+!          xint=xint-0.5
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx0(-1) = onesixth*oxintsq*oxint
+          sx0( 0) = twothird-xintsq*(1.-xint/2)
+          sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx0( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noy)
+         case(0)
+          sy0( 0) = 1.
+         case(1)
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+         case(2)
+!          yint=yint-0.5
+          yintsq = yint*yint
+          sy0(-1) = 0.5*(0.5-yint)**2
+          sy0( 0) = 0.75-yintsq
+          sy0( 1) = 0.5*(0.5+yint)**2
+         case(3)
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy0(-1) = onesixth*oyintsq*oyint
+          sy0( 0) = twothird-yintsq*(1.-yint/2)
+          sy0( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy0( 2) = onesixth*yintsq*yint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz0( 0) = 1.
+         case(1)
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         case(2)
+!          zint=zint-0.5
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+        end select        
+
+        iixp=floor(xold)
+        ijxp=floor(yold)
+        ikxp=floor(zold)
+        xint = xold-iixp
+        yint = yold-ijxp
+        zint = zold-ikxp
+
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+        diz = ikxp-ikxp0
+
+        sx=0.;sy=0.;sz=0.
+
+        select case(nox)
+         case(0)
+          sx( 0+dix) = 1.
+         case(1)
+          sx( 0+dix) = 1.-xint
+          sx( 1+dix) = xint
+         case(2)
+!          xint=xint-0.5
+          xintsq = xint*xint
+          sx(-1+dix) = 0.5*(0.5-xint)**2
+          sx( 0+dix) = 0.75-xintsq
+          sx( 1+dix) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1+dix) = onesixth*oxintsq*oxint
+          sx( 0+dix) = twothird-xintsq*(1.-xint/2)
+          sx( 1+dix) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2+dix) = onesixth*xintsq*xint
+        end select        
+
+        select case(noy)
+         case(0)
+          sy( 0+diy) = 1.
+         case(1)
+          sy( 0+diy) = 1.-yint
+          sy( 1+diy) = yint
+         case(2)
+!          yint=yint-0.5
+          yintsq = yint*yint
+          sy(-1+diy) = 0.5*(0.5-yint)**2
+          sy( 0+diy) = 0.75-yintsq
+          sy( 1+diy) = 0.5*(0.5+yint)**2
+         case(3)
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy(-1+diy) = onesixth*oyintsq*oyint
+          sy( 0+diy) = twothird-yintsq*(1.-yint/2)
+          sy( 1+diy) = twothird-oyintsq*(1.-oyint/2)
+          sy( 2+diy) = onesixth*yintsq*yint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0+diz) = 1.
+         case(1)
+          sz( 0+diz) = 1.-zint
+          sz( 1+diz) = zint
+         case(2)
+!          zint=zint-0.5
+          zintsq = zint*zint
+          sz(-1+diz) = 0.5*(0.5-zint)**2
+          sz( 0+diz) = 0.75-zintsq
+          sz( 1+diz) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1+diz) = onesixth*ozintsq*ozint
+          sz( 0+diz) = twothird-zintsq*(1.-zint/2)
+          sz( 1+diz) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2+diz) = onesixth*zintsq*zint
+        end select        
+
+        dsx = sx - sx0
+        dsy = sy - sy0
+        dsz = sz - sz0
+        
+        ixmin = min(0,dix)-int(nox/2)
+        ixmax = max(0,dix)+int((nox+1)/2)
+        iymin = min(0,diy)-int(noy/2)
+        iymax = max(0,diy)+int((noy+1)/2)
+        izmin = min(0,diz)-int(noz/2)
+        izmax = max(0,diz)+int((noz+1)/2)
+
+         do k=izmin, izmax
+          i=ixmin
+          do j=iymin, iymax
+            sdx(i,j,k)  = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+          end do        
+          do i=ixmin+1, ixmax-1
+            do j=iymin, iymax
+               sdx(i,j,k)  = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+               sdx(i,j,k)=sdx(i,j,k)+sdx(i-1,j,k)
+            end do        
+          end do        
+        end do        
+
+        do k=izmin, izmax
+          j=iymin
+          do i=ixmin, ixmax
+            sdy(i,j,k)  = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+          end do
+          do j=iymin+1, iymax-1
+            do i=ixmin, ixmax
+              sdy(i,j,k)  = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+              sdy(i,j,k)=sdy(i,j,k)+sdy(i,j-1,k)
+            end do        
+          end do        
+        end do        
+
+
+        do j=iymin, iymax
+          k=izmin
+          do i=ixmin, ixmax
+            sdz(i,j,k)  = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+          end do
+          do k=izmin+1, izmax-1
+            do i=ixmin, ixmax
+              sdz(i,j,k)  = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+              sdz(i,j,k)=sdz(i,j,k)+sdz(i,j,k-1)
+            end do        
+          end do        
+        end do        
+        
+        ixmin2 = iixp0+ixmin
+        ixmax2 = iixp0+ixmax
+        iymin2 = ijxp0+iymin
+        iymax2 = ijxp0+iymax
+        izmin2 = ikxp0+izmin
+        izmax2 = ikxp0+izmax
+        jx(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) = jx(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) &
+                                                        + sdx(ixmin:ixmax,iymin:iymax,izmin:izmax)
+        jy(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) = jy(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) &
+                                                        + sdy(ixmin:ixmax,iymin:iymax,izmin:izmax)
+        jz(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) = jz(ixmin2:ixmax2,iymin2:iymax2,izmin2:izmax2) &
+                                                        + sdz(ixmin:ixmax,iymin:iymax,izmin:izmax)
+
+
+      end do
+ 
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_esirkepov_nnew
+
+subroutine depose_jxjyjz_esirkepov_n(jx,jy,jz,np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q,xmin,ymin,zmin, &
+                                                 dt,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard, &
+                                                 nox,noy,noz,l_particles_weight,l4symtry)
+   use Constant, only: clight
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: jx, jy, jz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dyi,dzi,dtsdx,dtsdy,dtsdz,xint,yint,zint
+   real(kind=8),dimension(:,:,:),allocatable :: sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz, &
+                   oxint,oyint,ozint,xintsq,yintsq,zintsq,oxintsq,oyintsq,ozintsq, &
+                   dtsdx0,dtsdy0,dtsdz0,dts2dx0,dts2dy0,dts2dz0
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   real(kind=8), DIMENSION(:),allocatable :: sx, sx0, dsx
+   real(kind=8), DIMENSION(:),allocatable :: sy, sy0, dsy
+   real(kind=8), DIMENSION(:),allocatable :: sz, sz0, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k,ic,jc,kc, &
+                   ixmin, ixmax, iymin, iymax, izmin, izmax, icell, ncells, ndtodx, ndtody, ndtodz, &
+                   xl,xu,yl,yu,zl,zu
+   real(kind=8):: starttime, wtime
+   integer:: alloc_status
+
+   starttime = wtime()
+
+    ndtodx = int(clight*dt/dx)
+    ndtody = int(clight*dt/dy)
+    ndtodz = int(clight*dt/dz)
+    xl = -int(nox/2)-1-ndtodx
+    xu = int((nox+1)/2)+1+ndtodx
+    yl = -int(noy/2)-1-ndtody
+    yu = int((noy+1)/2)+1+ndtody
+    zl = -int(noz/2)-1-ndtodz
+    zu = int((noz+1)/2)+1+ndtodz
+    allocate(sdx(xl:xu,yl:yu,zl:zu),sdy(xl:xu,yl:yu,zl:zu),sdz(xl:xu,yl:yu,zl:zu), &
+             sx(xl:xu), sx0(xl:xu), dsx(xl:xu), &
+             sy(yl:yu), sy0(yl:yu), dsy(yl:yu), &
+             sz(zl:zu), sz0(zl:zu), dsz(zl:zu), stat=alloc_status)
+    if (alloc_status /= 0) then
+      print*,"Error:depose_jxjyjz_esirkepov_n: sdx et al could not be allocated"
+      stop
+    endif
+
+    sx0=0.;sy0=0.;sz0=0.
+    sdx=0.;sdy=0.;sdz=0.
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      dtsdx0 = dt*dxi
+      dtsdy0 = dt*dyi
+      dtsdz0 = dt*dzi
+      dts2dx0 = 0.5*dtsdx0
+      dts2dy0 = 0.5*dtsdy0
+      dts2dz0 = 0.5*dtsdz0
+      invvol = 1./(dx*dy*dz)
+      invdtdx = 1./(dt*dy*dz)
+      invdtdy = 1./(dt*dx*dz)
+      invdtdz = 1./(dt*dx*dy)
+
+      do ip=1,np
+      
+        ! --- computes current position in grid units
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        ! --- computes velocity
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        ! --- computes old position in grid units
+        xold=x-dtsdx0*vx
+        yold=y-dtsdy0*vy
+        zold=z-dtsdz0*vz
+ 
+        ! --- applies 4-fold symmetry
+        if (l4symtry) then
+          x=abs(x)
+          y=abs(y)
+          xold=abs(xold)
+          yold=abs(yold)
+          vx = (x-xold)/dtsdx0
+          vy = (y-yold)/dtsdy0
+        end if
+        
+        ! computes maximum number of cells traversed by particle in a given dimension
+        ncells = 1!+max( int(abs(x-xold)), int(abs(y-yold)), int(abs(z-zold)))
+        
+        dtsdx = dtsdx0/ncells
+        dtsdy = dtsdy0/ncells
+        dtsdz = dtsdz0/ncells
+        dts2dx = dts2dx0/ncells
+        dts2dy = dts2dy0/ncells
+        dts2dz = dts2dz0/ncells
+        
+        x=xold
+        y=yold
+        z=zold
+        
+        do icell = 1,ncells
+
+        xold = x
+        yold = y
+        zold = z
+        
+        x = x+dtsdx*vx
+        y = y+dtsdy*vy
+        z = z+dtsdz*vz
+        
+        ! --- computes particles "weights"
+        if (l_particles_weight) then
+          wq=q*w(ip)
+        else
+          wq=q*w(1)
+        end if
+        wqx = wq*invdtdx
+        wqy = wq*invdtdy
+        wqz = wq*invdtdz
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          iixp0=nint(x)
+        else
+          iixp0=floor(x)
+        end if
+        if (noy==2*(noy/2)) then
+          ijxp0=nint(y)
+        else
+          ijxp0=floor(y)
+        end if
+        if (noz==2*(noz/2)) then
+          ikxp0=nint(z)
+        else
+          ikxp0=floor(z)
+        end if
+
+        ! --- computes distance between particle and node for current positions
+        xint=x-iixp0
+        yint=y-ijxp0
+        zint=z-ikxp0
+
+        ! --- computes coefficients for node centered quantities
+        select case(nox)
+         case(0)
+          sx0( 0) = 1.
+         case(1)
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx0(-1) = onesixth*oxintsq*oxint
+          sx0( 0) = twothird-xintsq*(1.-xint/2)
+          sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx0( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noy)
+         case(0)
+          sy0( 0) = 1.
+         case(1)
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+         case(2)
+          yintsq = yint*yint
+          sy0(-1) = 0.5*(0.5-yint)**2
+          sy0( 0) = 0.75-yintsq
+          sy0( 1) = 0.5*(0.5+yint)**2
+         case(3)
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy0(-1) = onesixth*oyintsq*oyint
+          sy0( 0) = twothird-yintsq*(1.-yint/2)
+          sy0( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy0( 2) = onesixth*yintsq*yint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz0( 0) = 1.
+         case(1)
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+        end select        
+
+        ! --- finds node of cell containing particles for old positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          iixp=nint(xold)
+        else
+          iixp=floor(xold)
+        end if
+        if (noy==2*(noy/2)) then
+          ijxp=nint(yold)
+        else
+          ijxp=floor(yold)
+        end if
+        if (noz==2*(noz/2)) then
+          ikxp=nint(zold)
+        else
+          ikxp=floor(zold)
+        end if
+
+        ! --- computes distance between particle and node for old positions
+        xint = xold-iixp
+        yint = yold-ijxp
+        zint = zold-ikxp
+
+        ! --- computes node separation between old and current positions
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+        diz = ikxp-ikxp0
+
+        ! --- zero out coefficients (needed because of different dix and diz for each particle)
+        sx=0.;sy=0.;sz=0.
+
+        ! --- computes coefficients for quantities centered between nodes
+        select case(nox)
+         case(0)
+          sx( 0+dix) = 1.
+         case(1)
+          sx( 0+dix) = 1.-xint
+          sx( 1+dix) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1+dix) = 0.5*(0.5-xint)**2
+          sx( 0+dix) = 0.75-xintsq
+          sx( 1+dix) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1+dix) = onesixth*oxintsq*oxint
+          sx( 0+dix) = twothird-xintsq*(1.-xint/2)
+          sx( 1+dix) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2+dix) = onesixth*xintsq*xint
+        end select        
+
+        select case(noy)
+         case(0)
+          sy( 0+diy) = 1.
+         case(1)
+          sy( 0+diy) = 1.-yint
+          sy( 1+diy) = yint
+         case(2)
+          yintsq = yint*yint
+          sy(-1+diy) = 0.5*(0.5-yint)**2
+          sy( 0+diy) = 0.75-yintsq
+          sy( 1+diy) = 0.5*(0.5+yint)**2
+         case(3)
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy(-1+diy) = onesixth*oyintsq*oyint
+          sy( 0+diy) = twothird-yintsq*(1.-yint/2)
+          sy( 1+diy) = twothird-oyintsq*(1.-oyint/2)
+          sy( 2+diy) = onesixth*yintsq*yint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0+diz) = 1.
+         case(1)
+          sz( 0+diz) = 1.-zint
+          sz( 1+diz) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1+diz) = 0.5*(0.5-zint)**2
+          sz( 0+diz) = 0.75-zintsq
+          sz( 1+diz) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1+diz) = onesixth*ozintsq*ozint
+          sz( 0+diz) = twothird-zintsq*(1.-zint/2)
+          sz( 1+diz) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2+diz) = onesixth*zintsq*zint
+        end select        
+
+        ! --- computes coefficients difference
+        dsx = sx - sx0
+        dsy = sy - sy0
+        dsz = sz - sz0
+        
+        ! --- computes min/max positions of current contributions
+        ixmin = min(0,dix)-int(nox/2)
+        ixmax = max(0,dix)+int((nox+1)/2)
+        iymin = min(0,diy)-int(noy/2)
+        iymax = max(0,diy)+int((noy+1)/2)
+        izmin = min(0,diz)-int(noz/2)
+        izmax = max(0,diz)+int((noz+1)/2)
+
+        ! --- add current contributions
+        do k=izmin, izmax
+          do j=iymin, iymax
+            do i=ixmin, ixmax
+              ic = iixp0+i
+              jc = ijxp0+j
+              kc = ikxp0+k
+              if(i<ixmax) then
+                sdx(i,j,k)  = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+                if (i>ixmin) sdx(i,j,k)=sdx(i,j,k)+sdx(i-1,j,k)
+                jx(ic,jc,kc) = jx(ic,jc,kc) + sdx(i,j,k)
+              end if
+              if(j<iymax) then
+                sdy(i,j,k)  = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+                if (j>iymin) sdy(i,j,k)=sdy(i,j,k)+sdy(i,j-1,k)
+                jy(ic,jc,kc) = jy(ic,jc,kc) + sdy(i,j,k)
+              end if
+              if(k<izmax) then
+                sdz(i,j,k)  = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+                if (k>izmin) sdz(i,j,k)=sdz(i,j,k)+sdz(i,j,k-1)
+                jz(ic,jc,kc) = jz(ic,jc,kc) + sdz(i,j,k)
+              end if
+            end do        
+          end do        
+        end do        
+
+      end do
+ 
+    end do
+
+    deallocate(sdx,sdy,sdz,sx,sx0,dsx,sy,sy0,dsy,sz,sz0,dsz)
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_esirkepov_n
+
+subroutine depose_jxjyjz_pxpypz_esirkepov_linear_serial(jx,jy,jz,mp,np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q, &
+              m,xmin,ymin,zmin, dt,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard,l_particles_weight,l_relativ)
+   ! mp is the the kinetic energy density
+    use Constant
+  use Timers, Only: deposetime
+  implicit none
+   integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard,3), intent(in out) :: mp
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,m,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight, l_relativ
+
+   real(kind=8) :: dxi,dyi,dzi,dtsdx,dtsdy,dtsdz,xint,yint,zint,wp,vxsq,vysq,vzsq,vsq
+   real(kind=8),dimension(-1:2,-1:2,-1:2) :: wx,wy,wz,sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz
+   real(kind=8), DIMENSION(-1:2) :: sx, sy, sz, sx0, sy0, sz0, dsx, dsy, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+
+      sx0=0.;sy0=0.;sz0=0.
+      sdz=0.
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      dtsdx = dt*dxi
+      dtsdy = dt*dyi
+      dtsdz = dt*dzi
+      dts2dx = 0.5*dtsdx
+      dts2dy = 0.5*dtsdy
+      dts2dz = 0.5*dtsdz
+      invvol = 1./(dx*dy*dz)
+      invdtdx = 1./(dt*dy*dz)
+      invdtdy = 1./(dt*dx*dz)
+      invdtdz = 1./(dt*dx*dy)
+
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        xold=x-dtsdx*vx
+        yold=y-dtsdy*vy
+        zold=z-dtsdz*vz
+
+        vxsq = vx**2
+        vysq = vy**2
+        vzsq = vz**2
+
+        if (l_particles_weight) then
+          wq=q*w(ip)
+          if (l_relativ) then
+            vsq = vxsq+vysq+vzsq
+            wp=m*w(ip)*(1./gaminv(ip)-1.)*clight**2/vsq
+          else
+            wp=0.5*m*w(ip)
+          end if
+        else
+          wq=q*w(1)
+          if (l_relativ) then
+            vsq = vxsq+vysq+vzsq
+            wp=m*w(1)*(1./gaminv(ip)-1.)*clight**2/vsq
+          else
+            wp=0.5*m*w(1)
+          end if
+        end if
+
+        wqx = invdtdx
+        wqy = invdtdy
+        wqz = invdtdz
+
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        iixp0=floor(x)
+        ijxp0=floor(y)
+        ikxp0=floor(z)
+
+        xint=x-iixp0
+        yint=y-ijxp0
+        zint=z-ikxp0
+
+        sx0(0) = 1.-xint
+        sx0(1) = xint
+        sy0(0) = 1.-yint
+        sy0(1) = yint
+        sz0(0) = 1.-zint
+        sz0(1) = zint
+
+        iixp=floor(xold)
+        ijxp=floor(yold)
+        ikxp=floor(zold)
+        xint = xold-iixp
+        yint = yold-ijxp
+        zint = zold-ikxp
+
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+        diz = ikxp-ikxp0
+
+        sx=0.;sy=0.;sz=0.
+        sx(0+dix) = 1.-xint
+        sx(1+dix) = xint
+        sy(0+diy) = 1.-yint
+        sy(1+diy) = yint
+        sz(0+diz) = 1.-zint
+        sz(1+diz) = zint
+
+        dsx = sx - sx0
+        dsy = sy - sy0
+        dsz = sz - sz0
+
+        do k=-1, 2
+          do j=-1, 2
+            do i=-1, 2
+              wx(i,j,k) = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+              wy(i,j,k) = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+              wz(i,j,k) = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+            end do
+          end do
+        end do
+
+        do i = -1, 1
+          sdx(i,:,:)  = wx(i,:,:)
+          if (i>-1) sdx(i,:,:)=sdx(i,:,:)+sdx(i-1,:,:)
+          jx(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2) = jx(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2)+wq*sdx(i,:,:)
+          mp(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2,1) = mp(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2,1)+wp*vx*sdx(i,:,:)
+        end do        
+
+        do j = -1, 1
+          sdy(:,j,:)  = wy(:,j,:)
+          if (j>-1) sdy(:,j,:)=sdy(:,j,:)+sdy(:,j-1,:)
+          jy(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2) = jy(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2)+wq*sdy(:,j,:)
+          mp(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2,2) = mp(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2,2)+wp*vy*sdy(:,j,:)
+        end do        
+
+        do k = -1, 1
+          sdz(:,:,k)  = wz(:,:,k)
+          if (k>-1) sdz(:,:,k)=sdz(:,:,k)+sdz(:,:,k-1)
+          jz(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+K) = jz(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+k)+wq*sdz(:,:,k)
+          mp(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+K,3) = mp(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+k,3)+wp*vz*sdz(:,:,k)
+        end do        
+
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_jxjyjz_pxpypz_esirkepov_linear_serial
+
+! THIS SUBROUTINE IS NOT IN EM3D.v file 
+subroutine deposcor_jxjyjz_pxpypz_esirkepov_linear_serial(jx,jy,jz,mp,bx,by,bz, &
+                           np,xp,yp,zp,uxp,uyp,uzp,gaminv,w,q,m,xmin,ymin,zmin, &
+                           dt,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard,l_particles_weight,l_relativ)
+   ! mp is the the kinetic energy density
+    use Constant
+  implicit none
+   integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard,3), intent(in out) :: mp
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in) :: bx,by,bz
+   real(kind=8), dimension(np) :: xp,yp,zp,uxp,uyp,uzp,gaminv,w
+   real(kind=8) :: q,m,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight, l_relativ
+
+   real(kind=8) :: dxi,dyi,dzi,dtsdx,dtsdy,dtsdz,xint,yint,zint,wp,vxsq,vysq,vzsq,vsq
+   real(kind=8),dimension(-1:2,-1:2,-1:2) :: wx,wy,wz,sdx,sdy,sdz
+   real(kind=8) :: xold,yold,zold,xmid,ymid,zmid,x,y,z,wq,wqx,wqy,wqz,tmp,vx,vy,vz,dts2dx,dts2dy,dts2dz, &
+                   s1x,s2x,s1y,s2y,s1z,s2z,invvol,invdtdx,invdtdy,invdtdz,vol,dtcoef,total_field_density, &
+                   thispart_field_density,total_kinetic_energy,thispart_kinetic_energy
+   real(kind=8), DIMENSION(-1:2) :: sx, sy, sz, sx0, sy0, sz0, dsx, dsy, dsz
+   integer(ISZ) :: iixp0,ijxp0,ikxp0,iixp,ijxp,ikxp,ip,dix,diy,diz,idx,idy,idz,i,j,k
+
+      sx0=0.;sy0=0.;sz0=0.
+      sdz=0.
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      dtsdx = dt*dxi
+      dtsdy = dt*dyi
+      dtsdz = dt*dzi
+      dts2dx = 0.5*dtsdx
+      dts2dy = 0.5*dtsdy
+      dts2dz = 0.5*dtsdz
+      vol = dx*dy*dz
+      invvol = 1./vol
+      invdtdx = 1./(dt*dy*dz)
+      invdtdy = 1./(dt*dx*dz)
+      invdtdz = 1./(dt*dx*dy)
+
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        vx = uxp(ip)*gaminv(ip)
+        vy = uyp(ip)*gaminv(ip)
+        vz = uzp(ip)*gaminv(ip)
+        
+        xold=x-dtsdx*vx
+        yold=y-dtsdy*vy
+        zold=z-dtsdz*vz
+
+        vxsq = vx**2
+        vysq = vy**2
+        vzsq = vz**2
+
+        if (l_particles_weight) then
+          wq=q*w(ip)
+          if (l_relativ) then
+            vsq = vxsq+vysq+vzsq
+            wp=m*w(ip)*(1./gaminv(ip)-1.)*clight**2/vsq
+          else
+            wp=0.5*m*w(ip)
+          end if
+        else
+          wq=q*w(1)
+          if (l_relativ) then
+            vsq = vxsq+vysq+vzsq
+            wp=m*w(1)*(1./gaminv(ip)-1.)*clight**2/vsq
+          else
+            wp=0.5*m*w(1)
+          end if
+        end if
+
+        wqx = invdtdx
+        wqy = invdtdy
+        wqz = invdtdz
+
+!       computation of current at x(n+1/2),v(n+1/2)
+
+        iixp0=floor(x)
+        ijxp0=floor(y)
+        ikxp0=floor(z)
+
+        xint=x-iixp0
+        yint=y-ijxp0
+        zint=z-ikxp0
+
+        sx0(0) = 1.-xint
+        sx0(1) = xint
+        sy0(0) = 1.-yint
+        sy0(1) = yint
+        sz0(0) = 1.-zint
+        sz0(1) = zint
+
+        iixp=floor(xold)
+        ijxp=floor(yold)
+        ikxp=floor(zold)
+        xint = xold-iixp
+        yint = yold-ijxp
+        zint = zold-ikxp
+
+        dix = iixp-iixp0
+        diy = ijxp-ijxp0
+        diz = ikxp-ikxp0
+
+        sx=0.;sy=0.;sz=0.
+        sx(0+dix) = 1.-xint
+        sx(1+dix) = xint
+        sy(0+diy) = 1.-yint
+        sy(1+diy) = yint
+        sz(0+diz) = 1.-zint
+        sz(1+diz) = zint
+
+        dsx = sx - sx0
+        dsy = sy - sy0
+        dsz = sz - sz0
+
+        do k=-1, 2
+          do j=-1, 2
+            do i=-1, 2
+              wx(i,j,k) = wqx*dsx(i)*( (sy0(j)+0.5*dsy(j))*sz0(k) + (0.5*sy0(j)+1./3.*dsy(j))*dsz(k))
+              wy(i,j,k) = wqy*dsy(j)*( (sz0(k)+0.5*dsz(k))*sx0(i) + (0.5*sz0(k)+1./3.*dsz(k))*dsx(i))
+              wz(i,j,k) = wqz*dsz(k)*( (sx0(i)+0.5*dsx(i))*sy0(j) + (0.5*sx0(i)+1./3.*dsx(i))*dsy(j))
+            end do
+          end do
+        end do
+        
+        ! first, estimate dteff
+!    print 'sum',sum(self.field.Mp[...,-1]*w3d.dz), \
+!          sum(emass*(1./where(top.pgroup.gaminv==0.,1.,top.pgroup.gaminv)-1.)*top.pgroup.sw[0]*clight**2), \
+!          sum(self.field.J[...,-1]**2)*(top.dt/eps0)**2*eps0*w3d.dz/2
+        dtcoef = 1.
+        
+        do k=-1, 2
+         do j=-1, 2
+          do i = -1, 1
+           sdx(i,:,:)  = wx(i,:,:)
+           if (i>-1) sdx(i,j,k)=sdx(i,j,k)+sdx(i-1,j,k)
+           total_field_density = (0.5*(jx(iixp0+i,ijxp0+j,ikxp0+k)*dt)**2/eps0)*vol
+           thispart_field_density = (0.5*(wq*sdx(i,j,k)*dt)**2/eps0)*vol
+           total_kinetic_energy = mp(iixp0+i,ijxp0+j,ikxp0+k,1)
+           thispart_kinetic_energy = wp*vx*sdx(i,j,k)
+           if (total_field_density>total_kinetic_energy) then
+           end if
+          end do        
+         end do        
+        end do        
+
+        do j = -1, 1
+          sdy(:,j,:)  = wy(:,j,:)
+          if (j>-1) sdy(:,j,:)=sdy(:,j,:)+sdy(:,j-1,:)
+          jy(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2) = jy(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2)+wq*sdy(:,j,:)
+          mp(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2,2) = mp(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2,2)+wp*vy*sdy(:,j,:)
+        end do        
+        
+        do k=-1, 1
+         do j=-1, 2
+          do i = -1, 2
+           sdz(i,j,k)  = wz(i,j,k)
+           if (k>-1) sdz(i,j,k)=sdz(i,j,k)+sdz(i,j,k-1)
+
+           total_field_density     = (0.5*(jz(iixp0+i,ijxp0+j,ikxp0+k)*dt)**2/eps0)*vol
+
+           thispart_field_density  = (0.5*(wq*sdz(i,j,k)*dt)**2/eps0)*vol
+
+           total_kinetic_energy    = mp(iixp0+i,ijxp0+j,ikxp0+k,3)
+
+           thispart_kinetic_energy = wp*vx*sdz(i,j,k)
+
+!           if ( (total_field_density>total_kinetic_energy) .and. (sign(1.,wq*sdz(i,j,k))==sign(1.,cj(iixp0+i,ijxp0+j,ikxp0+k,3))) ) then
+!             dtcoef = 
+!           end if
+          end do        
+         end do        
+        end do        
+
+        
+        ! second, fix new positions and current
+
+        do i = -1, 1
+          sdx(i,:,:)  = wx(i,:,:)
+          if (i>-1) sdx(i,:,:)=sdx(i,:,:)+sdx(i-1,:,:)
+          jx(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2) = jx(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2)+wq*sdx(i,:,:)
+          mp(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2,1) = mp(iixp0+i,ijxp0-1:ijxp0+2,ikxp0-1:ikxp0+2,1)+wp*vx*sdx(i,:,:)
+        end do        
+
+        do j = -1, 1
+          sdy(:,j,:)  = wy(:,j,:)
+          if (j>-1) sdy(:,j,:)=sdy(:,j,:)+sdy(:,j-1,:)
+          jy(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2) = jy(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2)+wq*sdy(:,j,:)
+          mp(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2,2) = mp(iixp0-1:iixp0+2,ijxp0+j,ikxp0-1:ikxp0+2,2)+wp*vy*sdy(:,j,:)
+        end do        
+
+        do k = -1, 1
+          sdz(:,:,k)  = wz(:,:,k)
+          if (k>-1) sdz(:,:,k)=sdz(:,:,k)+sdz(:,:,k-1)
+          jz(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+K) = jz(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+k)+wq*sdz(:,:,k)
+          mp(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+K,3) = mp(iixp0-1:iixp0+2,ijxp0-1:ijxp0+2,ikxp0+k,3)+wp*vz*sdz(:,:,k)
+        end do        
+
+    end do
+
+  return
+end subroutine deposcor_jxjyjz_pxpypz_esirkepov_linear_serial
+
+subroutine depose_rho_linear_serial(rho,np,xp,yp,zp,w,q,xmin,ymin,zmin, &
+            dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard,l_particles_weight)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: rho
+   real(kind=8), dimension(np) :: xp,yp,zp,w
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight
+
+   real(kind=8) :: dxi,dyi,dzi,xint,yint,zint
+   real(kind=8) :: x,y,z,wq,invvol,s1x,s2x,s1y,s2y,s1z,s2z
+   integer(ISZ) :: j,k,l,ip,dix,diy,diz
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+   
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      invvol = dxi*dyi*dzi
+
+      do ip=1,np
+      
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol
+        else
+          wq=q*w(1)*invvol
+        end if
+      
+        j=floor(x)
+        k=floor(y)
+        l=floor(z)
+
+        xint = x-j
+        yint = y-k
+        zint = z-l
+
+        s1x = 1.-xint
+        s2x = xint
+
+        s1y = 1.-yint
+        s2y = yint
+
+        s1z = 1.-zint
+        s2z = zint
+
+        rho(j  ,k  ,l  )=rho(j  ,k  ,l  )+s1x*s1y*s1z*wq
+        rho(j+1,k  ,l  )=rho(j+1,k  ,l  )+s2x*s1y*s1z*wq
+        rho(j  ,k+1,l  )=rho(j  ,k+1,l  )+s1x*s2y*s1z*wq
+        rho(j+1,k+1,l  )=rho(j+1,k+1,l  )+s2x*s2y*s1z*wq
+        rho(j  ,k  ,l+1)=rho(j  ,k  ,l+1)+s1x*s1y*s2z*wq
+        rho(j+1,k  ,l+1)=rho(j+1,k  ,l+1)+s2x*s1y*s2z*wq
+        rho(j  ,k+1,l+1)=rho(j  ,k+1,l+1)+s1x*s2y*s2z*wq
+        rho(j+1,k+1,l+1)=rho(j+1,k+1,l+1)+s2x*s2y*s2z*wq
+      
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_rho_linear_serial
+
+subroutine depose_rho_n_2dxz(rho,np,xp,yp,zp,w,q,xmin,zmin,dx,dz,nx,nz,nxguard,nzguard,nox,noz, &
+                        l_particles_weight,l4symtry,l_2drz, type_rz_depose)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard,type_rz_depose
+   real(kind=8), dimension(-nxguard:nx+nxguard,0:0,-nzguard:nz+nzguard), intent(in out) :: rho
+   real(kind=8), dimension(np) :: xp,yp,zp,w
+   real(kind=8) :: q,dt,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry,l_2drz
+
+   real(kind=8) :: dxi,dzi,xint,zint, &
+                   oxint,ozint,xintsq,zintsq,oxintsq,ozintsq
+   real(kind=8) :: x,z,r,wq,invvol
+   real(kind=8) :: sx(-int(nox/2):int((nox+1)/2)), &
+                   sz(-int(noz/2):int((noz+1)/2))
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,l,ip,jj,ll,ixmin, ixmax, izmin, izmax
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+   
+      dxi = 1./dx
+      dzi = 1./dz
+      invvol = dxi*dzi
+
+      ! Davoine method : limited to order 1 in r
+      if (type_rz_depose==2) then
+         nox = 1
+      endif
+
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+
+      do ip=1,np
+        
+        ! --- computes current position in grid units
+        if (l_2drz) then
+          r = sqrt(xp(ip)*xp(ip)+yp(ip)*yp(ip))
+          x = (r-xmin)*dxi
+          z = (zp(ip)-zmin)*dzi
+        else
+          x = (xp(ip)-xmin)*dxi
+          z = (zp(ip)-zmin)*dzi
+        end if
+        
+        ! --- applies 4-fold symmetry
+        if (l4symtry) then
+          x=abs(x)
+        end if
+        
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        ! --- computes distance between particle and node for current positions
+        xint = x-j
+        zint = z-l
+
+        ! --- computes particles "weights"
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol
+        else
+          wq=q*w(1)*invvol
+        end if
+      
+        ! --- computes coefficients for node centered quantities
+        if (type_rz_depose == 2) then ! Davoine method, modified particle shapes in r
+           sx(0) = 1. - xint  + 1./(4*j+2)*( -xint + xint**2 )
+           sx(1) = 1. - sx(0)
+        else                          ! Standard method, canonical shapes in r
+           select case(nox)
+           case(0)
+              sx( 0) = 1.
+           case(1)
+              sx( 0) = 1.-xint
+              sx( 1) = xint
+           case(2)
+              xintsq = xint*xint
+              sx(-1) = 0.5*(0.5-xint)**2
+              sx( 0) = 0.75-xintsq
+              sx( 1) = 0.5*(0.5+xint)**2
+           case(3)
+              oxint = 1.-xint
+              xintsq = xint*xint
+              oxintsq = oxint*oxint
+              sx(-1) = onesixth*oxintsq*oxint
+              sx( 0) = twothird-xintsq*(1.-xint/2)
+              sx( 1) = twothird-oxintsq*(1.-oxint/2)
+              sx( 2) = onesixth*xintsq*xint
+           end select
+        endif
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        ! --- add charge density contributions
+         do ll = izmin, izmax
+            do jj = ixmin, ixmax
+              rho(j+jj,0,l+ll)=rho(j+jj,0,l+ll)+sx(jj)*sz(ll)*wq
+            end do
+        end do
+
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_rho_n_2dxz
+
+subroutine depose_rho_n_2d_circ(rho,rho_circ,circ_m,np,xp,yp,zp,w,q,xmin,zmin,dx,dz,nx,nz, &
+     nxguard,nzguard,nox,noz,l_particles_weight,type_rz_depose)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard,circ_m,type_rz_depose
+   real(kind=8), dimension(-nxguard:nx+nxguard,0:0,-nzguard:nz+nzguard), intent(in out) :: rho
+   complex(kind=8), dimension(-nxguard:nx+nxguard,-nzguard:nz+nzguard,circ_m), intent(in out) :: rho_circ
+   real(kind=8), dimension(np) :: xp,yp,zp,w
+   real(kind=8) :: q,dt,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight
+
+   real(kind=8) :: dxi,dzi,xint,zint, &
+                   oxint,ozint,xintsq,zintsq,oxintsq,ozintsq
+   real(kind=8) :: x,y,z,r,wq,invvol,c,s
+   real(kind=8) :: sx(-int(nox/2):int((nox+1)/2)), &
+                   sz(-int(noz/2):int((noz+1)/2))
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,l,m,ip,jj,ll,ixmin, ixmax, izmin, izmax
+   complex(kind=8) :: xy,xy0
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+   
+      dxi = 1./dx
+      dzi = 1./dz
+      invvol = dxi*dzi
+
+      ! Davoine method : limited to order 1 in r
+      if (type_rz_depose == 2) then
+         nox = 1
+      endif
+      
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+
+      do ip=1,np
+        
+        ! --- computes current position in grid units
+        x = xp(ip)
+        y = yp(ip)
+        r=sqrt(x*x+y*y)
+        if (r*dxi>1.e-10) then
+          c = x/r 
+          s = y/r
+        else
+          c = 1.
+          s = 0.
+        end if
+        xy0 = cmplx(c,s)
+        x = (r-xmin)*dxi
+        z = (zp(ip)-zmin)*dzi
+        
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        ! --- computes distance between particle and node for current positions
+        xint = x-j
+        zint = z-l
+
+        ! --- computes particles "weights"
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol
+        else
+          wq=q*w(1)*invvol
+        end if
+        
+        ! --- computes coefficients for node centered quantities
+        if (type_rz_depose == 2) then ! Davoine method, modified particle shapes in r
+           sx(0) = 1. - xint  + 1./(4*j+2)*( -xint + xint**2 )
+           sx(1) = 1. - sx(0)
+        else                          ! Standard method, canonical shapes in r
+           select case(nox)
+           case(0)
+              sx( 0) = 1.
+           case(1)
+              sx( 0) = 1.-xint
+              sx( 1) = xint
+           case(2)
+              xintsq = xint*xint
+              sx(-1) = 0.5*(0.5-xint)**2
+              sx( 0) = 0.75-xintsq
+              sx( 1) = 0.5*(0.5+xint)**2
+           case(3)
+              oxint = 1.-xint
+              xintsq = xint*xint
+              oxintsq = oxint*oxint
+              sx(-1) = onesixth*oxintsq*oxint
+              sx( 0) = twothird-xintsq*(1.-xint/2)
+              sx( 1) = twothird-oxintsq*(1.-oxint/2)
+              sx( 2) = onesixth*xintsq*xint
+           end select
+        endif
+           
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        ! --- add charge density contributions
+         do ll = izmin, izmax
+            do jj = ixmin, ixmax
+              rho(j+jj,0,l+ll)=rho(j+jj,0,l+ll)+sx(jj)*sz(ll)*wq
+            end do
+        end do
+
+        xy = xy0
+        do m = 1, circ_m  
+          ! --- add charge density contributions to modes m=1...circ_m
+          do ll = izmin, izmax
+            do jj = ixmin, ixmax
+              rho_circ(j+jj,l+ll,m)=rho_circ(j+jj,l+ll,m)+2.*sx(jj)*sz(ll)*wq*xy
+            end do
+          end do
+          xy = xy*xy0
+        end do
+
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_rho_n_2d_circ
+
+subroutine depose_rho_n(rho,np,xp,yp,zp,w,q,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard,nox,noy,noz, &
+                        l_particles_weight,l4symtry)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: rho
+   real(kind=8), dimension(np) :: xp,yp,zp,w
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dyi,dzi,xint,yint,zint, &
+                   oxint,oyint,ozint,xintsq,yintsq,zintsq,oxintsq,oyintsq,ozintsq
+   real(kind=8) :: x,y,z,wq,invvol
+   real(kind=8) :: sx(-int(nox/2):int((nox+1)/2)), &
+                   sy(-int(noy/2):int((noy+1)/2)), &
+                   sz(-int(noz/2):int((noz+1)/2))
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,k,l,ip,jj,kk,ll,ixmin, ixmax, iymin, iymax, izmin, izmax
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+   
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      invvol = dxi*dyi*dzi
+
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      iymin = -int(noy/2)
+      iymax = int((noy+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+
+      do ip=1,np
+        
+        ! --- computes current position in grid units
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+        
+        ! --- applies 4-fold symmetry
+        if (l4symtry) then
+          x=abs(x)
+          y=abs(y)
+        end if
+      
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noy==2*(noy/2)) then
+          k=nint(y)
+        else
+          k=floor(y)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        ! --- computes distance between particle and node for current positions
+        xint = x-j
+        yint = y-k
+        zint = z-l
+
+        ! --- computes particles "weights"
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol
+        else
+          wq=q*w(1)*invvol
+        end if
+      
+        ! --- computes coefficients for node centered quantities
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noy)
+         case(0)
+          sy( 0) = 1.
+         case(1)
+          sy( 0) = 1.-yint
+          sy( 1) = yint
+         case(2)
+          yintsq = yint*yint
+          sy(-1) = 0.5*(0.5-yint)**2
+          sy( 0) = 0.75-yintsq
+          sy( 1) = 0.5*(0.5+yint)**2
+         case(3)
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy(-1) = onesixth*oyintsq*oyint
+          sy( 0) = twothird-yintsq*(1.-yint/2)
+          sy( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy( 2) = onesixth*yintsq*yint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        ! --- add charge density contributions
+         do ll = izmin, izmax
+          do kk = iymin, iymax
+            do jj = ixmin, ixmax
+              rho(j+jj,k+kk,l+ll)=rho(j+jj,k+kk,l+ll)+sx(jj)*sy(kk)*sz(ll)*wq
+            end do
+          end do
+        end do
+
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_rho_n
+
+subroutine depose_j_n_2dxz(jx,jy,jz,np,xp,zp,ux,uy,uz,gaminv,w,q,xmin,zmin,dto,dx,dz,nx,nz,nxguard,nzguard,nox,noz, &
+                        l_particles_weight,l4symtry,l_deposit_nodal,nsubsteps,l_coefs_uniform)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard,nsubsteps
+   real(kind=8), dimension(-nxguard:nx+nxguard,0:0,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,zp,w,ux,uy,uz,gaminv
+   real(kind=8), intent(in) :: q,dto,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry,l_deposit_nodal,l_coefs_uniform
+
+   real(kind=8) :: dxi,dzi,xint,zint, &
+                   oxint,ozint,xintsq,zintsq,oxintsq,ozintsq
+   real(kind=8) :: x,z,wq,invvol,vx,vy,vz,dt,dxp,dzp
+   real(kind=8) :: sx(-int(nox/2):int((nox+1)/2)), &
+                   sz(-int(noz/2):int((noz+1)/2)), &
+                   wcoefs(nsubsteps)
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,l,ip,jj,ll,ixmin, ixmax, izmin, izmax, it
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+   
+      dxi = 1./dx
+      dzi = 1./dz
+      invvol = dxi*dzi
+
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+      
+      if (l_coefs_uniform) then
+          wcoefs = 1./nsubsteps
+      
+      else
+          wcoefs = 0.
+          wcoefs(1)=1.
+      
+          do ip=1,nsubsteps-1
+              wcoefs(2:nsubsteps) =  0.5*(wcoefs(2:nsubsteps) + wcoefs(1:nsubsteps-1))
+              wcoefs(1) = wcoefs(1)*0.5
+          end do
+      
+      end if
+      
+      dt = dto/nsubsteps
+
+      do ip=1,np
+      
+        vx = ux(ip)*gaminv(ip)
+        vy = uy(ip)*gaminv(ip)
+        vz = uz(ip)*gaminv(ip)
+        
+        x = (xp(ip)-vx*dto-0.5*vx*dt-xmin)*dxi
+        z = (zp(ip)-vz*dto-0.5*vz*dt-zmin)*dzi
+        
+        dxp = vx*dt*dxi
+        dzp = vz*dt*dzi
+        
+        do it=1, nsubsteps
+        
+        x = x+dxp
+        z = z+dzp
+        
+        if (l4symtry) then
+          x=abs(x)
+        end if
+        
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        xint = x-j
+        zint = z-l
+
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol*wcoefs(it)
+        else
+          wq=q*w(1)*invvol*wcoefs(it)
+        end if
+      
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        if (l_deposit_nodal) then
+            ! deposit on nodal grid
+            do ll = izmin, izmax
+                do jj = ixmin, ixmax
+                  jx(j+jj  ,0,l+ll ) = jx(j+jj  ,0,l+ll ) + sx(jj)*sz(ll)*wq*vx
+                  jy(j+jj  ,0,l+ll ) = jy(j+jj  ,0,l+ll ) + sx(jj)*sz(ll)*wq*vy
+                  jz(j+jj  ,0,l+ll ) = jz(j+jj  ,0,l+ll ) + sx(jj)*sz(ll)*wq*vz
+                end do
+            end do
+        else
+            ! deposit on staggered grid
+            do ll = izmin, izmax
+                do jj = ixmin, ixmax
+                  jx(j+jj  ,0,l+ll ) = jx(j+jj  ,0,l+ll ) + sx(jj)*sz(ll)*wq*vx*0.5
+                  jx(j+jj-1,0,l+ll ) = jx(j+jj-1,0,l+ll ) + sx(jj)*sz(ll)*wq*vx*0.5
+                  jy(j+jj  ,0,l+ll ) = jy(j+jj  ,0,l+ll ) + sx(jj)*sz(ll)*wq*vy
+                  jz(j+jj  ,0,l+ll ) = jz(j+jj  ,0,l+ll ) + sx(jj)*sz(ll)*wq*vz*0.5
+                  jz(j+jj  ,0,l+ll-1) = jz(j+jj  ,0,l+ll-1) + sx(jj)*sz(ll)*wq*vz*0.5
+                end do
+            end do
+        end if
+
+      end do
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_j_n_2dxz
+
+subroutine getf1dz_n(np,zp,ex,ey,ez,zmin,dz,nz,nzguard,noz,exg,eyg,ezg)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nz,nzguard,noz
+      real(kind=8), dimension(np) :: zp,ex,ey,ez
+      real(kind=8), dimension(-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: zmin,dz
+      integer(ISZ) :: ip, j, l, izmin, izmax, &
+                      izmin0, izmax0, jj, ll
+      real(kind=8) :: dzi, z, zint
+      real(kind=8) :: zintsq,ozint,ozintsq
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dzi = 1./dz
+
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)
+
+      do ip=1,np
+
+        z = (zp(ip)-zmin)*dzi
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        zint=z-l
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        do ll = izmin, izmax
+          ex(ip) = ex(ip) + sz(ll)*exg(l+ll)
+          ey(ip) = ey(ip) + sz(ll)*eyg(l+ll)
+          ez(ip) = ez(ip) + sz(ll)*ezg(l+ll)
+        end do
+
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getf1dz_n
+
+  subroutine gete1dz_n_energy_conserving(np,zp,ex,ey,ez,zmin,dz,nz,nzguard, &
+                                       noz,exg,eyg,ezg,l_lower_order_in_v)
+   
+   use Timers, Only: gathertime
+   implicit none
+     integer(ISZ) :: np,nz,noz,nzguard
+      real(kind=8), dimension(np) :: zp,ex,ey,ez
+      logical(ISZ) :: l_lower_order_in_v
+      real(kind=8), dimension(-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: zmin,dz
+      integer(ISZ) :: ip, l, izmin, izmax, &
+                      izmin0, izmax0, ll, l0
+      real(kind=8) :: dzi, z, zint, &
+                      zintsq,ozint,ozintsq
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), dimension(:), allocatable :: sz0
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+      integer:: alloc_status
+
+      starttime = wtime()
+
+      dzi = 1./dz
+
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)-1
+
+      if (l_lower_order_in_v) then
+        izmin0 = -int((noz-1)/2)
+        izmax0 =  int((noz)/2)
+      else
+        izmin0 = -int((noz)/2)
+        izmax0 =  int((noz+1)/2)
+      end if
+      allocate(sz0(izmin0:izmax0), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:gete1dz_n_energy_conserving: sz0 could not be allocated"
+        stop
+      endif
+
+      do ip=1,np
+
+        z = (zp(ip)-zmin)*dzi
+
+        if (l_lower_order_in_v) then
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z-0.5)
+          else
+            l=floor(z)
+            l0=floor(z)
+          end if
+        else
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z)
+          else
+            l=floor(z)
+            l0=floor(z-0.5)
+          end if
+        end if
+
+        zint=z-l
+
+        if (noz==1) then
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+        elseif (noz==2) then
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+        elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end if
+
+        zint=z-0.5-l0
+
+        if (l_lower_order_in_v) then
+
+         if (noz==1) then
+          sz0( 0) = 1.
+         elseif (noz==2) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==3) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         end if
+
+        else
+
+         if (noz==1) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==2) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+         end if
+
+        end if
+
+          do ll = izmin, izmax+1
+              ex(ip) = ex(ip) + sz(ll)*exg(l+ll)
+          end do
+
+          do ll = izmin, izmax+1
+              ey(ip) = ey(ip) + sz(ll)*eyg(l+ll)
+          end do
+          do ll = izmin0, izmax0
+              ez(ip) = ez(ip) + sz0(ll)*ezg(l0+ll)
+          end do
+                     
+     end do
+     deallocate(sz0)
+     
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine gete1dz_n_energy_conserving
+
+subroutine getb1dz_n_energy_conserving(np,zp,bx,by,bz,zmin,dz,nz,nzguard, &
+                                       noz,bxg,byg,bzg,l_lower_order_in_v)
+   
+      use Timers, Only: gathertime
+      implicit none
+      integer(ISZ) :: np,nz,noz,nzguard
+      real(kind=8), dimension(np) :: zp,bx,by,bz
+      logical(ISZ) :: l_lower_order_in_v
+      real(kind=8), dimension(-nzguard:nz+nzguard) :: bxg,byg,bzg
+      real(kind=8) :: zmin,dz
+      integer(ISZ) :: ip, j, l, izmin, izmax, &
+                       izmin0, izmax0, ll, l0
+      real(kind=8) :: dzi, z, zint, &
+                      zintsq,ozint,ozintsq
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), dimension(:), allocatable :: sz0
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+      integer:: alloc_status
+
+      starttime = wtime()
+
+      dzi = 1./dz
+
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)-1
+
+      if (l_lower_order_in_v) then
+        izmin0 = -int((noz-1)/2)
+        izmax0 =  int((noz)/2)
+      else
+        izmin0 = -int((noz)/2)
+        izmax0 =  int((noz+1)/2)
+      end if
+      allocate(sz0(izmin0:izmax0), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:getb1dz_n_energy_conserving: sz0 could not be allocated"
+        stop
+      endif
+
+      sz=0.
+      sz0=0.
+
+      do ip=1,np
+
+        z = (zp(ip)-zmin)*dzi
+
+        if (l_lower_order_in_v) then
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z-0.5)
+          else
+            l=floor(z)
+            l0=floor(z)
+          end if
+        else
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z)
+          else
+            l=floor(z)
+            l0=floor(z-0.5)
+          end if
+        end if
+
+        zint=z-l
+
+        if (noz==1) then
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+        elseif (noz==2) then
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+        elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end if
+
+        zint=z-0.5-l0
+
+        if (l_lower_order_in_v) then
+
+         if (noz==1) then
+          sz0( 0) = 1.
+         elseif (noz==2) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==3) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         end if
+
+        else
+
+         if (noz==1) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==2) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+         end if
+
+        end if
+
+          do ll = izmin0, izmax0
+              bx(ip) = bx(ip) + sz0(ll)*bxg(l0+ll)
+          end do
+
+          do ll = izmin0, izmax0
+              by(ip) = by(ip) + sz0(ll)*byg(l0+ll)
+          end do
+
+        do ll = izmin, izmax+1
+              bz(ip) = bz(ip) + sz(ll)*bzg(l+ll)
+        end do
+                 
+     end do
+     deallocate(sz0)
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getb1dz_n_energy_conserving
+
+ subroutine getf3d_linear(np,xp,yp,zp,ex,ey,ez,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard,exg,eyg,ezg)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: xmin,ymin,zmin,dx,dy,dz
+      integer(ISZ) :: ip, j, k, l
+      real(kind=8) :: dxi, dyi, dzi, x, y, z, xint, yint, zint, s1x, s2x, s1y, s2y, s1z, s2z
+      real(kind=8) :: w1, w2, w3, w4, w5, w6, w7, w8
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      do ip=1,np
+
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+
+        j=floor(x)
+        k=floor(y)
+        l=floor(z)
+
+        xint=x-j
+        yint=y-k
+        zint=z-l
+
+        s1x=xint
+        s2x=1.-xint
+        s1y=yint
+        s2y=1.-yint
+        s1z=zint
+        s2z=1.-zint
+
+        w1 = s1x*s1y*s1z
+        w2 = s2x*s1y*s1z
+        w3 = s1x*s2y*s1z
+        w4 = s2x*s2y*s1z
+        w5 = s1x*s1y*s2z
+        w6 = s2x*s1y*s2z
+        w7 = s1x*s2y*s2z
+        w8 = s2x*s2y*s2z
+          
+        ex(ip) = ex(ip)+w1*exg(j+1,k+1,l+1)+w2*exg(j,k+1,l+1)+w3*exg(j+1,k,l+1)+w4*exg(j,k,l+1) &
+                       +w5*exg(j+1,k+1,l  )+w6*exg(j,k+1,l  )+w7*exg(j+1,k,l  )+w8*exg(j,k,l  )
+        ey(ip) = ey(ip)+w1*eyg(j+1,k+1,l+1)+w2*eyg(j,k+1,l+1)+w3*eyg(j+1,k,l+1)+w4*eyg(j,k,l+1) &
+                       +w5*eyg(j+1,k+1,l  )+w6*eyg(j,k+1,l  )+w7*eyg(j+1,k,l  )+w8*eyg(j,k,l  )
+        ez(ip) = ez(ip)+w1*ezg(j+1,k+1,l+1)+w2*ezg(j,k+1,l+1)+w3*ezg(j+1,k,l+1)+w4*ezg(j,k,l+1) &
+                       +w5*ezg(j+1,k+1,l  )+w6*ezg(j,k+1,l  )+w7*ezg(j+1,k,l  )+w8*ezg(j,k,l  )
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getf3d_linear
+
+ subroutine getf3d_n(np,xp,yp,zp,ex,ey,ez,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz, &
+                     nxguard,nyguard,nzguard,nox,noy,noz,exg,eyg,ezg,l4symtry)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard,nox,noy,noz
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: xmin,ymin,zmin,dx,dy,dz
+      logical(ISZ) :: l4symtry
+      integer(ISZ) :: ip, j, k, l, ixmin, ixmax, iymin, iymax, izmin, izmax, &
+                      ixmin0, ixmax0, iymin0, iymax0, izmin0, izmax0, jj, kk, ll
+      real(kind=8) :: dxi, dyi, dzi, x, y, z, xint, yint, zint
+      real(kind=8) :: xintsq,oxint,yintsq,oyint,zintsq,ozint,oxintsq,oyintsq,ozintsq,signx,signy
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noy/2):int((noy+1)/2)) :: sy
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)
+      iymin = -int(noy/2)
+      iymax =  int((noy+1)/2)
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)
+
+      signx = 1.
+      signy = 1.
+
+      do ip=1,np
+
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+
+        if (l4symtry) then
+          if (x<0.) then
+            x = -x
+            signx = -1.
+          else
+            signx = 1.
+          end if
+          if (y<0.) then
+            y = -y
+            signy = -1.
+          else
+            signy = 1.
+          end if
+        end if
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noy==2*(noy/2)) then
+          k=nint(y)
+        else
+          k=floor(y)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        xint=x-j
+        yint=y-k
+        zint=z-l
+
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noy)
+         case(0)
+          sy( 0) = 1.
+         case(1)
+          sy( 0) = 1.-yint
+          sy( 1) = yint
+         case(2)
+          yintsq = yint*yint
+          sy(-1) = 0.5*(0.5-yint)**2
+          sy( 0) = 0.75-yintsq
+          sy( 1) = 0.5*(0.5+yint)**2
+         case(3)
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy(-1) = onesixth*oyintsq*oyint
+          sy( 0) = twothird-yintsq*(1.-yint/2)
+          sy( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy( 2) = onesixth*yintsq*yint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        do ll = izmin, izmax
+          do kk = iymin, iymax
+            do jj = ixmin, ixmax
+              ex(ip) = ex(ip) + sx(jj)*sy(kk)*sz(ll)*exg(j+jj,k+kk,l+ll)*signx
+            end do
+          end do
+        end do
+
+        do ll = izmin, izmax
+          do kk = iymin, iymax
+            do jj = ixmin, ixmax
+              ey(ip) = ey(ip) + sx(jj)*sy(kk)*sz(ll)*eyg(j+jj,k+kk,l+ll)*signy
+            end do
+          end do
+        end do
+
+        do ll = izmin, izmax
+          do kk = iymin, iymax
+            do jj = ixmin, ixmax
+              ez(ip) = ez(ip) + sx(jj)*sy(kk)*sz(ll)*ezg(j+jj,k+kk,l+ll)
+            end do
+          end do
+        end do
+
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getf3d_n
+
+ subroutine averagef3d_rz(nx,ny,nz,nxguard,nyguard,nzguard,fxg,fyg,fzg,ntheta)
+ use Constant
+ implicit none
+      integer(ISZ) :: nx,ny,nz,nxguard,nyguard,nzguard,ntheta
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: fxg,fyg,fzg
+      real(kind=8), dimension(0:nx/2+1) :: fr,ft,fz
+      integer(ISZ) :: it,j, k, l, ix, iy
+      real(kind=8) :: c,s,theta,wx,wy,owx,owy,xctr,yctr,x,y,r
+      
+      xctr = real(nx)/2
+      yctr = real(ny)/2
+      do l=-nzguard, nz+nzguard
+        fr = 0.
+        ft = 0.
+        fz = 0.
+        do it=1,ntheta
+          theta = 2*pi*it/ntheta
+          c = cos(theta)
+          s = sin(theta)
+          do j=0,nx/2
+            x = xctr+j*c
+            y = yctr+j*s
+            
+            ix = floor(x)
+            iy = floor(y)
+        
+            wx = x-ix
+            wy = y-iy
+            
+            owx = 1.-wx
+            owy = 1.-wy
+            
+            fr(j) = fr(j) + owx*owy*(fxg(ix  ,iy  ,l)*c+fyg(ix  ,iy  ,l)*s) &
+                          + wx *owy*(fxg(ix+1,iy  ,l)*c+fyg(ix+1,iy  ,l)*s) &
+                          + owx*wy *(fxg(ix  ,iy+1,l)*c+fyg(ix  ,iy+1,l)*s) &
+                          + wx *wy *(fxg(ix+1,iy+1,l)*c+fyg(ix+1,iy+1,l)*s) 
+        
+            ft(j) = ft(j) + owx*owy*(-fxg(ix  ,iy  ,l)*s+fyg(ix  ,iy  ,l)*c) &
+                          + wx *owy*(-fxg(ix+1,iy  ,l)*s+fyg(ix+1,iy  ,l)*c) &
+                          + owx*wy *(-fxg(ix  ,iy+1,l)*s+fyg(ix  ,iy+1,l)*c) &
+                          + wx *wy *(-fxg(ix+1,iy+1,l)*s+fyg(ix+1,iy+1,l)*c) 
+
+            fz(j) = fz(j) + owx*owy*fzg(ix  ,iy  ,l) &
+                          + wx *owy*fzg(ix+1,iy  ,l) &
+                          + owx*wy *fzg(ix  ,iy+1,l) &
+                          + wx *wy *fzg(ix+1,iy+1,l)
+                          
+          end do
+        end do
+        fr=fr/ntheta
+        ft=ft/ntheta
+        fz=fz/ntheta
+        fxg(:,:,l) = 0.
+        fyg(:,:,l) = 0.
+        fzg(:,:,l) = 0.
+        do k=0,ny
+          do j=0,nx
+            x = j-xctr
+            y = k-yctr
+            r = sqrt(x**2+y**2)
+            if (r<1.e-10) then
+              c=1.
+              s=0.
+            else
+              c=x/r
+              s=y/r
+            end if
+            ix = int(r)
+            if (ix>nx/2) cycle
+            wx = r-ix
+            owx = 1-wx
+            fxg(j,k,l) = owx*(fr(ix)*c-ft(ix)*s) + wx*(fr(ix+1)*c-ft(ix+1)*s)
+            fyg(j,k,l) = owx*(fr(ix)*s+ft(ix)*c) + wx*(fr(ix+1)*s+ft(ix+1)*c)
+            fzg(j,k,l) = owx*fz(ix) + wx*fz(ix+1)
+          end do
+        end do
+      end do
+
+   return
+ end subroutine averagef3d_rz
+
+subroutine getf2dxz_n(np,xp,yp,zp,ex,ey,ez,xmin,zmin,dx,dz,nx,ny,nz, &
+                     nxguard,nyguard,nzguard,nox,noz,exg,eyg,ezg,l4symtry,l_2drz)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard,nox,noz
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: xmin,zmin,dx,dz
+      logical(ISZ) :: l4symtry,l_2drz
+      integer(ISZ) :: ip, j, l, ixmin, ixmax, izmin, izmax, &
+                      ixmin0, ixmax0, izmin0, izmax0, jj, ll
+      real(kind=8) :: dxi, dzi, x, y, z, xint, zint, r, costheta, sintheta, invr
+      real(kind=8) :: xintsq,oxint,zintsq,ozint,oxintsq,ozintsq,signx
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)
+
+      signx = 1.
+      
+      do ip=1,np
+
+        if (l_2drz) then
+          x = xp(ip)
+          y = yp(ip)
+          r=sqrt(x*x+y*y)
+          if (r*dxi>1.e-20) then
+             invr = 1./r
+            costheta=x*invr
+            sintheta=y*invr
+          else  
+            costheta=1.
+            sintheta=0.
+          end if
+          x = (r-xmin)*dxi
+        else
+          x = (xp(ip)-xmin)*dxi
+        end if
+
+        z = (zp(ip)-zmin)*dzi
+
+        if (l4symtry) then
+          if (x<0.) then
+            x = -x
+            signx = -1.
+          else
+            signx = 1.
+          end if
+        end if
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        xint=x-j
+        zint=z-l
+
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        if (l_2drz) then
+           do ll = izmin, izmax
+              do jj = ixmin, ixmax
+                 ex(ip) = ex(ip) + sx(jj)*sz(ll)*(exg(j+jj,0,l+ll)*costheta-eyg(j+jj,0,l+ll)*sintheta)
+                 ey(ip) = ey(ip) + sx(jj)*sz(ll)*(exg(j+jj,0,l+ll)*sintheta+eyg(j+jj,0,l+ll)*costheta)
+                 ez(ip) = ez(ip) + sx(jj)*sz(ll)*ezg(j+jj,0,l+ll)
+              end do
+           end do
+           
+        else
+           
+           do ll = izmin, izmax
+              do jj = ixmin, ixmax
+                 ex(ip) = ex(ip) + sx(jj)*sz(ll)*exg(j+jj,0,l+ll)*signx
+                 ey(ip) = ey(ip) + sx(jj)*sz(ll)*eyg(j+jj,0,l+ll)
+                 ez(ip) = ez(ip) + sx(jj)*sz(ll)*ezg(j+jj,0,l+ll)
+              end do
+           end do
+           
+        end if
+
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getf2dxz_n
+
+subroutine getfs2dxz_n(np,xp,yp,zp,fs,xmin,zmin,dx,dz,nx,ny,nz, &
+                     nxguard,nyguard,nzguard,nox,noz,fsg,l4symtry,l_2drz)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard,nox,noz
+      real(kind=8), dimension(np) :: xp,yp,zp,fs
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: fsg
+      real(kind=8) :: xmin,zmin,dx,dz
+      logical(ISZ) :: l4symtry,l_2drz
+      integer(ISZ) :: ip, j, l, ixmin, ixmax, izmin, izmax, &
+                      ixmin0, ixmax0, izmin0, izmax0, jj, ll
+      real(kind=8) :: dxi, dzi, x, y, z, xint, zint, r, costheta, sintheta
+      real(kind=8) :: xintsq,oxint,zintsq,ozint,oxintsq,ozintsq,signx
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)
+
+      signx = 1.
+      
+      do ip=1,np
+
+        if (l_2drz) then
+          x = xp(ip)
+          y = yp(ip)
+          r=sqrt(x*x+y*y)
+          if (r*dxi>1.e-20) then
+            costheta=x/r
+            sintheta=y/r
+          else  
+            costheta=1.
+            sintheta=0.
+          end if
+          x = (r-xmin)*dxi
+        else
+          x = (xp(ip)-xmin)*dxi
+        end if
+
+        z = (zp(ip)-zmin)*dzi
+
+        if (l4symtry) then
+          if (x<0.) then
+            x = -x
+            signx = -1.
+          else
+            signx = 1.
+          end if
+        end if
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        xint=x-j
+        zint=z-l
+
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        do ll = izmin, izmax
+          do jj = ixmin, ixmax
+            fs(ip) = fs(ip) + sx(jj)*sz(ll)*fsg(j+jj,0,l+ll)
+          end do
+        end do
+
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getfs2dxz_n
+
+subroutine getf2drz_n(np,xp,yp,zp,ex,ey,ez,xmin,zmin,dx,dz,nx,ny,nz, &
+                     nxguard,nyguard,nzguard,nox,noz,exg,eyg,ezg,l4symtry,l_2drz)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard,nox,noz
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: xmin,zmin,dx,dz
+      logical(ISZ) :: l4symtry,l_2drz
+      integer(ISZ) :: ip, j, l, ixmin, ixmax, izmin, izmax, &
+                      ixmin0, ixmax0, izmin0, izmax0, jj, ll
+      real(kind=8) :: dxi, dzi, x, y, z, xint, zint, r, costheta, sintheta, invr
+      real(kind=8) :: xintsq,oxint,zintsq,ozint,oxintsq,ozintsq,signx
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)
+
+      signx = 1.
+      
+      do ip=1,np
+
+          x = xp(ip)
+          y = yp(ip)
+          r=sqrt(x*x+y*y)
+          if (r*dxi>1.e-20) then
+             invr = 1./r    ! Saves one division
+             costheta=x*invr
+             sintheta=y*invr
+          else  
+            costheta=1.
+            sintheta=0.
+          end if
+          r = (r-xmin)
+
+        z = (zp(ip)-zmin)*dzi
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(r*dxi)
+        else
+          j=floor(r*dxi)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        xint=(r**2-j**2*dx**2)/((2.*j+1)*dx**2)
+        zint=z-l
+
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+          do ll = izmin, izmax
+            do jj = ixmin, ixmax
+              ex(ip) = ex(ip) + sx(jj)*sz(ll)*(exg(j+jj,0,l+ll)*costheta-eyg(j+jj,0,l+ll)*sintheta)
+              ey(ip) = ey(ip) + sx(jj)*sz(ll)*(exg(j+jj,0,l+ll)*sintheta+eyg(j+jj,0,l+ll)*costheta)
+              ez(ip) = ez(ip) + sx(jj)*sz(ll)*ezg(j+jj,0,l+ll)
+           end do
+          end do
+
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getf2drz_n
+
+subroutine getf2drz_circ_n(np,xp,yp,zp,ex,ey,ez,xmin,zmin,dx,dz,nx,ny,nz, &
+                     nxguard,nyguard,nzguard,nox,noz,exg,eyg,ezg,exg_circ,eyg_circ,ezg_circ,circ_m)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard,nox,noz,circ_m
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      complex(kind=8), dimension(-nxguard:nx+nxguard,-nzguard:nz+nzguard,circ_m) :: &
+           exg_circ,eyg_circ,ezg_circ
+      real(kind=8) :: xmin,zmin,dx,dz
+      integer(ISZ) :: ip, j, l, ixmin, ixmax, izmin, izmax, &
+                      ixmin0, ixmax0, izmin0, izmax0, jj, ll, m
+      real(kind=8) :: dxi, dzi, x, y, z, xint, zint, r, costheta, sintheta, invr, stot
+      real(kind=8) :: xintsq,oxint,zintsq,ozint,oxintsq,ozintsq,signx, exc, eyc, ezc
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      complex(kind=8) :: xy,xy0
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)
+
+      signx = 1.
+      
+      do ip=1,np
+
+          x = xp(ip)
+          y = yp(ip)
+          r=sqrt(x*x+y*y)
+          if (r*dxi>1.e-20) then
+             invr = 1./r
+             costheta=x*invr
+             sintheta=y*invr
+          else  
+             costheta=1.
+             sintheta=0.
+          end if
+          r = (r-xmin)*dxi
+          xy0 = cmplx(costheta,-sintheta)
+
+        z = (zp(ip)-zmin)*dzi
+
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(r)
+        else
+          j=floor(r)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        xint=r-j
+        zint=z-l
+
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+        ! Mode m=0
+        do ll = izmin, izmax
+           do jj = ixmin, ixmax
+              ex(ip) = ex(ip) + sx(jj)*sz(ll)*(exg(j+jj,0,l+ll)*costheta-eyg(j+jj,0,l+ll)*sintheta)
+              ey(ip) = ey(ip) + sx(jj)*sz(ll)*(exg(j+jj,0,l+ll)*sintheta+eyg(j+jj,0,l+ll)*costheta)
+              ez(ip) = ez(ip) + sx(jj)*sz(ll)*ezg(j+jj,0,l+ll)
+          end do
+        end do
+        
+        ! Modes m>0
+        xy = 1.
+        do m = 1, circ_m  
+           xy = xy*xy0
+           do ll = izmin, izmax
+              do jj = ixmin, ixmax
+                 exc = real( exg_circ(j+jj,l+ll,m) * xy , 8)
+                 eyc = real( eyg_circ(j+jj,l+ll,m) * xy , 8) 
+                 ezc = real( ezg_circ(j+jj,l+ll,m) * xy , 8)
+                 ex(ip) = ex(ip) + sx(jj)*sz(ll)*( exc*costheta - eyc*sintheta )
+                 ey(ip) = ey(ip) + sx(jj)*sz(ll)*( exc*sintheta + eyc*costheta )
+                 ez(ip) = ez(ip) + sx(jj)*sz(ll)*ezc
+              end do
+           end do
+
+        end do
+
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getf2drz_circ_n
+ 
+ subroutine gete3d_linear_energy_conserving(np,xp,yp,zp,ex,ey,ez,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz, &
+                                            nxguard,nyguard,nzguard,exg,eyg,ezg)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: xmin,ymin,zmin,dx,dy,dz
+      integer(ISZ) :: ip, j, k, l
+      real(kind=8) :: dxi, dyi, dzi, x, y, z, xint, yint, zint, s1x, s2x, s1y, s2y, s1z, s2z
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      do ip=1,np
+
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+
+        j=floor(x)
+        k=floor(y)
+        l=floor(z)
+
+        xint=x-j
+        yint=y-k
+        zint=z-l
+
+        s1x=xint
+        s2x=1.-xint
+        s1y=yint
+        s2y=1.-yint
+        s1z=zint
+        s2z=1.-zint
+
+        ex(ip) = ex(ip) + s1y*s1z*exg(j,k+1,l+1) &
+                        + s2y*s1z*exg(j,k  ,l+1) &
+                        + s1y*s2z*exg(j,k+1,l  ) &
+                        + s2y*s2z*exg(j,k  ,l  )
+                       
+        ey(ip) = ey(ip) + s1x*s1z*eyg(j+1,k,l+1) &
+                        + s2x*s1z*eyg(j  ,k,l+1) &
+                        + s1x*s2z*eyg(j+1,k,l  ) &
+                        + s2x*s2z*eyg(j  ,k,l  )
+                       
+        ez(ip) = ez(ip) + s1x*s1y*ezg(j+1,k+1,l) &
+                        + s2x*s1y*ezg(j  ,k+1,l) &
+                        + s1x*s2y*ezg(j+1,k  ,l) &
+                        + s2x*s2y*ezg(j  ,k  ,l)
+                       
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine gete3d_linear_energy_conserving
+
+ subroutine geteb3d_linear_energy_conserving(np,xp,yp,zp,ex,ey,ez,bx,by,bz,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz, &
+                                            nxguard,nyguard,nzguard,exg,eyg,ezg,bxg,byg,bzg)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez,bx,by,bz
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg,bxg,byg,bzg
+      real(kind=8) :: xmin,ymin,zmin,dx,dy,dz
+      integer(ISZ) :: ip, j, k, l
+      real(kind=8) :: dxi, dyi, dzi, x, y, z, xint, yint, zint, s1x, s2x, s1y, s2y, s1z, s2z
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      do ip=1,np
+
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+
+        j=floor(x)
+        k=floor(y)
+        l=floor(z)
+
+        xint=x-j
+        yint=y-k
+        zint=z-l
+
+        s1x=xint
+        s2x=1.-xint
+        s1y=yint
+        s2y=1.-yint
+        s1z=zint
+        s2z=1.-zint
+
+        ex(ip) = ex(ip) + s1y*s1z*exg(j,k+1,l+1) &
+                        + s2y*s1z*exg(j,k  ,l+1) &
+                        + s1y*s2z*exg(j,k+1,l  ) &
+                        + s2y*s2z*exg(j,k  ,l  )
+                       
+        ey(ip) = ey(ip) + s1x*s1z*eyg(j+1,k,l+1) &
+                        + s2x*s1z*eyg(j  ,k,l+1) &
+                        + s1x*s2z*eyg(j+1,k,l  ) &
+                        + s2x*s2z*eyg(j  ,k,l  )
+                       
+        ez(ip) = ez(ip) + s1x*s1y*ezg(j+1,k+1,l) &
+                        + s2x*s1y*ezg(j  ,k+1,l) &
+                        + s1x*s2y*ezg(j+1,k  ,l) &
+                        + s2x*s2y*ezg(j  ,k  ,l)
+
+        bx(ip) = bx(ip) + s1x*bxg(j  ,k,l) &
+                        + s2x*bxg(j+1,k,l) 
+                       
+        by(ip) = by(ip) + s1y*byg(j,k  ,l) &
+                        + s2y*byg(j,k+1,l) 
+                       
+        bz(ip) = bz(ip) + s1z*bzg(j,k,l  ) &
+                        + s2z*bzg(j,k,l+1) 
+                       
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine geteb3d_linear_energy_conserving
+
+  subroutine gete2dxz_n_energy_conserving(np,xp,yp,zp,ex,ey,ez,xmin,zmin,dx,dz,nx,nz,nxguard,nzguard, &
+                                       nox,noz,exg,eyg,ezg,l4symtry,l_2drz,l_lower_order_in_v)
+   
+   use Timers, Only: gathertime
+   implicit none
+     integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      logical(ISZ) :: l4symtry,l_2drz,l_lower_order_in_v
+      real(kind=8), dimension(-nxguard:nx+nxguard,1,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: xmin,zmin,dx,dz,costheta,sintheta
+      integer(ISZ) :: ip, j, l, ixmin, ixmax, izmin, izmax, &
+                      ixmin0, ixmax0, izmin0, izmax0, jj, ll, j0, l0
+      real(kind=8) :: dxi, dzi, x, y, z, r, xint, zint, &
+                      xintsq,oxint,zintsq,ozint,oxintsq,ozintsq,signx
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), dimension(:), allocatable :: sx0,sz0
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+      integer:: alloc_status
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)-1
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)-1
+
+      if (l_lower_order_in_v) then
+        ixmin0 = -int((nox-1)/2)
+        ixmax0 =  int((nox)/2)
+        izmin0 = -int((noz-1)/2)
+        izmax0 =  int((noz)/2)
+      else
+        ixmin0 = -int((nox)/2)
+        ixmax0 =  int((nox+1)/2)
+        izmin0 = -int((noz)/2)
+        izmax0 =  int((noz+1)/2)
+      end if
+      allocate(sx0(ixmin0:ixmax0),sz0(izmin0:izmax0), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:gete2dxz_n_energy_conserving: sx0 and sz0 could not be allocated"
+        stop
+      endif
+
+      signx = 1.
+
+      do ip=1,np
+
+        if (l_2drz) then
+          x = xp(ip)
+          y = yp(ip)
+          r=sqrt(x*x+y*y)
+          if (r*dxi>1.e-20) then
+            costheta=x/r
+            sintheta=y/r
+          else  
+            costheta=1.
+            sintheta=0.
+          end if
+          x = (r-xmin)*dxi
+        else
+          x = (xp(ip)-xmin)*dxi
+        end if
+
+        z = (zp(ip)-zmin)*dzi
+
+        if (l4symtry) then
+          if (x<0.) then
+            x = -x
+            signx = -1.
+          else
+            signx = 1.
+          end if
+        end if
+        
+        if (l_lower_order_in_v) then
+          if (nox==2*(nox/2)) then
+            j=nint(x)
+            j0=floor(x-0.5)
+          else
+            j=floor(x)
+            j0=floor(x)
+          end if
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z-0.5)
+          else
+            l=floor(z)
+            l0=floor(z)
+          end if
+        else
+          if (nox==2*(nox/2)) then
+            j=nint(x)
+            j0=floor(x)
+          else
+            j=floor(x)
+            j0=floor(x-0.5)
+          end if
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z)
+          else
+            l=floor(z)
+            l0=floor(z-0.5)
+          end if
+        end if
+        
+        xint=x-j
+        zint=z-l
+
+        if (nox==1) then
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+        elseif (nox==2) then
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+        elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end if
+
+        if (noz==1) then
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+        elseif (noz==2) then
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+        elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end if
+
+        xint=x-0.5-j0
+        zint=z-0.5-l0
+
+        if (l_lower_order_in_v) then
+        
+         if (nox==1) then
+          sx0( 0) = 1.
+         elseif (nox==2) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==3) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         end if
+
+         if (noz==1) then
+          sz0( 0) = 1.
+         elseif (noz==2) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==3) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         end if
+
+        else
+
+         if (nox==1) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==2) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx0(-1) = onesixth*oxintsq*oxint
+          sx0( 0) = twothird-xintsq*(1.-xint/2)
+          sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx0( 2) = onesixth*xintsq*xint
+         end if
+
+         if (noz==1) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==2) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+         end if
+
+        end if
+
+        if (l_2drz) then
+       
+!          write(0,*) 'field gathering needs to be done for fstype=4 in EM-RZ'
+!          stop
+          do ll = izmin, izmax+1
+            do jj = ixmin0, ixmax0
+              ex(ip) = ex(ip) + sz(ll)*sx0(jj)*(exg(j0+jj,1,l+ll)*costheta-eyg(j0+jj,1,l+ll)*sintheta)
+              ey(ip) = ey(ip) + sz(ll)*sx0(jj)*(exg(j0+jj,1,l+ll)*sintheta+eyg(j0+jj,1,l+ll)*costheta)
+            end do
+          end do
+
+        else
+
+          do ll = izmin, izmax+1
+            do jj = ixmin0, ixmax0
+              ex(ip) = ex(ip) + sx0(jj)*sz(ll)*exg(j0+jj,1,l+ll)*signx
+            end do
+          end do
+
+          do ll = izmin, izmax+1
+            do jj = ixmin, ixmax+1
+              ey(ip) = ey(ip) + sx(jj)*sz(ll)*eyg(j+jj,1,l+ll)
+            end do
+          end do
+
+        end if
+
+          do ll = izmin0, izmax0
+            do jj = ixmin, ixmax+1
+              ez(ip) = ez(ip) + sx(jj)*sz0(ll)*ezg(j+jj,1,l0+ll)
+            end do
+          end do
+                     
+     end do
+     deallocate(sx0,sz0)
+     
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine gete2dxz_n_energy_conserving
+
+  subroutine gete3d_n_energy_conserving(np,xp,yp,zp,ex,ey,ez,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard, &
+                                       nox,noy,noz,exg,eyg,ezg,l4symtry,l_lower_order_in_v)
+   
+   use Timers, Only: gathertime
+   implicit none
+     integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,ex,ey,ez
+      logical(ISZ) :: l4symtry,l_lower_order_in_v
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: exg,eyg,ezg
+      real(kind=8) :: xmin,ymin,zmin,dx,dy,dz
+      integer(ISZ) :: ip, j, k, l, ixmin, ixmax, iymin, iymax, izmin, izmax, &
+                      ixmin0, ixmax0, iymin0, iymax0, izmin0, izmax0, jj, kk, ll, j0, k0, l0
+      real(kind=8) :: dxi, dyi, dzi, x, y, z, xint, yint, zint, &
+                      xintsq,oxint,yintsq,oyint,zintsq,ozint,oxintsq,oyintsq,ozintsq,signx,signy
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noy/2):int((noy+1)/2)) :: sy
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), dimension(:), allocatable :: sx0,sy0,sz0
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+      integer:: alloc_status
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)-1
+      iymin = -int(noy/2)
+      iymax =  int((noy+1)/2)-1
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)-1
+
+      if (l_lower_order_in_v) then
+        ixmin0 = -int((nox-1)/2)
+        ixmax0 =  int((nox)/2)
+        iymin0 = -int((noy-1)/2)
+        iymax0 =  int((noy)/2)
+        izmin0 = -int((noz-1)/2)
+        izmax0 =  int((noz)/2)
+      else
+        ixmin0 = -int((nox)/2)
+        ixmax0 =  int((nox+1)/2)
+        iymin0 = -int((noy)/2)
+        iymax0 =  int((noy+1)/2)
+        izmin0 = -int((noz)/2)
+        izmax0 =  int((noz+1)/2)
+      end if
+      allocate(sx0(ixmin0:ixmax0),sy0(iymin0:iymax0),sz0(izmin0:izmax0), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:gete3d_n_energy_conserving: sx0, sy0, and sz0 could not be allocated"
+        stop
+      endif
+
+      signx = 1.
+      signy = 1.
+
+      do ip=1,np
+
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+
+        if (l4symtry) then
+          if (x<0.) then
+            x = -x
+            signx = -1.
+          else
+            signx = 1.
+          end if
+          if (y<0.) then
+            y = -y
+            signy = -1.
+          else
+            signy = 1.
+          end if
+        end if
+         
+        if (l_lower_order_in_v) then
+          if (nox==2*(nox/2)) then
+            j=nint(x)
+            j0=floor(x-0.5)
+          else
+            j=floor(x)
+            j0=floor(x)
+          end if
+          if (noy==2*(noy/2)) then
+            k=nint(y)
+            k0=floor(y-0.5)
+          else
+            k=floor(y)
+            k0=floor(y)
+          end if
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z-0.5)
+          else
+            l=floor(z)
+            l0=floor(z)
+          end if
+        else
+          if (nox==2*(nox/2)) then
+            j=nint(x)
+            j0=floor(x)
+          else
+            j=floor(x)
+            j0=floor(x-0.5)
+          end if
+          if (noy==2*(noy/2)) then
+            k=nint(y)
+            k0=floor(y)
+          else
+            k=floor(y)
+            k0=floor(y-0.5)
+          end if
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z)
+          else
+            l=floor(z)
+            l0=floor(z-0.5)
+          end if
+        end if
+
+        xint=x-j
+        yint=y-k
+        zint=z-l
+
+        if (nox==1) then
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+        elseif (nox==2) then
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+        elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end if
+
+        if (noy==1) then
+          sy( 0) = 1.-yint
+          sy( 1) = yint
+        elseif (noy==2) then
+          yintsq = yint*yint
+          sy(-1) = 0.5*(0.5-yint)**2
+          sy( 0) = 0.75-yintsq
+          sy( 1) = 0.5*(0.5+yint)**2
+        elseif (noy==3) then
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy(-1) = onesixth*oyintsq*oyint
+          sy( 0) = twothird-yintsq*(1.-yint/2)
+          sy( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy( 2) = onesixth*yintsq*yint
+        end if
+
+        if (noz==1) then
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+        elseif (noz==2) then
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+        elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end if
+
+        xint=x-0.5-j0
+        yint=y-0.5-k0
+        zint=z-0.5-l0
+
+        if (l_lower_order_in_v) then
+
+         if (nox==1) then
+          sx0( 0) = 1.
+         elseif (nox==2) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==3) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         end if
+
+         if (noy==1) then
+          sy0( 0) = 1.
+         elseif (noy==2) then
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+         elseif (noy==3) then
+          yintsq = yint*yint
+          sy0(-1) = 0.5*(0.5-yint)**2
+          sy0( 0) = 0.75-yintsq
+          sy0( 1) = 0.5*(0.5+yint)**2
+         end if
+
+         if (noz==1) then
+          sz0( 0) = 1.
+         elseif (noz==2) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==3) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         end if
+
+        else
+
+         if (nox==1) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==2) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx0(-1) = onesixth*oxintsq*oxint
+          sx0( 0) = twothird-xintsq*(1.-xint/2)
+          sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx0( 2) = onesixth*xintsq*xint
+         end if
+
+         if (noy==1) then
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+         elseif (noy==2) then
+          yintsq = yint*yint
+          sy0(-1) = 0.5*(0.5-yint)**2
+          sy0( 0) = 0.75-yintsq
+          sy0( 1) = 0.5*(0.5+yint)**2
+         elseif (noy==3) then
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy0(-1) = onesixth*oyintsq*oyint
+          sy0( 0) = twothird-yintsq*(1.-yint/2)
+          sy0( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy0( 2) = onesixth*yintsq*yint
+         end if
+
+        
+         if (noz==1) then
+            sz0( 0) = 1.-zint
+            sz0( 1) = zint
+         elseif (noz==2) then
+            zintsq = zint*zint
+            sz0(-1) = 0.5*(0.5-zint)**2
+            sz0( 0) = 0.75-zintsq
+            sz0( 1) = 0.5*(0.5+zint)**2
+         elseif (noz==3) then
+            ozint = 1.-zint
+            zintsq = zint*zint
+            ozintsq = ozint*ozint
+            sz0(-1) = onesixth*ozintsq*ozint
+            sz0( 0) = twothird-zintsq*(1.-zint/2)
+            sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+            sz0( 2) = onesixth*zintsq*zint
+         end if
+
+        end if
+        
+        do ll = izmin, izmax+1
+          do kk = iymin, iymax+1
+            do jj = ixmin0, ixmax0
+              ex(ip) = ex(ip) + sx0(jj)*sy(kk)*sz(ll)*exg(j0+jj,k+kk,l+ll)*signx
+            end do
+          end do
+        end do
+
+        do ll = izmin, izmax+1
+          do kk = iymin0, iymax0
+            do jj = ixmin, ixmax+1
+              ey(ip) = ey(ip) + sx(jj)*sy0(kk)*sz(ll)*eyg(j+jj,k0+kk,l+ll)*signy
+            end do
+          end do
+        end do
+
+        do ll = izmin0, izmax0
+          do kk = iymin, iymax+1
+            do jj = ixmin, ixmax+1
+              ez(ip) = ez(ip) + sx(jj)*sy(kk)*sz0(ll)*ezg(j+jj,k+kk,l0+ll)
+            end do
+          end do
+        end do
+                     
+     end do
+     deallocate(sx0,sy0,sz0)
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine gete3d_n_energy_conserving
+
+ subroutine getb3d_linear_energy_conserving(np,xp,yp,zp,bx,by,bz,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz, &
+                                            nxguard,nyguard,nzguard,bxg,byg,bzg)
+   
+ use Timers, Only: gathertime
+ implicit none
+      integer(ISZ) :: np,nx,ny,nz,nxguard,nyguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,bx,by,bz
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: bxg,byg,bzg
+      real(kind=8) :: xmin,ymin,zmin,dx,dy,dz
+      integer(ISZ) :: ip, j, k, l
+      real(kind=8) :: dxi, dyi, dzi, x, y, z, xint, yint, zint, s1x, s2x, s1y, s2y, s1z, s2z
+      real(kind=8):: starttime, wtime
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      do ip=1,np
+
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+
+        j=floor(x)
+        k=floor(y)
+        l=floor(z)
+
+        xint=x-j
+        yint=y-k
+        zint=z-l
+
+        s1x=xint
+        s2x=1.-xint
+        s1y=yint
+        s2y=1.-yint
+        s1z=zint
+        s2z=1.-zint
+
+        bx(ip) = bx(ip) + s1x*bxg(j  ,k,l) &
+                        + s2x*bxg(j+1,k,l) 
+                       
+        by(ip) = by(ip) + s1y*byg(j,k  ,l) &
+                        + s2y*byg(j,k+1,l) 
+                       
+        bz(ip) = bz(ip) + s1z*bzg(j,k,l  ) &
+                        + s2z*bzg(j,k,l+1) 
+                       
+     end do
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getb3d_linear_energy_conserving
+
+subroutine getb2dxz_n_energy_conserving(np,xp,yp,zp,bx,by,bz,xmin,zmin,dx,dz,nx,nz,nxguard,nzguard, &
+                                       nox,noz,bxg,byg,bzg,l4symtry,l_2drz,l_lower_order_in_v)
+   
+      use Timers, Only: gathertime
+      implicit none
+      integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,bx,by,bz
+      logical(ISZ) :: l4symtry,l_2drz,l_lower_order_in_v
+      real(kind=8), dimension(-nxguard:nx+nxguard,1,-nzguard:nz+nzguard) :: bxg,byg,bzg
+      real(kind=8) :: xmin,zmin,dx,dz
+      integer(ISZ) :: ip, j, l, ixmin, ixmax, izmin, izmax, &
+                      ixmin0, ixmax0, izmin0, izmax0, jj, ll, j0, l0
+      real(kind=8) :: dxi, dzi, x, y, z, xint, zint, &
+                      xintsq,oxint,zintsq,ozint,oxintsq,ozintsq,signx, &
+                      r, costheta, sintheta
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), dimension(:), allocatable :: sx0,sz0
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+      integer:: alloc_status
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)-1
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)-1
+
+      if (l_lower_order_in_v) then
+        ixmin0 = -int((nox-1)/2)
+        ixmax0 =  int((nox)/2)
+        izmin0 = -int((noz-1)/2)
+        izmax0 =  int((noz)/2)
+      else
+        ixmin0 = -int((nox)/2)
+        ixmax0 =  int((nox+1)/2)
+        izmin0 = -int((noz)/2)
+        izmax0 =  int((noz+1)/2)
+      end if
+      allocate(sx0(ixmin0:ixmax0),sz0(izmin0:izmax0), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:getb2dxz_n_energy_conserving: sx0 and sz0 could not be allocated"
+        stop
+      endif
+
+      signx = 1.
+
+      sx=0
+      sz=0.
+      sx0=0.
+      sz0=0.
+
+      do ip=1,np
+
+        if (l_2drz) then
+          x = xp(ip)
+          y = yp(ip)
+          r=sqrt(x*x+y*y)
+          if (r*dxi>1.e-20) then
+            costheta=x/r
+            sintheta=y/r
+          else  
+            costheta=1.
+            sintheta=0.
+          end if
+          x = (r-xmin)*dxi
+        else
+          x = (xp(ip)-xmin)*dxi
+        end if
+
+        z = (zp(ip)-zmin)*dzi
+
+        if (l4symtry) then
+          if (x<0.) then
+            x = -x
+            signx = -1.
+          else
+            signx = 1.
+          end if
+        end if
+
+        if (l_lower_order_in_v) then
+          if (nox==2*(nox/2)) then
+            j=nint(x)
+            j0=floor(x-0.5)
+          else
+            j=floor(x)
+            j0=floor(x)
+          end if
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z-0.5)
+          else
+            l=floor(z)
+            l0=floor(z)
+          end if
+        else
+          if (nox==2*(nox/2)) then
+            j=nint(x)
+            j0=floor(x)
+          else
+            j=floor(x)
+            j0=floor(x-0.5)
+          end if
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z)
+          else
+            l=floor(z)
+            l0=floor(z-0.5)
+          end if
+        end if
+
+        xint=x-j
+        zint=z-l
+
+        if (nox==1) then
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+        elseif (nox==2) then
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+        elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end if
+
+        if (noz==1) then
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+        elseif (noz==2) then
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+        elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end if
+
+        xint=x-0.5-j0
+        zint=z-0.5-l0
+
+        if (l_lower_order_in_v) then
+        
+         if (nox==1) then
+          sx0( 0) = 1.
+         elseif (nox==2) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==3) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         end if
+
+         if (noz==1) then
+          sz0( 0) = 1.
+         elseif (noz==2) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==3) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         end if
+
+        else
+
+         if (nox==1) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==2) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx0(-1) = onesixth*oxintsq*oxint
+          sx0( 0) = twothird-xintsq*(1.-xint/2)
+          sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx0( 2) = onesixth*xintsq*xint
+         end if
+
+         if (noz==1) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==2) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+         end if
+
+        end if
+
+        if (l_2drz) then
+
+          do ll = izmin0, izmax0
+            do jj = ixmin, ixmax+1
+              bx(ip) = bx(ip) + sx(jj)*sz0(ll)*(bxg(j+jj,1,l0+ll)*costheta-byg(j+jj,1,l0+ll)*sintheta)
+              by(ip) = by(ip) + sx(jj)*sz0(ll)*(bxg(j+jj,1,l0+ll)*sintheta+byg(j+jj,1,l0+ll)*costheta)
+            end do
+          end do
+
+        else
+
+          do ll = izmin0, izmax0
+            do jj = ixmin, ixmax+1
+              bx(ip) = bx(ip) + sx(jj)*sz0(ll)*bxg(j+jj,1,l0+ll)*signx
+            end do
+          end do
+
+          do ll = izmin0, izmax0
+            do jj = ixmin0, ixmax0
+              by(ip) = by(ip) + sx0(jj)*sz0(ll)*byg(j0+jj,1,l0+ll)
+            end do
+          end do
+
+        end if
+
+        do ll = izmin, izmax+1
+            do jj = ixmin0, ixmax0
+              bz(ip) = bz(ip) + sx0(jj)*sz(ll)*bzg(j0+jj,1,l+ll)
+            end do
+        end do
+                 
+     end do
+     deallocate(sx0,sz0)
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getb2dxz_n_energy_conserving
+
+subroutine getb3d_n_energy_conserving(np,xp,yp,zp,bx,by,bz,xmin,ymin,zmin,dx,dy,dz,nx,ny,nz,nxguard,nyguard,nzguard, &
+                                       nox,noy,noz,bxg,byg,bzg,l4symtry,l_lower_order_in_v)
+   
+      use Timers, Only: gathertime
+      implicit none
+      integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+      real(kind=8), dimension(np) :: xp,yp,zp,bx,by,bz
+      logical(ISZ) :: l4symtry,l_lower_order_in_v
+      real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: bxg,byg,bzg
+      real(kind=8) :: xmin,ymin,zmin,dx,dy,dz
+      integer(ISZ) :: ip, j, k, l, ixmin, ixmax, iymin, iymax, izmin, izmax, &
+                      ixmin0, ixmax0, iymin0, iymax0, izmin0, izmax0, jj, kk, ll, j0, k0, l0
+      real(kind=8) :: dxi, dyi, dzi, x, y, z, xint, yint, zint, &
+                      xintsq,oxint,yintsq,oyint,zintsq,ozint,oxintsq,oyintsq,ozintsq,signx,signy
+      real(kind=8), DIMENSION(-int(nox/2):int((nox+1)/2)) :: sx
+      real(kind=8), DIMENSION(-int(noy/2):int((noy+1)/2)) :: sy
+      real(kind=8), DIMENSION(-int(noz/2):int((noz+1)/2)) :: sz
+      real(kind=8), dimension(:), allocatable :: sx0,sy0,sz0
+      real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+      real(kind=8):: starttime, wtime
+      integer:: alloc_status
+
+      starttime = wtime()
+
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+
+      ixmin = -int(nox/2)
+      ixmax =  int((nox+1)/2)-1
+      iymin = -int(noy/2)
+      iymax =  int((noy+1)/2)-1
+      izmin = -int(noz/2)
+      izmax =  int((noz+1)/2)-1
+
+
+      if (l_lower_order_in_v) then
+        ixmin0 = -int((nox-1)/2)
+        ixmax0 =  int((nox)/2)
+        iymin0 = -int((noy-1)/2)
+        iymax0 =  int((noy)/2)
+        izmin0 = -int((noz-1)/2)
+        izmax0 =  int((noz)/2)
+      else
+        ixmin0 = -int((nox)/2)
+        ixmax0 =  int((nox+1)/2)
+        iymin0 = -int((noy)/2)
+        iymax0 =  int((noy+1)/2)
+        izmin0 = -int((noz)/2)
+        izmax0 =  int((noz+1)/2)
+      end if
+      allocate(sx0(ixmin0:ixmax0),sy0(iymin0:iymax0),sz0(izmin0:izmax0), stat=alloc_status)
+      if (alloc_status /= 0) then
+        print*,"Error:getb3d_n_energy_conserving: sx0, sy0, and sz0 could not be allocated"
+        stop
+      endif
+
+      signx = 1.
+      signy = 1.
+
+      sx=0
+      sy=0.
+      sz=0.
+      sx0=0.
+      sy0=0.
+      sz0=0.
+
+      do ip=1,np
+
+        x = (xp(ip)-xmin)*dxi
+        y = (yp(ip)-ymin)*dyi
+        z = (zp(ip)-zmin)*dzi
+
+        if (l4symtry) then
+          if (x<0.) then
+            x = -x
+            signx = -1.
+          else
+            signx = 1.
+          end if
+          if (y<0.) then
+            y = -y
+            signy = -1.
+          else
+            signy = 1.
+          end if
+        end if
+
+        if (l_lower_order_in_v) then
+         if (nox==2*(nox/2)) then
+          j=nint(x)
+          j0=floor(x-0.5)
+         else
+          j=floor(x)
+          j0=floor(x)
+         end if
+         if (noy==2*(noy/2)) then
+          k=nint(y)
+          k0=floor(y-0.5)
+         else
+          k=floor(y)
+          k0=floor(y)
+         end if
+         if (noz==2*(noz/2)) then
+          l=nint(z)
+          l0=floor(z-0.5)
+         else
+          l=floor(z)
+          l0=floor(z)
+         end if
+        else
+          if (nox==2*(nox/2)) then
+            j=nint(x)
+            j0=floor(x)
+          else
+            j=floor(x)
+            j0=floor(x-0.5)
+          end if
+          if (noy==2*(noy/2)) then
+            k=nint(y)
+            k0=floor(y)
+          else
+            k=floor(y)
+            k0=floor(y-0.5)
+          end if
+          if (noz==2*(noz/2)) then
+            l=nint(z)
+            l0=floor(z)
+          else
+            l=floor(z)
+            l0=floor(z-0.5)
+          end if
+        end if
+
+        xint=x-j
+        yint=y-k
+        zint=z-l
+        
+        if (nox==1) then
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+        elseif (nox==2) then
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+        elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end if
+
+        if (noy==1) then
+          sy( 0) = 1.-yint
+          sy( 1) = yint
+        elseif (noy==2) then
+          yintsq = yint*yint
+          sy(-1) = 0.5*(0.5-yint)**2
+          sy( 0) = 0.75-yintsq
+          sy( 1) = 0.5*(0.5+yint)**2
+        elseif (noy==3) then
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy(-1) = onesixth*oyintsq*oyint
+          sy( 0) = twothird-yintsq*(1.-yint/2)
+          sy( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy( 2) = onesixth*yintsq*yint
+        end if
+
+        if (noz==1) then
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+        elseif (noz==2) then
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+        elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end if
+
+        xint=x-0.5-j0
+        yint=y-0.5-k0
+        zint=z-0.5-l0
+
+        if (l_lower_order_in_v) then
+
+         if (nox==1) then
+          sx0( 0) = 1.
+         elseif (nox==2) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==3) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         end if
+
+         if (noy==1) then
+          sy0( 0) = 1.
+         elseif (noy==2) then
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+         elseif (noy==3) then
+          yintsq = yint*yint
+          sy0(-1) = 0.5*(0.5-yint)**2
+          sy0( 0) = 0.75-yintsq
+          sy0( 1) = 0.5*(0.5+yint)**2
+         end if
+
+         if (noz==1) then
+          sz0( 0) = 1.
+         elseif (noz==2) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==3) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         end if
+
+        else
+
+         if (nox==1) then
+          sx0( 0) = 1.-xint
+          sx0( 1) = xint
+         elseif (nox==2) then
+          xintsq = xint*xint
+          sx0(-1) = 0.5*(0.5-xint)**2
+          sx0( 0) = 0.75-xintsq
+          sx0( 1) = 0.5*(0.5+xint)**2
+         elseif (nox==3) then
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx0(-1) = onesixth*oxintsq*oxint
+          sx0( 0) = twothird-xintsq*(1.-xint/2)
+          sx0( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx0( 2) = onesixth*xintsq*xint
+         end if
+
+         if (noy==1) then
+          sy0( 0) = 1.-yint
+          sy0( 1) = yint
+         elseif (noy==2) then
+          yintsq = yint*yint
+          sy0(-1) = 0.5*(0.5-yint)**2
+          sy0( 0) = 0.75-yintsq
+          sy0( 1) = 0.5*(0.5+yint)**2
+         elseif (noy==3) then
+          oyint = 1.-yint
+          yintsq = yint*yint
+          oyintsq = oyint*oyint
+          sy0(-1) = onesixth*oyintsq*oyint
+          sy0( 0) = twothird-yintsq*(1.-yint/2)
+          sy0( 1) = twothird-oyintsq*(1.-oyint/2)
+          sy0( 2) = onesixth*yintsq*yint
+         end if
+         
+         if (noz==1) then
+          sz0( 0) = 1.-zint
+          sz0( 1) = zint
+         elseif (noz==2) then
+          zintsq = zint*zint
+          sz0(-1) = 0.5*(0.5-zint)**2
+          sz0( 0) = 0.75-zintsq
+          sz0( 1) = 0.5*(0.5+zint)**2
+         elseif (noz==3) then
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz0(-1) = onesixth*ozintsq*ozint
+          sz0( 0) = twothird-zintsq*(1.-zint/2)
+          sz0( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz0( 2) = onesixth*zintsq*zint
+         end if
+
+        end if
+        
+        do ll = izmin0, izmax0
+          do kk = iymin0, iymax0
+            do jj = ixmin, ixmax+1
+              bx(ip) = bx(ip) + sx(jj)*sy0(kk)*sz0(ll)*bxg(j+jj,k0+kk,l0+ll)*signx
+            end do
+          end do
+        end do
+
+        do ll = izmin0, izmax0
+          do kk = iymin, iymax+1
+            do jj = ixmin0, ixmax0
+              by(ip) = by(ip) + sx0(jj)*sy(kk)*sz0(ll)*byg(j0+jj,k+kk,l0+ll)*signy
+            end do
+          end do
+        end do
+
+        do ll = izmin, izmax+1
+          do kk = iymin0, iymax0
+            do jj = ixmin0, ixmax0
+              bz(ip) = bz(ip) + sx0(jj)*sy0(kk)*sz(ll)*bzg(j0+jj,k0+kk,l+ll)
+            end do
+          end do
+        end do
+                
+     end do
+     deallocate(sx0,sz0)
+
+   gathertime = gathertime + (wtime() - starttime)
+   return
+ end subroutine getb3d_n_energy_conserving
+
+ subroutine project_jxjyjz(jxfine,jyfine,jzfine,jxcoarse, jycoarse, jzcoarse,                        &
+                           jxcoarse_mother,jycoarse_mother,jzcoarse_mother, nxf,nyf,nzf,nxc,nyc,nzc, &
+                           nxguard,nyguard,nzguard,rapx,rapy,rapz,ixc,iyc,izc,l_2dxz,icycle,novercycle)
+ ! Projection of J from one fine grid onto a coarse grid
+ implicit none
+ logical(ISZ) :: l_2dxz
+ integer(ISZ) :: nxf,nyf,nzf,nxc,nyc,nzc,ixc,iyc,izc,rapx,rapy,rapz,nxguard,nyguard,nzguard,icycle,novercycle
+ real(kind=8), DIMENSION(-nxguard:nxf+nxguard,-nyguard:nyf+nyguard,-nzguard:nzf+nzguard) :: jxfine, jyfine, jzfine
+ real(kind=8), DIMENSION(-nxguard:nxf/rapx+nxguard,-nyguard:nyf/rapy+nyguard,-nzguard:nzf/rapz+nzguard) :: jxcoarse, &
+                                                                                jycoarse, jzcoarse 
+ real(kind=8), DIMENSION(-nxguard:nxc+nxguard,-nyguard:nyc+nyguard,-nzguard:nzc+nzguard) :: jxcoarse_mother, & 
+                                                                                jycoarse_mother, jzcoarse_mother
+
+ INTEGER :: j, k, l, jg, kg, lg, ixmin, ixmax, iymin, iymax, izmin, izmax
+ real(kind=8) :: wx, wy, wz, owx, owy, owz, invrapvol, irapx, irapy, irapz
+
+   irapx = 1./rapx
+   irapy = 1./rapy
+   irapz = 1./rapz
+   invrapvol = irapx*irapy*irapz/novercycle
+
+   if(icycle==0) then 
+       jxcoarse(:,:,:) = 0.
+       jycoarse(:,:,:) = 0.
+       jzcoarse(:,:,:) = 0.
+    endif
+   
+   ixmin = -nxguard
+   ixmax = nxf+nxguard
+   iymin = -nyguard
+   iymax = nyf+nyguard
+   izmin = -nzguard
+   izmax = nzf+nzguard
+
+   if (.not.l_2dxz) then
+
+   do l = izmin, izmax
+      lg = floor(l*irapz)  
+      wz = REAL(MOD(l+nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+      do k = iymin, iymax
+         kg = floor(k*irapy)
+         wy = REAL(MOD(k+nyguard*rapy,rapy))*irapy
+         owy= 1.-wy
+         do j = ixmin, ixmax-1
+            jg = floor(j*irapx)
+            jxcoarse(jg,kg  ,lg  ) = jxcoarse(jg,kg  ,lg  ) + owy*owz*jxfine(j,k,l)*invrapvol
+            if (kg<iymax) &
+            jxcoarse(jg,kg+1,lg  ) = jxcoarse(jg,kg+1,lg  ) +  wy*owz*jxfine(j,k,l)*invrapvol
+            if (lg<izmax) &
+            jxcoarse(jg,kg  ,lg+1) = jxcoarse(jg,kg  ,lg+1) + owy* wz*jxfine(j,k,l)*invrapvol
+            if (kg<iymax .and. lg<izmax) &
+            jxcoarse(jg,kg+1,lg+1) = jxcoarse(jg,kg+1,lg+1) +  wy* wz*jxfine(j,k,l)*invrapvol
+         end do
+      end do
+   end do
+
+   do l = izmin, izmax
+      lg = floor(l*irapz)  
+      wz = REAL(MOD(l+nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+      do k = iymin, iymax-1
+         kg = floor(k*irapy)
+         do j = ixmin, ixmax
+            jg = floor(j*irapx)
+            wx = REAL(MOD(j+nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            jycoarse(jg  ,kg,lg  ) = jycoarse(jg  ,kg,lg  ) + owx*owz*jyfine(j,k,l)*invrapvol
+            if (jg<ixmax) &
+            jycoarse(jg+1,kg,lg  ) = jycoarse(jg+1,kg,lg  ) +  wx*owz*jyfine(j,k,l)*invrapvol
+            if (lg<izmax) &
+            jycoarse(jg  ,kg,lg+1) = jycoarse(jg  ,kg,lg+1) + owx* wz*jyfine(j,k,l)*invrapvol
+            if (jg<ixmax .and. lg<izmax) &
+            jycoarse(jg+1,kg,lg+1) = jycoarse(jg+1,kg,lg+1) +  wx* wz*jyfine(j,k,l)*invrapvol
+         end do
+      end do
+   end do
+
+   do l = izmin, izmax-1
+      lg = floor(l*irapz)  
+      do k = iymin, iymax
+         kg = floor(k*irapy)
+         wy = REAL(MOD(k+nyguard*rapy,rapy))*irapy
+         owy= 1.-wy
+         do j = ixmin, ixmax
+            jg = floor(j*irapx)
+            wx = REAL(MOD(j+nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            jzcoarse(jg  ,kg  ,lg) = jzcoarse(jg  ,kg  ,lg) + owy*owx*jzfine(j,k,l)*invrapvol
+            if (kg<iymax) &
+            jzcoarse(jg  ,kg+1,lg) = jzcoarse(jg  ,kg+1,lg) +  wy*owx*jzfine(j,k,l)*invrapvol
+            if (jg<ixmax) &
+            jzcoarse(jg+1,kg  ,lg) = jzcoarse(jg+1,kg  ,lg) + owy* wx*jzfine(j,k,l)*invrapvol
+            if (jg<ixmax .and. kg<iymax) &
+            jzcoarse(jg+1,kg+1,lg) = jzcoarse(jg+1,kg+1,lg) +  wy* wx*jzfine(j,k,l)*invrapvol
+         end do
+      end do
+   end do
+
+   else
+   
+   k=0
+   kg=0
+   do l = izmin, izmax
+      lg = floor(l*irapz)  
+      wz = REAL(MOD(l+nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+         do j = ixmin, ixmax-1
+            jg = floor(j*irapx)
+            jxcoarse(jg,kg  ,lg  ) = jxcoarse(jg,kg  ,lg  ) + owz*jxfine(j,k,l)*invrapvol
+            if (lg<izmax) &
+            jxcoarse(jg,kg  ,lg+1) = jxcoarse(jg,kg  ,lg+1) +  wz*jxfine(j,k,l)*invrapvol
+         end do
+   end do
+
+   do l = izmin, izmax
+      lg = floor(l*irapz)  
+      wz = REAL(MOD(l+nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+         do j = ixmin, ixmax
+            jg = floor(j*irapx)
+            wx = REAL(MOD(j+nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            jycoarse(jg  ,kg,lg  ) = jycoarse(jg  ,kg,lg  ) + owx*owz*jyfine(j,k,l)*invrapvol
+            if (jg<ixmax) &
+            jycoarse(jg+1,kg,lg  ) = jycoarse(jg+1,kg,lg  ) +  wx*owz*jyfine(j,k,l)*invrapvol
+            if (lg<izmax) &
+            jycoarse(jg  ,kg,lg+1) = jycoarse(jg  ,kg,lg+1) + owx* wz*jyfine(j,k,l)*invrapvol
+            if (jg<ixmax .and. lg<izmax) &
+            jycoarse(jg+1,kg,lg+1) = jycoarse(jg+1,kg,lg+1) +  wx* wz*jyfine(j,k,l)*invrapvol
+         end do
+   end do
+
+   do l = izmin, izmax-1
+      lg = floor(l*irapz)  
+         do j = ixmin, ixmax
+            jg = floor(j*irapx)
+            wx = REAL(MOD(j+nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            jzcoarse(jg  ,kg  ,lg) = jzcoarse(jg  ,kg  ,lg) + owx*jzfine(j,k,l)*invrapvol
+            if (jg<ixmax) &
+            jzcoarse(jg+1,kg  ,lg) = jzcoarse(jg+1,kg  ,lg) +  wx*jzfine(j,k,l)*invrapvol
+         end do
+   end do
+
+   endif
+   
+   jxcoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) = &
+   jxcoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) + &
+   jxcoarse(:,:,:)
+   jycoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) = &
+   jycoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) + &
+   jycoarse(:,:,:)
+   jzcoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) = &
+   jzcoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) + &
+   jzcoarse(:,:,:)
+   
+   return
+ end subroutine project_jxjyjz
+
+ subroutine project_rho(rhofine,rhocoarse,rhocoarse_mother,nxf,nyf,nzf,nxc,nyc,nzc,nxguard,nyguard,nzguard, &
+                        rapx,rapy,rapz,ixc,iyc,izc,l_2dxz)
+ ! Projection of J from one fine grid onto a coarse grid
+ implicit none
+ logical(ISZ) :: l_2dxz
+ integer(ISZ) :: nxf,nyf,nzf,nxc,nyc,nzc,ixc,iyc,izc,rapx,rapy,rapz,nxguard,nyguard,nzguard
+ real(kind=8), DIMENSION(-nxguard:nxf+nxguard,-nyguard:nyf+nyguard,-nzguard:nzf+nzguard) :: rhofine
+ real(kind=8), DIMENSION(-nxguard:nxf/rapx+nxguard,-nyguard:nyf/rapy+nyguard,-nzguard:nzf/rapz+nzguard) :: rhocoarse
+ real(kind=8), DIMENSION(-nxguard:nxc+nxguard,-nyguard:nyc+nyguard,-nzguard:nzc+nzguard) :: rhocoarse_mother
+
+ INTEGER :: j, k, l, jg, kg, lg, ixmin, ixmax, iymin, iymax, izmin, izmax
+ real(kind=8) :: wx, wy, wz, owx, owy, owz, invrapvol, irapx, irapy, irapz
+
+   irapx = 1./rapx
+   irapy = 1./rapy
+   irapz = 1./rapz
+   invrapvol = irapx*irapy*irapz
+   
+   ixmin = -nxguard
+   ixmax = nxf+nxguard
+   iymin = -nyguard
+   iymax = nyf+nyguard
+   izmin = -nzguard
+   izmax = nzf+nzguard
+
+   rhocoarse(:,:,:) = 0.
+
+   if (.not.l_2dxz) then
+
+   do l = -nzguard, nzf+nzguard
+      lg = floor(l*irapz)  
+      wz = REAL(MOD(l+nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+      do k = -nyguard, nyf+nyguard
+         kg = floor(k*irapy)
+         wy = REAL(MOD(k+nyguard*rapy,rapy))*irapy
+         owy= 1.-wy
+         do j = -nxguard, nxf+nxguard
+            jg = floor(j*irapx)
+            wx = REAL(MOD(j+nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            rhocoarse(jg,kg  ,lg  ) = rhocoarse(jg,kg  ,lg  ) + owx*owy*owz*rhofine(j,k,l)*invrapvol
+            if (kg<iymax) &
+            rhocoarse(jg,kg+1,lg  ) = rhocoarse(jg,kg+1,lg  ) + owx* wy*owz*rhofine(j,k,l)*invrapvol
+            if (lg<izmax) &
+            rhocoarse(jg,kg  ,lg+1) = rhocoarse(jg,kg  ,lg+1) + owx*owy* wz*rhofine(j,k,l)*invrapvol
+            if (lg<izmax .and. kg<iymax) &
+            rhocoarse(jg,kg+1,lg+1) = rhocoarse(jg,kg+1,lg+1) + owx* wy* wz*rhofine(j,k,l)*invrapvol
+            if (jg<ixmax) &
+            rhocoarse(jg+1,kg  ,lg  ) = rhocoarse(jg+1,kg  ,lg  ) + wx*owy*owz*rhofine(j,k,l)*invrapvol
+            if (jg<ixmax .and. kg<iymax) &
+            rhocoarse(jg+1,kg+1,lg  ) = rhocoarse(jg+1,kg+1,lg  ) + wx* wy*owz*rhofine(j,k,l)*invrapvol
+            if (jg<ixmax .and. lg<izmax) &
+            rhocoarse(jg+1,kg  ,lg+1) = rhocoarse(jg+1,kg  ,lg+1) + wx*owy* wz*rhofine(j,k,l)*invrapvol
+            if (jg<ixmax .and. kg<iymax .and. lg<izmax) &
+            rhocoarse(jg+1,kg+1,lg+1) = rhocoarse(jg+1,kg+1,lg+1) + wx* wy* wz*rhofine(j,k,l)*invrapvol
+         end do
+      end do
+   end do
+   
+   else
+   
+   k=0
+   kg=0
+   do l = -nzguard, nzf+nzguard
+      lg = floor(l*irapz)  
+      wz = REAL(MOD(l+nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+         do j = -nxguard, nxf+nxguard
+            jg = floor(j*irapx)
+            wx = REAL(MOD(j+nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            rhocoarse(jg,kg  ,lg  ) = rhocoarse(jg,kg  ,lg  )     + owx*owz*rhofine(j,k,l)*invrapvol
+            if (lg<izmax) &
+            rhocoarse(jg,kg  ,lg+1) = rhocoarse(jg,kg  ,lg+1)     + owx* wz*rhofine(j,k,l)*invrapvol
+            if (jg<ixmax) &
+            rhocoarse(jg+1,kg  ,lg  ) = rhocoarse(jg+1,kg  ,lg  ) + wx *owz*rhofine(j,k,l)*invrapvol
+            if (jg<ixmax .and. lg<izmax) &
+            rhocoarse(jg+1,kg  ,lg+1) = rhocoarse(jg+1,kg  ,lg+1) + wx * wz*rhofine(j,k,l)*invrapvol
+         end do
+   end do
+
+   endif
+   
+   rhocoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) = &
+   rhocoarse_mother(ixc-nxguard:ixc+nxf/rapx+nxguard,iyc-nyguard:iyc+nyf/rapy+nyguard,izc-nzguard:izc+nzf/rapz+nzguard) + &
+   rhocoarse(:,:,:)
+
+   return
+ end subroutine project_rho
+
+subroutine apply_dmask(rho,jx,jy,jz,dmaskx,dmasky,dmaskz,bounds,nguarddepos,ntrans,nx,ny,nz,nxguard,nyguard,nzguard,l_getrho,l_2dxz)
+ ! Projection of J from one fine grid onto a coarse grid
+ use EM3D_FIELDobjects, only : otherproc
+ implicit none
+ logical(ISZ) :: l_2dxz, l_getrho
+ integer(ISZ) :: nx,ny,nz,nxguard,nyguard,nzguard,bounds(10),nguarddepos(3),ntrans(3)
+ real(kind=8), DIMENSION(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: rho
+ real(kind=8), DIMENSION(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard) :: jx,jy,jz
+ real(kind=8), DIMENSION(-nxguard:nx+nxguard) :: dmaskx
+ real(kind=8), DIMENSION(-nyguard:ny+nyguard) :: dmasky
+ real(kind=8), DIMENSION(-nzguard:nz+nzguard) :: dmaskz
+
+ INTEGER :: j, k, l, i
+
+if (.true.) then
+ do j = 0, nx
+   i = -ntrans(1)!/2
+   if (j<(nguarddepos(1)-i) .and. bounds(1)/=otherproc) then
+     if (j>(nguarddepos(1)-ntrans(1)-i)) then
+       dmaskx(j) = real(j-nguarddepos(1)+ntrans(1)+i)/ntrans(1)
+     end if
+   else if (j>(nx-nguarddepos(1)+i) .and. bounds(2)/=otherproc) then
+     if (j<nx-nguarddepos(1)+i+ntrans(1)) then
+       dmaskx(j) = real(nx-nguarddepos(1)+i+ntrans(1)-j)/ntrans(1)
+     end if
+   else
+     dmaskx(j) = 1.
+   end if
+ end do 
+else
+ do j = 0, nx
+   if (j<nguarddepos(1) .and. bounds(1)/=otherproc) then
+     if (j>nguarddepos(1)-ntrans(1)) then
+       dmaskx(j) = real(j-nguarddepos(1)+ntrans(1))/ntrans(1)
+     end if
+   else if (j>(nx-nguarddepos(1)) .and. bounds(2)/=otherproc) then
+     if (j<nx-nguarddepos(1)+ntrans(1)) then
+       dmaskx(j) = real(nx-nguarddepos(1)+ntrans(1)-j)/ntrans(1)
+     end if
+   else
+     dmaskx(j) = 1.
+   end if
+ end do 
+endif
+
+ if (.not.l_2dxz) then
+ do k = 0, ny
+   if (k<nguarddepos(2) .and. bounds(3)/=otherproc) then
+     if (k>nguarddepos(2)-ntrans(2)) then
+       dmasky(k) = real(k-nguarddepos(2)+ntrans(2))/ntrans(2)
+     end if
+   else if (k>(ny-nguarddepos(2)) .and. bounds(4)/=otherproc) then
+     if (k<ny-nguarddepos(2)+ntrans(2)) then
+       dmasky(k) = real(ny-nguarddepos(2)+ntrans(2)-j)/ntrans(2)
+     end if
+   else
+     dmasky(k) = 1.
+   end if
+ end do 
+ endif
+
+ do l = 0, nz
+   if (l<nguarddepos(3) .and. bounds(5)/=otherproc) then
+     if (l>nguarddepos(3)-ntrans(3)) then
+       dmaskz(l) = real(l-nguarddepos(3)+ntrans(3))/ntrans(3)
+     end if
+   else if (l>(nz-nguarddepos(3)) .and. bounds(6)/=otherproc) then
+     if (l<nz-nguarddepos(3)+ntrans(3)) then
+       dmaskz(l) = real(nz-nguarddepos(3)+ntrans(3)-l)/ntrans(3)
+     end if
+   else
+     dmaskz(l) = 1.
+   end if
+ end do 
+
+!dmaskx=1.
+dmaskz=1.
+
+ if (.not.l_2dxz) then
+
+   do l = 0, nz
+      do k = 0, ny
+         do j = 0, nx
+           jx(j,k,l) = jx(j,k,l) * 0.5*(dmaskx(j)+dmaskx(j+1)) * dmasky(k) * dmaskz(l)
+       end do
+      end do
+   end do
+   do l = 0, nz
+      do k = 0, ny
+         do j = 0, nx
+           jy(j,k,l) = jy(j,k,l) * 0.5*(dmasky(k)+dmasky(k+1)) * dmaskx(j) * dmaskz(l)
+       end do
+      end do
+   end do
+   do l = 0, nz
+      do k = 0, ny
+         do j = 0, nx
+           jz(j,k,l) = jz(j,k,l) * 0.5*(dmaskz(l)+dmaskz(l+1)) * dmaskx(j) * dmasky(k)
+       end do
+      end do
+   end do
+   if (l_getrho) then
+     do l = 0, nz
+        do k = 0, ny
+           do j = 0, nx
+             rho(j,k,l) = rho(j,k,l) * dmaskx(j) * dmasky(k) * dmaskz(l)
+         end do
+       end do
+     end do
+   end if
+
+ else
+   k = 0
+
+   do l = 0, nz
+         do j = 0, nx
+           jx(j,k,l) = jx(j,k,l) * 0.5*(dmaskx(j)+dmaskx(j+1)) * dmaskz(l)
+       end do
+   end do
+   do l = 0, nz
+         do j = 0, nx
+           jy(j,k,l) = jy(j,k,l) * dmaskx(j) * dmaskz(l)
+       end do
+   end do
+   do l = 0, nz
+         do j = 0, nx
+           jz(j,k,l) = jz(j,k,l) * 0.5*(dmaskz(l)+dmaskz(l+1)) * dmaskx(j) 
+       end do
+   end do
+   if (l_getrho) then
+     do l = 0, nz
+           do j = 0, nx
+             rho(j,k,l) = rho(j,k,l) * dmaskx(j) * dmaskz(l)
+         end do
+     end do
+   end if
+ end if
+
+ return
+end subroutine apply_dmask
+
+subroutine setebp(emfield,icycle,novercycle)
+
+ use EM3D_YEEFIELDtypemodule
+ implicit none
+
+ TYPE(EM3D_YEEFIELDtype) :: emfield
+ real(kind=8) :: w,ow
+ integer(ISZ) :: icycle,novercycle
+   
+ if (novercycle==1) then
+   emfield%exp = emfield%ex
+   emfield%eyp = emfield%ey
+   emfield%ezp = emfield%ez
+   emfield%bxp = emfield%bx
+   emfield%byp = emfield%by
+   emfield%bzp = emfield%bz 
+   if (emfield%circ_m>0) then
+     emfield%exp_circ = emfield%ex_circ
+     emfield%eyp_circ = emfield%ey_circ
+     emfield%ezp_circ = emfield%ez_circ
+     emfield%bxp_circ = emfield%bx_circ
+     emfield%byp_circ = emfield%by_circ
+     emfield%bzp_circ = emfield%bz_circ 
+   end if
+ else
+   if (icycle==0) then
+     emfield%expnext = emfield%ex
+     emfield%eypnext = emfield%ey
+     emfield%ezpnext = emfield%ez
+     emfield%bxpnext = emfield%bx
+     emfield%bypnext = emfield%by
+     emfield%bzpnext = emfield%bz 
+   end if
+   w = 1./(novercycle-icycle)
+   ow = 1.-w
+   emfield%exp = ow*emfield%exp + w*emfield%expnext
+   emfield%eyp = ow*emfield%eyp + w*emfield%eypnext
+   emfield%ezp = ow*emfield%ezp + w*emfield%ezpnext
+   emfield%bxp = ow*emfield%bxp + w*emfield%bxpnext
+   emfield%byp = ow*emfield%byp + w*emfield%bypnext
+   emfield%bzp = ow*emfield%bzp + w*emfield%bzpnext
+ end if
+
+ return
+end subroutine setebp
+
+subroutine addsubstractfields(child,child_coarse,parent,lc,ref,l_2dxz)
+! Add own field and field from parent, substracting field from core_coarse, and 
+! putting the result in Exp, Eyp, Ezp, Bxp, Byp and Bzp.
+
+ use EM3D_BLOCKtypemodule
+ use EM3D_YEEFIELDtypemodule
+ implicit none
+
+ TYPE(EM3D_BLOCKtype) :: child, child_coarse, parent
+ integer(ISZ) :: lc(3),ref(3) ! lower bounds of child grid in parent grid, refinement
+ logical(ISZ) :: l_2dxz
+
+ TYPE(EM3D_YEEFIELDtype), pointer :: cf, cc, p
+ INTEGER :: j, k, l, jg, kg, lg, jgp, kgp, lgp, rapx, rapy, rapz, nxf, nyf, nzf
+ real(kind=8) :: wx, wy, wz, owx, owy, owz, irapx, irapy, irapz
+
+   cf => child%core%yf
+   cc => child_coarse%core%yf
+   p  => parent%core%yf
+
+   rapx = ref(1)
+   rapy = ref(2)
+   rapz = ref(3)
+   irapx = 1./rapx
+   irapy = 1./rapy
+   irapz = 1./rapz
+   
+   nxf = cf%nx
+   nyf = cf%ny
+   nzf = cf%nz
+
+   if (.not.l_2dxz) then
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l,rapz))*irapz
+      owz= 1.-wz
+      do k = 0, nyf
+         kg = k*irapy
+         kgp = kg+lc(2)
+         wy = REAL(MOD(k,rapy))*irapy
+         owy= 1.-wy
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            cf%exp(j,k,l) = cf%exp(j,k,l) &
+                          - owy * owz * cc%exp(jg   ,kg   ,lg   ) &
+                          -  wy * owz * cc%exp(jg   ,kg+1 ,lg   ) &
+                          - owy *  wz * cc%exp(jg   ,kg   ,lg+1 ) &
+                          -  wy *  wz * cc%exp(jg   ,kg+1 ,lg+1 ) &
+                          + owy * owz * p%exp(jgp  ,kgp  ,lgp  ) &
+                          +  wy * owz * p%exp(jgp  ,kgp+1,lgp  ) &
+                          + owy *  wz * p%exp(jgp  ,kgp  ,lgp+1) &
+                          +  wy *  wz * p%exp(jgp  ,kgp+1,lgp+1) 
+         end do
+      end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l,rapz))*irapz
+      owz= 1.-wz
+      do k = 0, nyf
+         kg = k*irapy
+         kgp = kg+lc(2)
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j,rapx))*irapx
+            owx= 1.-wx
+            cf%eyp(j,k,l) = cf%eyp(j,k,l) &
+                          - owx * owz * cc%eyp(jg   ,kg   ,lg   ) &
+                          -  wx * owz * cc%eyp(jg+1 ,kg   ,lg   ) &
+                          - owx *  wz * cc%eyp(jg   ,kg   ,lg+1 ) &
+                          -  wx *  wz * cc%eyp(jg+1 ,kg   ,lg+1 ) &
+                          + owx * owz * p%eyp(jgp  ,kgp  ,lgp  ) &
+                          +  wx * owz * p%eyp(jgp+1,kgp  ,lgp  ) &
+                          + owx *  wz * p%eyp(jgp  ,kgp  ,lgp+1) &
+                          +  wx *  wz * p%eyp(jgp+1,kgp  ,lgp+1) 
+         end do
+      end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      do k = 0, nyf
+         kg = k*irapy
+         kgp = kg+lc(2)
+         wy = REAL(MOD(k,rapy))*irapy
+         owy= 1.-wy
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j,rapx))*irapx
+            owx= 1.-wx
+            cf%ezp(j,k,l) = cf%ezp(j,k,l) &
+                          - owx * owy * cc%ezp(jg   ,kg   ,lg   ) &
+                          -  wx * owy * cc%ezp(jg+1 ,kg   ,lg   ) &
+                          - owx *  wy * cc%ezp(jg   ,kg+1 ,lg   ) &
+                          -  wx *  wy * cc%ezp(jg+1 ,kg+1 ,lg   ) &
+                          + owx * owy * p%ezp(jgp  ,kgp  ,lgp  ) &
+                          +  wx * owy * p%ezp(jgp+1,kgp  ,lgp  ) &
+                          + owx *  wy * p%ezp(jgp  ,kgp+1,lgp  ) &
+                          +  wx *  wy * p%ezp(jgp+1,kgp+1,lgp  ) 
+         end do
+      end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      do k = 0, nyf
+         kg = k*irapy
+         kgp = kg+lc(2)
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j,rapx))*irapx
+            owx= 1.-wx
+            cf%bxp(j,k,l) = cf%bxp(j,k,l) &
+                          - owx * cc%bxp(jg   ,kg   ,lg   ) &
+                          -  wx * cc%bxp(jg+1 ,kg   ,lg   ) &
+                          + owx * p%bxp(jgp  ,kgp  ,lgp  ) &
+                          +  wx * p%bxp(jgp+1,kgp  ,lgp  ) 
+         end do
+      end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      do k = 0, nyf
+         kg = k*irapy
+         kgp = kg+lc(2)
+         wy = REAL(MOD(k,rapy))*irapy
+         owy= 1.-wy
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            cf%byp(j,k,l) = cf%byp(j,k,l) &
+                          - owy * cc%byp(jg   ,kg   ,lg   ) &
+                          -  wy * cc%byp(jg   ,kg+1 ,lg   ) &
+                          + owy * p%byp(jgp  ,kgp  ,lgp  ) &
+                          +  wy * p%byp(jgp  ,kgp+1,lgp  ) 
+         end do
+      end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l,rapz))*irapz
+      owz= 1.-wz
+      do k = 0, nyf
+         kg = k*irapy
+         kgp = kg+lc(2)
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            cf%bzp(j,k,l) = cf%bzp(j,k,l) &
+                          - owz * cc%bzp(jg   ,kg   ,lg   ) &
+                          -  wz * cc%bzp(jg   ,kg   ,lg+1 ) &
+                          + owz * p%bzp(jgp  ,kgp  ,lgp  ) &
+                          +  wz * p%bzp(jgp  ,kgp  ,lgp+1) 
+         end do
+      end do
+   end do
+
+   else
+
+   k=0
+   kg=0
+   kgp=0
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l,rapz))*irapz
+      owz= 1.-wz
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            cf%exp(j,k,l) = cf%exp(j,k,l) &
+                          - owz * cc%exp(jg   ,kg   ,lg   ) &
+                          -  wz * cc%exp(jg   ,kg   ,lg+1 ) &
+                          + owz * p%exp(jgp  ,kgp  ,lgp  ) &
+                          +  wz * p%exp(jgp  ,kgp  ,lgp+1) 
+         end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l,rapz))*irapz
+      owz= 1.-wz
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j,rapx))*irapx
+            owx= 1.-wx
+            cf%eyp(j,k,l) = cf%eyp(j,k,l) &
+                          - owx * owz * cc%eyp(jg   ,kg   ,lg   ) &
+                          -  wx * owz * cc%eyp(jg+1 ,kg   ,lg   ) &
+                          - owx *  wz * cc%eyp(jg   ,kg   ,lg+1 ) &
+                          -  wx *  wz * cc%eyp(jg+1 ,kg   ,lg+1 ) &
+                          + owx * owz * p%eyp(jgp  ,kgp  ,lgp  ) &
+                          +  wx * owz * p%eyp(jgp+1,kgp  ,lgp  ) &
+                          + owx *  wz * p%eyp(jgp  ,kgp  ,lgp+1) &
+                          +  wx *  wz * p%eyp(jgp+1,kgp  ,lgp+1) 
+         end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j,rapx))*irapx
+            owx= 1.-wx
+            cf%ezp(j,k,l) = cf%ezp(j,k,l) &
+                          - owx * cc%ezp(jg   ,kg   ,lg   ) &
+                          -  wx * cc%ezp(jg+1 ,kg   ,lg   ) &
+                          + owx * p%ezp(jgp  ,kgp  ,lgp  ) &
+                          +  wx * p%ezp(jgp+1,kgp  ,lgp  ) 
+         end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j,rapx))*irapx
+            owx= 1.-wx
+            cf%bxp(j,k,l) = cf%bxp(j,k,l) &
+                          - owx * cc%bxp(jg   ,kg   ,lg   ) &
+                          -  wx * cc%bxp(jg+1 ,kg   ,lg   ) &
+                          + owx * p%bxp(jgp  ,kgp  ,lgp  ) &
+                          +  wx * p%bxp(jgp+1,kgp  ,lgp  ) 
+         end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            cf%byp(j,k,l) = cf%byp(j,k,l) &
+                          - cc%byp(jg   ,kg   ,lg   ) &
+                          + p%byp(jgp  ,kgp  ,lgp  ) 
+         end do
+   end do
+
+   do l = 0, nzf
+      lg = l*irapz
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l,rapz))*irapz
+      owz= 1.-wz
+         do j = 0, nxf-1
+            jg = j*irapx
+            jgp = jg+lc(1)
+            cf%bzp(j,k,l) = cf%bzp(j,k,l) &
+                          - owz * cc%bzp(jg   ,kg   ,lg   ) &
+                          -  wz * cc%bzp(jg   ,kg   ,lg+1 ) &
+                          + owz * p%bzp(jgp  ,kgp  ,lgp  ) &
+                          +  wz * p%bzp(jgp  ,kgp  ,lgp+1) 
+         end do
+   end do
+   endif
+
+   return
+ end subroutine addsubstractfields
+
+
+subroutine addsubstractfields_nodal(child,child_coarse,parent,lc,ref,l_2dxz)
+! Add own field and field from parent, substracting field from core_coarse, and 
+! putting the result in Exp, Eyp, Ezp, Bxp, Byp and Bzp.
+
+ use EM3D_BLOCKtypemodule
+ use EM3D_YEEFIELDtypemodule
+ implicit none
+
+ TYPE(EM3D_BLOCKtype) :: child, child_coarse, parent
+ integer(ISZ) :: lc(3),ref(3) ! lower bounds of child grid in parent grid, refinement
+ logical(ISZ) :: l_2dxz
+
+ TYPE(EM3D_YEEFIELDtype), pointer :: cf, cc, p
+ INTEGER :: j, k, l, jg, kg, lg, jgp, kgp, lgp, rapx, rapy, rapz, nxf, nyf, nzf, incx, incy, incz
+ real(kind=8) :: wx, wy, wz, owx, owy, owz, irapx, irapy, irapz
+
+   cf => child%core%yf
+   cc => child_coarse%core%yf
+   p  => parent%core%yf
+
+   rapx = ref(1)
+   rapy = ref(2)
+   rapz = ref(3)
+   irapx = 1./rapx
+   irapy = 1./rapy
+   irapz = 1./rapz
+   
+   nxf = cf%nx
+   nyf = cf%ny
+   nzf = cf%nz
+
+   if (.not.l_2dxz) then
+
+   do l = -cf%nzguard, cf%nz+cf%nzguard
+      lg = floor(l*irapz)  
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l+cf%nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+      if (lg<cc%nz+cc%nzguard) then
+        incz = 1
+      else
+        incz = 0
+      end if
+      do k = -cf%nyguard, cf%ny+cf%nyguard
+         kg = floor(k*irapy)  
+         wy = REAL(MOD(k+cf%nyguard*rapy,rapy))*irapy
+         kgp = kg+lc(2)
+         owy= 1.-wy
+         if (kg<cc%ny+cc%nyguard) then
+           incy = 1
+         else
+           incy = 0
+         end if
+         do j = -cf%nxguard, cf%nx+cf%nxguard
+            jg = floor(j*irapx)  
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j+cf%nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            if (jg<cc%nx+cc%nxguard) then
+              incx = 1
+            else
+              incx = 0
+            end if
+            cf%exp(j,k,l) = cf%exp(j,k,l) &
+                          - owx * owy * owz * cc%exp(jg   ,kg   ,lg   ) &
+                          - owx *  wy * owz * cc%exp(jg   ,kg+incy ,lg   ) &
+                          - owx * owy *  wz * cc%exp(jg   ,kg   ,lg+incz ) &
+                          - owx *  wy *  wz * cc%exp(jg   ,kg+incy ,lg+incz ) &
+                          -  wx * owy * owz * cc%exp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wy * owz * cc%exp(jg+incx ,kg+incy ,lg   ) &
+                          -  wx * owy *  wz * cc%exp(jg+incx ,kg   ,lg+incz ) &
+                          -  wx *  wy *  wz * cc%exp(jg+incx ,kg+incy ,lg+incz ) &
+                          + owx * owy * owz * p%exp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wy * owz * p%exp(jgp  ,kgp+incy,lgp  ) &
+                          + owx * owy *  wz * p%exp(jgp  ,kgp  ,lgp+incz) &
+                          + owx *  wy *  wz * p%exp(jgp  ,kgp+incy,lgp+incz) &
+                          +  wx * owy * owz * p%exp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wy * owz * p%exp(jgp+incx,kgp+incy,lgp  ) &
+                          +  wx * owy *  wz * p%exp(jgp+incx,kgp  ,lgp+incz) &
+                          +  wx *  wy *  wz * p%exp(jgp+incx,kgp+incy,lgp+incz) 
+            cf%eyp(j,k,l) = cf%eyp(j,k,l) &
+                          - owx * owy * owz * cc%eyp(jg   ,kg   ,lg   ) &
+                          - owx *  wy * owz * cc%eyp(jg   ,kg+incy ,lg   ) &
+                          - owx * owy *  wz * cc%eyp(jg   ,kg   ,lg+incz ) &
+                          - owx *  wy *  wz * cc%eyp(jg   ,kg+incy ,lg+incz ) &
+                          -  wx * owy * owz * cc%eyp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wy * owz * cc%eyp(jg+incx ,kg+incy ,lg   ) &
+                          -  wx * owy *  wz * cc%eyp(jg+incx ,kg   ,lg+incz ) &
+                          -  wx *  wy *  wz * cc%eyp(jg+incx ,kg+incy ,lg+incz ) &
+                          + owx * owy * owz * p%eyp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wy * owz * p%eyp(jgp  ,kgp+incy,lgp  ) &
+                          + owx * owy *  wz * p%eyp(jgp  ,kgp  ,lgp+incz) &
+                          + owx *  wy *  wz * p%eyp(jgp  ,kgp+incy,lgp+incz) &
+                          +  wx * owy * owz * p%eyp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wy * owz * p%eyp(jgp+incx,kgp+incy,lgp  ) &
+                          +  wx * owy *  wz * p%eyp(jgp+incx,kgp  ,lgp+incz) &
+                          +  wx *  wy *  wz * p%eyp(jgp+incx,kgp+incy,lgp+incz) 
+            cf%ezp(j,k,l) = cf%ezp(j,k,l) &
+                          - owx * owy * owz * cc%ezp(jg   ,kg   ,lg   ) &
+                          - owx *  wy * owz * cc%ezp(jg   ,kg+incy ,lg   ) &
+                          - owx * owy *  wz * cc%ezp(jg   ,kg   ,lg+incz ) &
+                          - owx *  wy *  wz * cc%ezp(jg   ,kg+incy ,lg+incz ) &
+                          -  wx * owy * owz * cc%ezp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wy * owz * cc%ezp(jg+incx ,kg+incy ,lg   ) &
+                          -  wx * owy *  wz * cc%ezp(jg+incx ,kg   ,lg+incz ) &
+                          -  wx *  wy *  wz * cc%ezp(jg+incx ,kg+incy ,lg+incz ) &
+                          + owx * owy * owz * p%ezp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wy * owz * p%ezp(jgp  ,kgp+incy,lgp  ) &
+                          + owx * owy *  wz * p%ezp(jgp  ,kgp  ,lgp+incz) &
+                          + owx *  wy *  wz * p%ezp(jgp  ,kgp+incy,lgp+incz) &
+                          +  wx * owy * owz * p%ezp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wy * owz * p%ezp(jgp+incx,kgp+incy,lgp  ) &
+                          +  wx * owy *  wz * p%ezp(jgp+incx,kgp  ,lgp+incz) &
+                          +  wx *  wy *  wz * p%ezp(jgp+incx,kgp+incy,lgp+incz) 
+            cf%bxp(j,k,l) = cf%bxp(j,k,l) &
+                          - owx * owy * owz * cc%bxp(jg   ,kg   ,lg   ) &
+                          - owx *  wy * owz * cc%bxp(jg   ,kg+incy ,lg   ) &
+                          - owx * owy *  wz * cc%bxp(jg   ,kg   ,lg+incz ) &
+                          - owx *  wy *  wz * cc%bxp(jg   ,kg+incy ,lg+incz ) &
+                          -  wx * owy * owz * cc%bxp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wy * owz * cc%bxp(jg+incx ,kg+incy ,lg   ) &
+                          -  wx * owy *  wz * cc%bxp(jg+incx ,kg   ,lg+incz ) &
+                          -  wx *  wy *  wz * cc%bxp(jg+incx ,kg+incy ,lg+incz ) &
+                          + owx * owy * owz * p%bxp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wy * owz * p%bxp(jgp  ,kgp+incy,lgp  ) &
+                          + owx * owy *  wz * p%bxp(jgp  ,kgp  ,lgp+incz) &
+                          + owx *  wy *  wz * p%bxp(jgp  ,kgp+incy,lgp+incz) &
+                          +  wx * owy * owz * p%bxp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wy * owz * p%bxp(jgp+incx,kgp+incy,lgp  ) &
+                          +  wx * owy *  wz * p%bxp(jgp+incx,kgp  ,lgp+incz) &
+                          +  wx *  wy *  wz * p%bxp(jgp+incx,kgp+incy,lgp+incz) 
+            cf%byp(j,k,l) = cf%byp(j,k,l) &
+                          - owx * owy * owz * cc%byp(jg   ,kg   ,lg   ) &
+                          - owx *  wy * owz * cc%byp(jg   ,kg+incy ,lg   ) &
+                          - owx * owy *  wz * cc%byp(jg   ,kg   ,lg+incz ) &
+                          - owx *  wy *  wz * cc%byp(jg   ,kg+incy ,lg+incz ) &
+                          -  wx * owy * owz * cc%byp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wy * owz * cc%byp(jg+incx ,kg+incy ,lg   ) &
+                          -  wx * owy *  wz * cc%byp(jg+incx ,kg   ,lg+incz ) &
+                          -  wx *  wy *  wz * cc%byp(jg+incx ,kg+incy ,lg+incz ) &
+                          + owx * owy * owz * p%byp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wy * owz * p%byp(jgp  ,kgp+incy,lgp  ) &
+                          + owx * owy *  wz * p%byp(jgp  ,kgp  ,lgp+incz) &
+                          + owx *  wy *  wz * p%byp(jgp  ,kgp+incy,lgp+incz) &
+                          +  wx * owy * owz * p%byp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wy * owz * p%byp(jgp+incx,kgp+incy,lgp  ) &
+                          +  wx * owy *  wz * p%byp(jgp+incx,kgp  ,lgp+incz) &
+                          +  wx *  wy *  wz * p%byp(jgp+incx,kgp+incy,lgp+incz) 
+            cf%bzp(j,k,l) = cf%bzp(j,k,l) &
+                          - owx * owy * owz * cc%bzp(jg   ,kg   ,lg   ) &
+                          - owx *  wy * owz * cc%bzp(jg   ,kg+incy ,lg   ) &
+                          - owx * owy *  wz * cc%bzp(jg   ,kg   ,lg+incz ) &
+                          - owx *  wy *  wz * cc%bzp(jg   ,kg+incy ,lg+incz ) &
+                          -  wx * owy * owz * cc%bzp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wy * owz * cc%bzp(jg+incx ,kg+incy ,lg   ) &
+                          -  wx * owy *  wz * cc%bzp(jg+incx ,kg   ,lg+incz ) &
+                          -  wx *  wy *  wz * cc%bzp(jg+incx ,kg+incy ,lg+incz ) &
+                          + owx * owy * owz * p%bzp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wy * owz * p%bzp(jgp  ,kgp+incy,lgp  ) &
+                          + owx * owy *  wz * p%bzp(jgp  ,kgp  ,lgp+incz) &
+                          + owx *  wy *  wz * p%bzp(jgp  ,kgp+incy,lgp+incz) &
+                          +  wx * owy * owz * p%bzp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wy * owz * p%bzp(jgp+incx,kgp+incy,lgp  ) &
+                          +  wx * owy *  wz * p%bzp(jgp+incx,kgp  ,lgp+incz) &
+                          +  wx *  wy *  wz * p%bzp(jgp+incx,kgp+incy,lgp+incz) 
+         end do
+      end do
+   end do
+
+   else
+   k=0
+   kg=0
+   kgp=0
+   do l = -cf%nzguard, cf%nz+cf%nzguard
+      lg = floor(l*irapz)  
+      lgp = lg+lc(3)
+      wz = REAL(MOD(l+cf%nzguard*rapz,rapz))*irapz
+      owz= 1.-wz
+      if (lg<cc%nz+cc%nzguard) then
+        incz = 1
+      else
+        incz = 0
+      end if
+         do j = -cf%nxguard, cf%nx+cf%nxguard
+            jg = floor(j*irapx)  
+            jgp = jg+lc(1)
+            wx = REAL(MOD(j+cf%nxguard*rapx,rapx))*irapx
+            owx= 1.-wx
+            if (jg<cc%nx+cc%nxguard) then
+              incx = 1
+            else
+              incx = 0
+            end if
+            cf%exp(j,k,l) = cf%exp(j,k,l) &
+                          - owx * owz * cc%exp(jg   ,kg   ,lg   ) &
+                          - owx *  wz * cc%exp(jg   ,kg   ,lg+incz ) &
+                          -  wx * owz * cc%exp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wz * cc%exp(jg+incx ,kg   ,lg+incz ) &
+                          + owx * owz * p%exp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wz * p%exp(jgp  ,kgp  ,lgp+incz) &
+                          +  wx * owz * p%exp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wz * p%exp(jgp+incx,kgp  ,lgp+incz) 
+            cf%eyp(j,k,l) = cf%eyp(j,k,l) &
+                          - owx * owz * cc%eyp(jg   ,kg   ,lg   ) &
+                          - owx *  wz * cc%eyp(jg   ,kg   ,lg+incz ) &
+                          -  wx * owz * cc%eyp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wz * cc%eyp(jg+incx ,kg   ,lg+incz ) &
+                          + owx * owz * p%eyp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wz * p%eyp(jgp  ,kgp  ,lgp+incz) &
+                          +  wx * owz * p%eyp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wz * p%eyp(jgp+incx,kgp  ,lgp+incz) 
+            cf%ezp(j,k,l) = cf%ezp(j,k,l) &
+                          - owx * owz * cc%ezp(jg   ,kg   ,lg   ) &
+                          - owx *  wz * cc%ezp(jg   ,kg   ,lg+incz ) &
+                          -  wx * owz * cc%ezp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wz * cc%ezp(jg+incx ,kg   ,lg+incz ) &
+                          + owx * owz * p%ezp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wz * p%ezp(jgp  ,kgp  ,lgp+incz) &
+                          +  wx * owz * p%ezp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wz * p%ezp(jgp+incx,kgp  ,lgp+incz) 
+            cf%bxp(j,k,l) = cf%bxp(j,k,l) &
+                          - owx * owz * cc%bxp(jg   ,kg   ,lg   ) &
+                          - owx *  wz * cc%bxp(jg   ,kg   ,lg+incz ) &
+                          -  wx * owz * cc%bxp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wz * cc%bxp(jg+incx ,kg   ,lg+incz ) &
+                          + owx * owz * p%bxp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wz * p%bxp(jgp  ,kgp  ,lgp+incz) &
+                          +  wx * owz * p%bxp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wz * p%bxp(jgp+incx,kgp  ,lgp+incz) 
+            cf%byp(j,k,l) = cf%byp(j,k,l) &
+                          - owx * owz * cc%byp(jg   ,kg   ,lg   ) &
+                          - owx *  wz * cc%byp(jg   ,kg   ,lg+incz ) &
+                          -  wx * owz * cc%byp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wz * cc%byp(jg+incx ,kg   ,lg+incz ) &
+                          + owx * owz * p%byp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wz * p%byp(jgp  ,kgp  ,lgp+incz) &
+                          +  wx * owz * p%byp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wz * p%byp(jgp+incx,kgp  ,lgp+incz) 
+            cf%bzp(j,k,l) = cf%bzp(j,k,l) &
+                          - owx * owz * cc%bzp(jg   ,kg   ,lg   ) &
+                          - owx *  wz * cc%bzp(jg   ,kg   ,lg+incz ) &
+                          -  wx * owz * cc%bzp(jg+incx ,kg   ,lg   ) &
+                          -  wx *  wz * cc%bzp(jg+incx ,kg   ,lg+incz ) &
+                          + owx * owz * p%bzp(jgp  ,kgp  ,lgp  ) &
+                          + owx *  wz * p%bzp(jgp  ,kgp  ,lgp+incz) &
+                          +  wx * owz * p%bzp(jgp+incx,kgp  ,lgp  ) &
+                          +  wx *  wz * p%bzp(jgp+incx,kgp  ,lgp+incz) 
+         end do
+   end do
+
+   endif
+    
+   return
+ end subroutine addsubstractfields_nodal
+
+subroutine depose_j_n_2dxz_spectral(jx,jy,jz,np,xp,zp,ux,uy,uz,gaminv,w,q,xmin,zmin,dt,dx,dz,nx,nz,nxguard,nzguard,nox,noz, &
+                        l_particles_weight,l4symtry)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,0:0,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,zp,w,ux,uy,uz,gaminv
+   real(kind=8) :: q,dt,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dzi,xint,zint, &
+                   oxint,ozint,xintsq,zintsq,oxintsq,ozintsq
+   real(kind=8) :: xintold,zintold, &
+                   oxintold,ozintold
+   real(kind=8) :: x,z,xold,zold,wq,invvolodt,vx,vy,vz
+   real(kind=8) :: sx(-int(nox/2):int((nox+1)/2)), &
+                   sz(-int(noz/2):int((noz+1)/2))
+   real(kind=8) :: sxold(-int(nox/2):int((nox+1)/2)), &
+                   szold(-int(noz/2):int((noz+1)/2))
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,l,ip,jj,ll,jold,lold,ixmin, ixmax, izmin, izmax, istep, ndt,idt
+   real(kind=8) :: dxp,dzp,x0,z0,x1,z1
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+      
+      dxi = 1./dx
+      dzi = 1./dz
+      invvolodt = dxi*dzi/dt
+
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+      ndt = 1
+
+      do ip=1,np
+      
+       vx = ux(ip)*gaminv(ip)
+       vy = uy(ip)*gaminv(ip)
+       vz = uz(ip)*gaminv(ip)
+                
+       x1 = (xp(ip)-xmin)*dxi
+       z1 = (zp(ip)-zmin)*dzi
+       x0 = x1 - vx*dt*dxi
+       z0 = z1 - vz*dt*dzi
+
+       dxp=(x1-x0)/ndt
+       dzp=(z1-z0)/ndt
+       
+       xold=x0
+       zold=z0
+
+       do idt=1,ndt
+       
+        if (idt>1) then
+          xold=x
+          zold=z
+        end if
+        x=xold+dxp
+        z=zold+dzp
+        
+        if (l4symtry) then
+          x=abs(x)
+          xold=abs(xold)
+        end if
+        
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        if (nox==2*(nox/2)) then
+          jold=nint(xold)
+        else
+          jold=floor(xold)
+        end if
+        if (noz==2*(noz/2)) then
+          lold=nint(zold)
+        else
+          lold=floor(zold)
+        end if
+
+        xint = x-j
+        zint = z-l
+        xintold = xold-jold
+        zintold = zold-lold
+
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvolodt
+        else
+          wq=q*w(1)*invvolodt
+        end if
+      
+        select case(nox)
+         case(0)
+          sxold( 0) = 1.
+         case(1)
+          sxold( 0) = 1.-xintold
+          sxold( 1) = xintold
+         case(2)
+          xintsq = xintold*xintold
+          sxold(-1) = 0.5*(0.5-xintold)**2
+          sxold( 0) = 0.75-xintsq
+          sxold( 1) = 0.5*(0.5+xintold)**2
+         case(3)
+          oxintold = 1.-xintold
+          xintsq = xintold*xintold
+          oxintsq = oxintold*oxintold
+          sxold(-1) = onesixth*oxintsq*oxintold
+          sxold( 0) = twothird-xintsq*(1.-xintold/2)
+          sxold( 1) = twothird-oxintsq*(1.-oxintold/2)
+          sxold( 2) = onesixth*xintsq*xintold
+        end select        
+
+        select case(noz)
+         case(0)
+          szold( 0) = 1.
+         case(1)
+          szold( 0) = 1.-zintold
+          szold( 1) = zintold
+         case(2)
+          zintsq = zintold*zintold
+          szold(-1) = 0.5*(0.5-zintold)**2
+          szold( 0) = 0.75-zintsq
+          szold( 1) = 0.5*(0.5+zintold)**2
+         case(3)
+          ozintold = 1.-zintold
+          zintsq = zintold*zintold
+          ozintsq = ozintold*ozintold
+          szold(-1) = onesixth*ozintsq*ozintold
+          szold( 0) = twothird-zintsq*(1.-zintold/2)
+          szold( 1) = twothird-ozintsq*(1.-ozintold/2)
+          szold( 2) = onesixth*zintsq*zintold
+        end select 
+        
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+         do ll = izmin, izmax
+            do jj = ixmin, ixmax
+
+              jy(j+jj   ,0,l+ll   ) = jy(j+jj   ,0,l+ll   ) + 0.25*sx   (jj)*sz   (ll)*wq*vy*dt
+              jy(jold+jj,0,l+ll   ) = jy(jold+jj,0,l+ll   ) + 0.25*sxold(jj)*sz   (ll)*wq*vy*dt
+              jy(j+jj   ,0,lold+ll) = jy(j+jj   ,0,lold+ll) + 0.25*sx   (jj)*szold(ll)*wq*vy*dt
+              jy(jold+jj,0,lold+ll) = jy(jold+jj,0,lold+ll) + 0.25*sxold(jj)*szold(ll)*wq*vy*dt
+            
+              jx(j   +jj,0,l   +ll)=jx(j   +jj,0,l   +ll)+0.5*sx   (jj)*sz   (ll)*wq
+              jx(j   +jj,0,lold+ll)=jx(j   +jj,0,lold+ll)+0.5*sx   (jj)*szold(ll)*wq
+              jx(jold+jj,0,l   +ll)=jx(jold+jj,0,l   +ll)-0.5*sxold(jj)*sz   (ll)*wq
+              jx(jold+jj,0,lold+ll)=jx(jold+jj,0,lold+ll)-0.5*sxold(jj)*szold(ll)*wq
+
+              jz(j   +jj,0,l   +ll)=jz(j   +jj,0,l   +ll)+0.5*sx   (jj)*sz   (ll)*wq
+              jz(jold+jj,0,l   +ll)=jz(jold+jj,0,l   +ll)+0.5*sxold(jj)*sz   (ll)*wq
+              jz(j   +jj,0,lold+ll)=jz(j   +jj,0,lold+ll)-0.5*sx   (jj)*szold(ll)*wq
+              jz(jold+jj,0,lold+ll)=jz(jold+jj,0,lold+ll)-0.5*sxold(jj)*szold(ll)*wq
+
+            end do
+        end do
+      end do
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_j_n_2dxz_spectral
+
+! THIS SUBROUTINE IS NOT IN EM3D.v file 
+subroutine depose_j_n_2dxz_direct(jx,jy,jz,np,xp,zp,ux,uy,uz,gaminv,w,q,xmin,zmin,dt,dx,dz,nx,nz,nxguard,nzguard,nox,noz, &
+                        l_particles_weight,l4symtry)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,0:0,-nzguard:nz+nzguard), intent(in out) :: jx,jy,jz
+   real(kind=8), dimension(np) :: xp,zp,w,ux,uy,uz,gaminv
+   real(kind=8) :: q,dt,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dzi,xint,zint, &
+                   oxint,ozint,xintsq,zintsq,oxintsq,ozintsq
+   real(kind=8) :: x,z,wq,invvol,vx,vy,vz
+   real(kind=8) :: sx(-int(nox/2):int((nox+1)/2)), &
+                   sz(-int(noz/2):int((noz+1)/2))
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,l,ip,jj,ll,ixmin, ixmax, izmin, izmax, istep
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+   
+      nox=nox-1
+   
+      dxi = 1./dx
+      dzi = 1./dz
+      invvol = dxi*dzi
+
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+
+      do ip=1,np
+      
+       vx = ux(ip)*gaminv(ip)
+       vy = uy(ip)*gaminv(ip)
+       vz = uz(ip)*gaminv(ip)
+        
+       do istep=1,2
+        
+        if (istep==1) then
+          x = (xp(ip)-xmin)*dxi
+          z = (zp(ip)-zmin)*dzi
+        else
+          x = (xp(ip)-vx*dt-xmin)*dxi
+          z = (zp(ip)-vz*dt-zmin)*dzi
+        end if
+        
+        if (l4symtry) then
+          x=abs(x)
+        end if
+        
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        xint = x-j
+        zint = z-l
+
+        if (l_particles_weight) then
+          wq=0.5*q*w(ip)*invvol
+        else
+          wq=0.5*q*w(1)*invvol
+        end if
+      
+        select case(nox)
+         case(0)
+          sx( 0) = 1.
+         case(1)
+          sx( 0) = 1.-xint
+          sx( 1) = xint
+         case(2)
+          xintsq = xint*xint
+          sx(-1) = 0.5*(0.5-xint)**2
+          sx( 0) = 0.75-xintsq
+          sx( 1) = 0.5*(0.5+xint)**2
+         case(3)
+          oxint = 1.-xint
+          xintsq = xint*xint
+          oxintsq = oxint*oxint
+          sx(-1) = onesixth*oxintsq*oxint
+          sx( 0) = twothird-xintsq*(1.-xint/2)
+          sx( 1) = twothird-oxintsq*(1.-oxint/2)
+          sx( 2) = onesixth*xintsq*xint
+        end select        
+
+        select case(noz)
+         case(0)
+          sz( 0) = 1.
+         case(1)
+          sz( 0) = 1.-zint
+          sz( 1) = zint
+         case(2)
+          zintsq = zint*zint
+          sz(-1) = 0.5*(0.5-zint)**2
+          sz( 0) = 0.75-zintsq
+          sz( 1) = 0.5*(0.5+zint)**2
+         case(3)
+          ozint = 1.-zint
+          zintsq = zint*zint
+          ozintsq = ozint*ozint
+          sz(-1) = onesixth*ozintsq*ozint
+          sz( 0) = twothird-zintsq*(1.-zint/2)
+          sz( 1) = twothird-ozintsq*(1.-ozint/2)
+          sz( 2) = onesixth*zintsq*zint
+        end select        
+
+         do ll = izmin, izmax
+            do jj = ixmin, ixmax
+              jx(j+jj  ,0,l+ll  ) = jx(j+jj  ,0,l+ll  ) + sx(jj)*sz(ll)*wq*vx
+              jy(j+jj  ,0,l+ll  ) = jy(j+jj  ,0,l+ll  ) + sx(jj)*sz(ll)*wq*vy
+              jz(j+jj  ,0,l+ll  ) = jz(j+jj  ,0,l+ll  ) + sx(jj)*sz(ll)*wq*vz
+            end do
+        end do
+      end do
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_j_n_2dxz_direct
+
+subroutine depose_rhoold_n_2dxz(rhoold,np,xp,zp,ux,uy,uz,gaminv,w,q,xmin,zmin,dt,dx,dz,nx,nz,nxguard,nzguard,nox,noz, &
+                        l_particles_weight,l4symtry)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,nz,nox,noz,nxguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,0:0,-nzguard:nz+nzguard), intent(in out) :: rhoold
+   real(kind=8), dimension(np) :: xp,zp,w,ux,uy,uz,gaminv
+   real(kind=8) :: q,dt,dx,dz,xmin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dzi,xintsq,zintsq,oxintsq,ozintsq
+   real(kind=8) :: xintold,zintold, &
+                   oxintold,ozintold
+   real(kind=8) :: x,z,xold,zold,wq,invvol,vx,vy,vz
+   real(kind=8) :: sxold(-int(nox/2):int((nox+1)/2)), &
+                   szold(-int(noz/2):int((noz+1)/2))
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,l,ip,jj,ll,jold,lold,ixmin, ixmax, izmin, izmax, istep, ndt,idt
+   real(kind=8) :: dxp,dzp,x0,z0,x1,z1
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+      
+      dxi = 1./dx
+      dzi = 1./dz
+      invvol = dxi*dzi
+
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+      ndt = 1
+
+      do ip=1,np
+      
+       vx = ux(ip)*gaminv(ip)
+       vy = uy(ip)*gaminv(ip)
+       vz = uz(ip)*gaminv(ip)
+                
+       x1 = (xp(ip)-xmin)*dxi
+       z1 = (zp(ip)-zmin)*dzi
+       x0 = x1 - vx*dt*dxi
+       z0 = z1 - vz*dt*dzi
+
+       dxp=(x1-x0)/ndt
+       dzp=(z1-z0)/ndt
+       
+       xold=x0
+       zold=z0
+
+       do idt=1,ndt
+       
+        if (idt>1) then
+          xold=x
+          zold=z
+        end if
+        x=xold+dxp
+        z=zold+dzp
+        
+        if (l4symtry) then
+          x=abs(x)
+          xold=abs(xold)
+        end if
+        
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+        if (nox==2*(nox/2)) then
+          j=nint(x)
+        else
+          j=floor(x)
+        end if
+        if (noz==2*(noz/2)) then
+          l=nint(z)
+        else
+          l=floor(z)
+        end if
+
+        if (nox==2*(nox/2)) then
+          jold=nint(xold)
+        else
+          jold=floor(xold)
+        end if
+        if (noz==2*(noz/2)) then
+          lold=nint(zold)
+        else
+          lold=floor(zold)
+        end if
+
+        xintold = xold-jold
+        zintold = zold-lold
+
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol
+        else
+          wq=q*w(1)*invvol
+        end if
+      
+        select case(nox)
+         case(0)
+          sxold( 0) = 1.
+         case(1)
+          sxold( 0) = 1.-xintold
+          sxold( 1) = xintold
+         case(2)
+          xintsq = xintold*xintold
+          sxold(-1) = 0.5*(0.5-xintold)**2
+          sxold( 0) = 0.75-xintsq
+          sxold( 1) = 0.5*(0.5+xintold)**2
+         case(3)
+          oxintold = 1.-xintold
+          xintsq = xintold*xintold
+          oxintsq = oxintold*oxintold
+          sxold(-1) = onesixth*oxintsq*oxintold
+          sxold( 0) = twothird-xintsq*(1.-xintold/2)
+          sxold( 1) = twothird-oxintsq*(1.-oxintold/2)
+          sxold( 2) = onesixth*xintsq*xintold
+        end select        
+
+        select case(noz)
+         case(0)
+          szold( 0) = 1.
+         case(1)
+          szold( 0) = 1.-zintold
+          szold( 1) = zintold
+         case(2)
+          zintsq = zintold*zintold
+          szold(-1) = 0.5*(0.5-zintold)**2
+          szold( 0) = 0.75-zintsq
+          szold( 1) = 0.5*(0.5+zintold)**2
+         case(3)
+          ozintold = 1.-zintold
+          zintsq = zintold*zintold
+          ozintsq = ozintold*ozintold
+          szold(-1) = onesixth*ozintsq*ozintold
+          szold( 0) = twothird-zintsq*(1.-zintold/2)
+          szold( 1) = twothird-ozintsq*(1.-ozintold/2)
+          szold( 2) = onesixth*zintsq*zintold
+        end select 
+
+         do ll = izmin, izmax
+            do jj = ixmin, ixmax
+
+              rhoold(jold+jj,0,lold+ll) = rhoold(jold+jj,0,lold+ll) + sxold(jj)*szold(ll)*wq
+
+            end do
+        end do
+      end do
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_rhoold_n_2dxz
+
+subroutine depose_rhoold_n_3d(rhoold,np,xp,yp,zp,ux,uy,uz,gaminv,w,q,xmin,ymin,zmin,dt,dx,dy,dz, &
+                        nx,ny,nz,nxguard,nyguard,nzguard,nox,noy,noz, &
+                        l_particles_weight,l4symtry)
+   use Timers, Only: deposetime
+   implicit none
+   integer(ISZ) :: np,nx,ny,nz,nox,noy,noz,nxguard,nyguard,nzguard
+   real(kind=8), dimension(-nxguard:nx+nxguard,-nyguard:ny+nyguard,-nzguard:nz+nzguard), intent(in out) :: rhoold
+   real(kind=8), dimension(np) :: xp,yp,zp,w,ux,uy,uz,gaminv
+   real(kind=8) :: q,dt,dx,dy,dz,xmin,ymin,zmin
+   logical(ISZ) :: l_particles_weight,l4symtry
+
+   real(kind=8) :: dxi,dyi,dzi, &
+                   xintsq,yintsq,zintsq,oxintsq,oyintsq,ozintsq
+   real(kind=8) :: xintold,yintold,zintold, &
+                   oxintold,oyintold,ozintold
+   real(kind=8) :: x,y,z,xold,yold,zold,wq,invvol,vx,vy,vz
+   real(kind=8) :: sxold(-int(nox/2):int((nox+1)/2)), &
+                   syold(-int(noy/2):int((noy+1)/2)), &
+                   szold(-int(noz/2):int((noz+1)/2))
+   real(kind=8), parameter :: onesixth=1./6.,twothird=2./3.
+   integer(ISZ) :: j,k,l,ip,jj,kk,ll,jold,kold,lold
+   integer(ISZ) :: ixmin, ixmax, iymin, iymax, izmin, izmax, istep, ndt,idt
+   real(kind=8) :: dxp,dyp,dzp,x0,y0,z0,x1,y1,z1
+   real(kind=8):: starttime, wtime
+
+   starttime = wtime()
+      
+      dxi = 1./dx
+      dyi = 1./dy
+      dzi = 1./dz
+      invvol = dxi*dyi*dzi
+
+      ixmin = -int(nox/2)
+      ixmax = int((nox+1)/2)
+      iymin = -int(noy/2)
+      iymax = int((noy+1)/2)
+      izmin = -int(noz/2)
+      izmax = int((noz+1)/2)
+      ndt = 1
+
+      do ip=1,np
+      
+       vx = ux(ip)*gaminv(ip)
+       vy = uy(ip)*gaminv(ip)
+       vz = uz(ip)*gaminv(ip)
+                
+       x1 = (xp(ip)-xmin)*dxi
+       y1 = (yp(ip)-ymin)*dyi
+       z1 = (zp(ip)-zmin)*dzi
+       x0 = x1 - vx*dt*dxi
+       y0 = y1 - vy*dt*dyi
+       z0 = z1 - vz*dt*dzi
+
+       dxp=(x1-x0)/ndt
+       dyp=(y1-y0)/ndt
+       dzp=(z1-z0)/ndt
+       
+       xold=x0
+       yold=y0
+       zold=z0
+
+       do idt=1,ndt
+       
+        if (idt>1) then
+          xold=x
+          yold=y
+          zold=z
+        end if
+        x=xold+dxp
+        y=yold+dyp
+        z=zold+dzp
+        
+        if (l4symtry) then
+          x=abs(x)
+          xold=abs(xold)
+          y=abs(y)
+          yold=abs(yold)
+        end if
+        
+        ! --- finds node of cell containing particles for current positions 
+        ! --- (different for odd/even spline orders)
+
+        if (nox==2*(nox/2)) then
+          jold=nint(xold)
+        else
+          jold=floor(xold)
+        end if
+        if (noy==2*(noy/2)) then
+          kold=nint(yold)
+        else
+          kold=floor(yold)
+        end if
+        if (noz==2*(noz/2)) then
+          lold=nint(zold)
+        else
+          lold=floor(zold)
+        end if
+
+        xintold = xold-jold
+        yintold = yold-kold
+        zintold = zold-lold
+
+        if (l_particles_weight) then
+          wq=q*w(ip)*invvol
+        else
+          wq=q*w(1)*invvol
+        end if
+      
+        ! --- computes coefficients for node centered quantities
+        select case(nox)
+         case(0)
+          sxold( 0) = 1.
+         case(1)
+          sxold( 0) = 1.-xintold
+          sxold( 1) = xintold
+         case(2)
+          xintsq = xintold*xintold
+          sxold(-1) = 0.5*(0.5-xintold)**2
+          sxold( 0) = 0.75-xintsq
+          sxold( 1) = 0.5*(0.5+xintold)**2
+         case(3)
+          oxintold = 1.-xintold
+          xintsq = xintold*xintold
+          oxintsq = oxintold*oxintold
+          sxold(-1) = onesixth*oxintsq*oxintold
+          sxold( 0) = twothird-xintsq*(1.-xintold/2)
+          sxold( 1) = twothird-oxintsq*(1.-oxintold/2)
+          sxold( 2) = onesixth*xintsq*xintold
+        end select        
+
+        select case(noy)
+         case(0)
+          syold( 0) = 1.
+         case(1)
+          syold( 0) = 1.-yintold
+          syold( 1) = yintold
+         case(2)
+          yintsq = yintold*yintold
+          syold(-1) = 0.5*(0.5-yintold)**2
+          syold( 0) = 0.75-yintsq
+          syold( 1) = 0.5*(0.5+yintold)**2
+         case(3)
+          oyintold = 1.-yintold
+          yintsq = yintold*yintold
+          oyintsq = oyintold*oyintold
+          syold(-1) = onesixth*oyintsq*oyintold
+          syold( 0) = twothird-yintsq*(1.-yintold/2)
+          syold( 1) = twothird-oyintsq*(1.-oyintold/2)
+          syold( 2) = onesixth*yintsq*yintold
+        end select        
+
+        select case(noz)
+         case(0)
+          szold( 0) = 1.
+         case(1)
+          szold( 0) = 1.-zintold
+          szold( 1) = zintold
+         case(2)
+          zintsq = zintold*zintold
+          szold(-1) = 0.5*(0.5-zintold)**2
+          szold( 0) = 0.75-zintsq
+          szold( 1) = 0.5*(0.5+zintold)**2
+         case(3)
+          ozintold = 1.-zintold
+          zintsq = zintold*zintold
+          ozintsq = ozintold*ozintold
+          szold(-1) = onesixth*ozintsq*ozintold
+          szold( 0) = twothird-zintsq*(1.-zintold/2)
+          szold( 1) = twothird-ozintsq*(1.-ozintold/2)
+          szold( 2) = onesixth*zintsq*zintold
+        end select 
+
+        do ll = izmin, izmax
+           do kk = iymin, iymax
+              do jj = ixmin, ixmax
+
+                 rhoold(jold+jj,kold+kk,lold+ll) = rhoold(jold+jj,kold+kk,lold+ll) + sxold(jj)*syold(kk)*szold(ll)*wq
+
+              end do
+           end do
+        end do
+      
+      end do
+    end do
+
+  deposetime = deposetime + (wtime() - starttime)
+  return
+end subroutine depose_rhoold_n_3d

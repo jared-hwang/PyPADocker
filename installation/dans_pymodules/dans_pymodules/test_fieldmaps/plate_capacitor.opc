@@ -1,0 +1,1229 @@
+2000 0 5 0           
+51 Vector Fields, Opera-3d Modeller version 14.1.25963 14 ACIS 20.0.3 NT 24 Tue May 02 18:14:55 2017 
+1 9.9999999999999995e-007 1e-010 
+body $5 -1 -1 $-1 $-1 $-1 $-1 F #
+body $6 -1 -1 $-1 $7 $-1 $-1 T -10 9 -10 10 10 10 #
+body $8 -1 -1 $-1 $9 $-1 $-1 T -10 -10 -10 10 -9 10 #
+body $10 -1 -1 $-1 $11 $-1 $12 T -12 -12 -12 12 12 12 #
+body $13 -1 -1 $-1 $14 $-1 $-1 T -12 -12 -12 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $15 $-1 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @259 22:USERINPUT=MODEL CREATE8:CSTRUC=017:COMMANDNAME=MODEL25:PARAMETERS=OPTION=CREATE 5:ID=5810:PARENTID=129:DESCRIPTION=Create model body14:ACTIONTYPE=60024:STARTFLAG=BODY_MODELBODY23:USEFLAG=BODY_BACKGROUND24:USEFLAG=BODY_LOWER PLATE24:USEFLAG=BODY_UPPER PLATE #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $16 $-1 $1 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+lump $17 -1 -1 $-1 $-1 $18 $1 T -10 9 -10 10 10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $19 $-1 $2 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+lump $20 -1 -1 $-1 $-1 $21 $2 T -10 -10 -10 10 -9 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $22 $-1 $3 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+lump $23 -1 -1 $-1 $-1 $24 $3 T -12 -12 -12 12 12 12 #
+transform $-1 -1 1 0 0 0 1 0 0 0 1 0 0 0 1 no_rotate no_reflect no_shear #
+string_attrib-name_attrib-gen-attrib $-1 -1 $25 $-1 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @52 8:NAME=1889:VERSION=215:List=BackMethod10:Label=None #
+lump $26 -1 -1 $-1 $-1 $27 $4 T -12 -12 -12 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $28 $5 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @306 63:USERINPUT=BOUNDARY OPTION=MODIFY  CONDITION=VOLTAGE   VOLTAGE=08:CSTRUC=020:COMMANDNAME=BOUNDARY75:PARAMETERS=THERMALCONDITION=NONE OPTION=MODIFY CONDITION=VOLTAGE VOLTAGE=0 5:ID=5710:PARENTID=135:DESCRIPTION=Set boundary conditions14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_BOUNDARY19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $6 $1 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @160 12:ENTITYTYPE=19:VERSION=212:Identifier=B16:Name=Upper Plate22:UniqueName=Upper Plate17:ModelPart=Default16:VectorsValidId=613:GeomValidId=717:ColoursValidId=27 #
+cell_ptr-ct-attrib $-1 -1 $-1 $-1 $7 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $29 $-1 auto #
+shell $-1 -1 -1 $-1 $-1 $-1 $30 $-1 $7 T -10 9 -10 10 10 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $8 $2 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @160 12:ENTITYTYPE=19:VERSION=212:Identifier=B16:Name=Lower Plate22:UniqueName=Lower Plate17:ModelPart=Default16:VectorsValidId=713:GeomValidId=817:ColoursValidId=26 #
+cell_ptr-ct-attrib $-1 -1 $-1 $-1 $9 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $31 $-1 auto #
+shell $-1 -1 -1 $-1 $-1 $-1 $32 $-1 $9 T -10 -10 -10 10 -9 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $10 $3 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @158 12:ENTITYTYPE=19:VERSION=212:Identifier=B15:Name=background21:UniqueName=background17:ModelPart=Default16:VectorsValidId=913:GeomValidId=917:ColoursValidId=28 #
+cell_ptr-ct-attrib $-1 -1 $-1 $-1 $11 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $33 $-1 auto #
+shell $-1 -1 -1 $-1 $-1 $-1 $34 $-1 $11 T -12 -12 -12 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $35 $13 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @51 8:NAME=1879:VERSION=214:List=ForMethod10:Label=None #
+cell_ptr-ct-attrib $-1 -1 $-1 $-1 $14 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $36 $-1 auto #
+shell $-1 -1 -1 $-1 $37 $-1 $38 $-1 $14 T -12 -12 -12 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $39 $15 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @306 63:USERINPUT=BOUNDARY OPTION=MODIFY  CONDITION=VOLTAGE   VOLTAGE=08:CSTRUC=020:COMMANDNAME=BOUNDARY75:PARAMETERS=THERMALCONDITION=NONE OPTION=MODIFY CONDITION=VOLTAGE VOLTAGE=0 5:ID=5610:PARENTID=135:DESCRIPTION=Set boundary conditions14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_BOUNDARY19:IGNOREEMPTYPARS=ALL #
+cell3d-cell $40 -1 $-1 $7 $-1 1 $41 #
+face $42 -1 -1 $-1 $43 $44 $18 $-1 $45 forward single T -10 9 10 10 10 10 F #
+cell3d-cell $46 -1 $-1 $9 $-1 1 $47 #
+face $48 -1 -1 $-1 $49 $50 $21 $-1 $51 forward single T -10 -10 10 10 -9 10 F #
+cell3d-cell $52 -1 $-1 $11 $-1 1 $53 #
+face $54 -1 -1 $-1 $55 $56 $24 $-1 $57 forward single T -12 -12 12 12 12 12 F #
+string_attrib-name_attrib-gen-attrib $-1 -1 $58 $25 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @55 8:NAME=1859:VERSION=218:List=ElemShapePref10:Label=None #
+cell3d-cell $59 -1 $60 $14 $-1 1 $61 #
+shell $-1 -1 -1 $-1 $62 $-1 $63 $-1 $14 T -10 9 -10 10 10 10 #
+face $64 -1 -1 $-1 $65 $66 $27 $-1 $67 forward single T -12 -12 12 12 12 12 F #
+string_attrib-name_attrib-gen-attrib $-1 -1 $68 $28 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @186 32:USERINPUT=BOUNDARY PICK 'ground'8:CSTRUC=020:COMMANDNAME=BOUNDARY44:PARAMETERS=OPTION=PICK BOUNDARYLABEL=ground 5:ID=5510:PARENTID=114:ACTIONTYPE=50031:STARTFLAG=PROPERTYPICK_BOUNDARY #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $69 $-1 $29 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+cshell $-1 -1 $-1 $70 $29 #
+fctd_mark-eye-attrib $-1 -1 $71 $-1 $30 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $72 -1 -1 $-1 $73 $74 $18 $-1 $75 reversed single T -10 9 -10 10 10 -10 F #
+loop $-1 -1 -1 $-1 $-1 $76 $30 T -10 9 10 10 10 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 9.5 10 0 0 1 1 0 0 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $77 $-1 $31 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+cshell $-1 -1 $-1 $78 $31 #
+fctd_mark-eye-attrib $-1 -1 $79 $-1 $32 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $80 -1 -1 $-1 $81 $82 $21 $-1 $83 reversed single T -10 -10 -10 10 -9 -10 F #
+loop $-1 -1 -1 $-1 $-1 $84 $32 T -10 -10 10 10 -9 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -9.5 10 0 0 1 1 0 0 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $85 $-1 $33 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+cshell $-1 -1 $-1 $86 $33 #
+fctd_mark-eye-attrib $-1 -1 $87 $-1 $34 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $88 -1 -1 $-1 $89 $90 $24 $-1 $91 reversed single T -12 -12 -12 12 12 -12 F #
+loop $-1 -1 -1 $-1 $-1 $92 $34 T -12 -12 12 12 12 12 unknown #
+plane-surface $-1 -1 -1 $-1 0 0 12 0 0 1 1 0 0 forward_v I I I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $93 $35 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @52 8:NAME=1869:VERSION=215:List=SymmetryBC10:Label=None #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $94 $-1 $36 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+cell3d-cell $95 -1 $96 $14 $-1 1 $97 #
+cshell $-1 -1 $-1 $98 $36 #
+shell $-1 -1 -1 $-1 $-1 $-1 $99 $-1 $14 T -10 -10 -10 10 -9 10 #
+face $100 -1 -1 $-1 $101 $102 $37 $-1 $103 forward double in T -10 9 10 10 10 10 F #
+rgb_color-st-attrib $-1 -1 $104 $-1 $38 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.60000002384185791 0.60000002384185791 0.60000002384185791 #
+face $105 -1 -1 $-1 $106 $107 $27 $-1 $108 reversed single T -12 -12 -12 12 12 -12 F #
+loop $109 -1 -1 $-1 $-1 $110 $38 T -12 -12 12 12 12 12 periphery $67 F #
+plane-surface $-1 -1 -1 $-1 0 0 12 0 0 1 1 0 0 forward_v I I I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $111 $39 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @128 26:USERINPUT=BOUNDARY GUIINIT8:CSTRUC=020:COMMANDNAME=BOUNDARY26:PARAMETERS=OPTION=GUIINIT 5:ID=5410:PARENTID=114:ACTIONTYPE=500 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $40 $29 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $112 -1 $113 $41 $43 0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $114 $42 $30 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+fctd_mark-eye-attrib $-1 -1 $115 $-1 $43 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $116 -1 -1 $-1 $117 $118 $18 $-1 $119 reversed single T -10 9 -10 10 9 10 F #
+loop $-1 -1 -1 $-1 $-1 $120 $43 T -10 9 -10 10 10 -10 unknown #
+plane-surface $-1 -1 -1 $-1 0 9.5 -10 0 0 1 1 0 0 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $121 $122 $123 $124 forward $44 $-1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $46 $31 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $125 -1 $126 $47 $49 0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $127 $48 $32 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+fctd_mark-eye-attrib $-1 -1 $128 $-1 $49 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $129 -1 -1 $-1 $130 $131 $21 $-1 $132 reversed single T -10 -10 -10 10 -10 10 F #
+loop $-1 -1 -1 $-1 $-1 $133 $49 T -10 -10 -10 10 -9 -10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -9.5 -10 0 0 1 1 0 0 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $134 $135 $136 $137 forward $50 $-1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $52 $33 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000017:Level=117:MaterialLabel=Air #
+cface $138 -1 $139 $53 $55 0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $140 $54 $34 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+fctd_mark-eye-attrib $-1 -1 $141 $-1 $55 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $142 -1 -1 $-1 $143 $144 $24 $-1 $145 reversed single T -12 -12 -12 12 -12 12 F #
+loop $-1 -1 -1 $-1 $-1 $146 $55 T -12 -12 -12 12 12 -12 unknown #
+plane-surface $-1 -1 -1 $-1 0 0 -12 0 0 1 1 0 0 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $147 $148 $149 $150 forward $56 $-1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $151 $58 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @57 8:NAME=1989:VERSION=215:List=UniqueName15:Label=ModelBody #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $59 $36 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $152 $-1 $60 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+cell3d-cell $153 -1 $-1 $14 $-1 1 $154 #
+cshell $-1 -1 $-1 $155 $60 #
+cface $156 -1 $157 $61 $99 0 #
+face $158 -1 -1 $-1 $159 $160 $62 $-1 $161 forward double in T -10 -10 10 10 -9 10 F #
+rgb_color-st-attrib $-1 -1 $162 $-1 $63 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+face $163 -1 -1 $-1 $164 $165 $37 $-1 $166 reversed double in T -10 9 -10 10 10 -10 F #
+loop $167 -1 -1 $-1 $-1 $168 $63 T -10 9 10 10 10 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 9.5 10 0 0 1 1 0 0 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $169 $64 $38 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+rgb_color-st-attrib $-1 -1 $170 $-1 $65 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.60000002384185791 0.60000002384185791 0.60000002384185791 #
+face $171 -1 -1 $-1 $172 $173 $27 $-1 $174 reversed single T -12 -12 -12 12 -12 12 F #
+loop $175 -1 -1 $-1 $-1 $176 $65 T -12 -12 -12 12 12 -12 unknown #
+plane-surface $-1 -1 -1 $-1 0 0 -12 0 0 1 1 0 0 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $66 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 18 #
+coedge $-1 -1 -1 $-1 $177 $178 $179 $180 forward $66 $-1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $181 $68 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @380 112:USERINPUT=FACEDATA OPTION=MODIFY  BOUNDARYLABEL='ground'  ELEMENTTYPE=Linear   FORMETHOD=NONE    BACKMETHOD=NONE8:CSTRUC=020:COMMANDNAME=FACEDATA96:PARAMETERS=OPTION=MODIFY BOUNDARYLABEL=ground ELEMENTTYPE=Linear FORMETHOD=NONE BACKMETHOD=NONE 5:ID=5310:PARENTID=125:DESCRIPTION=Set face data14:ACTIONTYPE=57517:USEFLAG=PICK_FACE24:WITHFLAG=BODY_BACKGROUND17:ENDFLAG=PICK_FACE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $70 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $182 -1 $183 $41 $73 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $184 $71 $30 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000111:FaceSense=0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $185 $72 $43 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+fctd_mark-eye-attrib $-1 -1 $186 $-1 $73 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $187 -1 -1 $-1 $188 $189 $18 $-1 $190 reversed single T -10 9 -10 -10 10 10 F #
+loop $-1 -1 -1 $-1 $-1 $191 $73 T -10 9 -10 10 9 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 9 0 0 1 0 0 0 1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $192 $193 $194 $195 forward $74 $-1 #
+coedge $-1 -1 -1 $-1 $196 $76 $197 $198 forward $44 $-1 #
+coedge $-1 -1 -1 $-1 $76 $196 $199 $200 forward $44 $-1 #
+coedge $-1 -1 -1 $-1 $201 $202 $76 $124 reversed $203 $-1 #
+edge $204 -1 -1 $-1 $205 -0.5 $206 0.5 $123 $207 forward @7 unknown T 10 9 10 10 10 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $78 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $208 -1 $209 $47 $81 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $210 $79 $32 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000111:FaceSense=0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $211 $80 $49 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+fctd_mark-eye-attrib $-1 -1 $212 $-1 $81 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $213 -1 -1 $-1 $214 $215 $21 $-1 $216 reversed single T -10 -10 -10 -10 -9 10 F #
+loop $-1 -1 -1 $-1 $-1 $217 $81 T -10 -10 -10 10 -10 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -10 0 0 1 0 0 0 1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $218 $219 $220 $221 forward $82 $-1 #
+coedge $-1 -1 -1 $-1 $222 $84 $223 $224 forward $50 $-1 #
+coedge $-1 -1 -1 $-1 $84 $222 $225 $226 forward $50 $-1 #
+coedge $-1 -1 -1 $-1 $227 $228 $84 $137 reversed $229 $-1 #
+edge $230 -1 -1 $-1 $231 -0.5 $232 0.5 $136 $233 forward @7 unknown T 10 -10 10 10 -9 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $86 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000017:Level=117:MaterialLabel=Air #
+cface $234 -1 $235 $53 $89 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $236 $87 $34 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000120:BoundaryLabel=ground11:FaceSense=0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $237 $88 $55 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+fctd_mark-eye-attrib $-1 -1 $238 $-1 $89 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $239 -1 -1 $-1 $240 $241 $24 $-1 $242 reversed single T -12 -12 -12 -12 12 12 F #
+loop $-1 -1 -1 $-1 $-1 $243 $89 T -12 -12 -12 12 -12 12 unknown #
+plane-surface $-1 -1 -1 $-1 0 -12 0 0 1 -0 -0 0 1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $244 $245 $246 $247 forward $90 $-1 #
+coedge $-1 -1 -1 $-1 $248 $92 $249 $250 forward $56 $-1 #
+coedge $-1 -1 -1 $-1 $92 $248 $251 $252 forward $56 $-1 #
+coedge $-1 -1 -1 $-1 $253 $254 $92 $150 reversed $255 $-1 #
+edge $256 -1 -1 $-1 $257 -12 $258 12 $149 $259 forward @7 unknown T 12 -12 12 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $260 $93 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @58 8:NAME=1919:VERSION=221:List=ThermalCondition10:Label=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $95 $60 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=B.000018:Level=1016:MaterialLabel=Cu #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $261 $-1 $96 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+cshell $-1 -1 $262 $263 $96 #
+cface $264 -1 $265 $97 $63 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $98 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $266 -1 $267 $61 $268 0 #
+rgb_color-st-attrib $-1 -1 $269 $-1 $99 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+face $270 -1 -1 $-1 $271 $272 $62 $-1 $273 reversed double in T -10 -10 -10 10 -9 -10 F #
+loop $274 -1 -1 $-1 $-1 $275 $99 T -10 -10 10 10 -9 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -9.5 10 0 0 1 1 0 0 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $276 $100 $63 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+rgb_color-st-attrib $-1 -1 $277 $-1 $101 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+face $278 -1 -1 $-1 $279 $280 $37 $-1 $281 reversed double in T -10 9 -10 10 9 10 F #
+loop $282 -1 -1 $-1 $-1 $283 $101 T -10 9 -10 10 10 -10 unknown #
+plane-surface $-1 -1 -1 $-1 0 9.5 -10 0 0 1 1 0 0 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $102 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 12 #
+coedge $-1 -1 -1 $-1 $284 $285 $286 $287 forward $102 $-1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $288 $104 $38 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $289 $105 $65 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+rgb_color-st-attrib $-1 -1 $290 $-1 $106 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.60000002384185791 0.60000002384185791 0.60000002384185791 #
+face $291 -1 -1 $-1 $292 $293 $27 $-1 $294 reversed single T -12 -12 -12 -12 12 12 F #
+loop $295 -1 -1 $-1 $-1 $296 $106 T -12 -12 -12 12 -12 12 unknown #
+plane-surface $-1 -1 -1 $-1 0 -12 0 0 1 -0 -0 0 1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $107 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 17 #
+coedge $-1 -1 -1 $-1 $297 $298 $299 $300 forward $107 $-1 #
+coedge $-1 -1 -1 $-1 $301 $110 $302 $303 forward $66 $-1 #
+coedge $-1 -1 -1 $-1 $110 $301 $304 $305 forward $66 $-1 #
+coedge $-1 -1 -1 $-1 $306 $307 $110 $180 reversed $308 $-1 #
+edge $309 -1 -1 $-1 $310 -12 $311 12 $179 $312 forward @7 unknown T 12 -12 12 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $313 $111 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @364 85:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='background' IDENTIFIER=A.000038:CSTRUC=016:COMMANDNAME=PICK100:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME=background IDENTIFIER=A.00003 5:ID=5210:PARENTID=132:DESCRIPTION=Pick: 6 faces picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE24:NEEDFLAG=BODY_BACKGROUND19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $113 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $314 -1 $315 $41 $117 0 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $316 $114 $30 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $317 $115 $43 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000211:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $318 $116 $73 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+fctd_mark-eye-attrib $-1 -1 $319 $-1 $117 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $320 -1 -1 $-1 $321 $322 $18 $-1 $323 reversed single T -10 10 -10 10 10 10 F #
+loop $-1 -1 -1 $-1 $-1 $324 $117 T -10 9 -10 -10 10 10 unknown #
+plane-surface $-1 -1 -1 $-1 -10 9.5 0 1 0 0 0 0 -1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $325 $199 $326 $327 forward $118 $-1 #
+coedge $-1 -1 -1 $-1 $328 $120 $325 $329 forward $74 $-1 #
+coedge $-1 -1 -1 $-1 $120 $328 $330 $331 forward $74 $-1 #
+coedge $-1 -1 -1 $-1 $202 $201 $120 $195 reversed $203 $-1 #
+edge $332 -1 -1 $-1 $333 -0.5 $334 0.5 $194 $335 forward @7 unknown T 10 9 -10 10 10 -10 #
+coedge $-1 -1 -1 $-1 $122 $121 $336 $337 forward $44 $-1 #
+coedge $-1 -1 -1 $-1 $338 $339 $121 $198 reversed $322 $-1 #
+edge $340 -1 -1 $-1 $206 -10 $341 10 $197 $342 forward @7 unknown T -10 10 10 10 10 10 #
+coedge $-1 -1 -1 $-1 $191 $343 $122 $200 reversed $118 $-1 #
+edge $344 -1 -1 $-1 $345 -10 $205 10 $199 $346 forward @7 unknown T -10 9 10 10 9 10 #
+coedge $-1 -1 -1 $-1 $194 $123 $343 $347 forward $203 $-1 #
+coedge $-1 -1 -1 $-1 $123 $194 $338 $348 reversed $203 $-1 #
+loop $-1 -1 -1 $-1 $-1 $201 $321 T 10 9 -10 10 10 10 unknown #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $349 $-1 $124 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+vertex $350 -1 -1 $-1 $124 $351 #
+vertex $352 -1 -1 $-1 $124 $353 #
+straight-curve $-1 -1 -1 $-1 10 9.5 10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $126 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $354 -1 $355 $47 $130 0 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $356 $127 $32 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $357 $128 $49 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000211:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $358 $129 $81 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+fctd_mark-eye-attrib $-1 -1 $359 $-1 $130 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $360 -1 -1 $-1 $361 $362 $21 $-1 $363 reversed single T -10 -9 -10 10 -9 10 F #
+loop $-1 -1 -1 $-1 $-1 $364 $130 T -10 -10 -10 -10 -9 10 unknown #
+plane-surface $-1 -1 -1 $-1 -10 -9.5 0 1 0 0 0 0 -1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $365 $225 $366 $367 forward $131 $-1 #
+coedge $-1 -1 -1 $-1 $368 $133 $365 $369 forward $82 $-1 #
+coedge $-1 -1 -1 $-1 $133 $368 $370 $371 forward $82 $-1 #
+coedge $-1 -1 -1 $-1 $228 $227 $133 $221 reversed $229 $-1 #
+edge $372 -1 -1 $-1 $373 -0.5 $374 0.5 $220 $375 forward @7 unknown T 10 -10 -10 10 -9 -10 #
+coedge $-1 -1 -1 $-1 $135 $134 $376 $377 forward $50 $-1 #
+coedge $-1 -1 -1 $-1 $378 $379 $134 $224 reversed $362 $-1 #
+edge $380 -1 -1 $-1 $232 -10 $381 10 $223 $382 forward @7 unknown T -10 -9 10 10 -9 10 #
+coedge $-1 -1 -1 $-1 $217 $383 $135 $226 reversed $131 $-1 #
+edge $384 -1 -1 $-1 $385 -10 $231 10 $225 $386 forward @7 unknown T -10 -10 10 10 -10 10 #
+coedge $-1 -1 -1 $-1 $220 $136 $383 $387 forward $229 $-1 #
+coedge $-1 -1 -1 $-1 $136 $220 $378 $388 reversed $229 $-1 #
+loop $-1 -1 -1 $-1 $-1 $227 $361 T 10 -10 -10 10 -9 10 unknown #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $389 $-1 $137 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+vertex $390 -1 -1 $-1 $137 $391 #
+vertex $392 -1 -1 $-1 $137 $393 #
+straight-curve $-1 -1 -1 $-1 10 -9.5 10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $139 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000017:Level=117:MaterialLabel=Air #
+cface $394 -1 $395 $53 $143 0 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $396 $140 $34 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $397 $141 $55 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000220:BoundaryLabel=ground11:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $398 $142 $89 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+fctd_mark-eye-attrib $-1 -1 $399 $-1 $143 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $400 -1 -1 $-1 $401 $402 $24 $-1 $403 reversed single T -12 12 -12 12 12 12 F #
+loop $-1 -1 -1 $-1 $-1 $404 $143 T -12 -12 -12 -12 12 12 unknown #
+plane-surface $-1 -1 -1 $-1 -12 0 0 1 0 0 0 0 -1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $405 $251 $406 $407 forward $144 $-1 #
+coedge $-1 -1 -1 $-1 $408 $146 $405 $409 forward $90 $-1 #
+coedge $-1 -1 -1 $-1 $146 $408 $410 $411 forward $90 $-1 #
+coedge $-1 -1 -1 $-1 $254 $253 $146 $247 reversed $255 $-1 #
+edge $412 -1 -1 $-1 $413 -12 $414 12 $246 $415 forward @7 unknown T 12 -12 -12 12 12 -12 #
+coedge $-1 -1 -1 $-1 $148 $147 $416 $417 forward $56 $-1 #
+coedge $-1 -1 -1 $-1 $418 $419 $147 $250 reversed $402 $-1 #
+edge $420 -1 -1 $-1 $258 -12 $421 12 $249 $422 forward @7 unknown T -12 12 12 12 12 12 #
+coedge $-1 -1 -1 $-1 $243 $423 $148 $252 reversed $144 $-1 #
+edge $424 -1 -1 $-1 $425 -12 $257 12 $251 $426 forward @7 unknown T -12 -12 12 12 -12 12 #
+coedge $-1 -1 -1 $-1 $246 $149 $423 $427 forward $255 $-1 #
+coedge $-1 -1 -1 $-1 $149 $246 $418 $428 reversed $255 $-1 #
+loop $-1 -1 -1 $-1 $-1 $253 $401 T 12 -12 -12 12 12 12 unknown #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $429 $-1 $150 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+vertex $430 -1 -1 $-1 $150 $431 #
+vertex $432 -1 -1 $-1 $150 $433 #
+straight-curve $-1 -1 -1 $-1 12 0 12 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $434 $151 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @54 8:NAME=1829:VERSION=214:List=ModelPart13:Label=Default #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $153 $96 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cshell $-1 -1 $435 $436 $96 #
+cface $437 -1 $438 $154 $38 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $155 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=B.000018:Level=1016:MaterialLabel=Cu #
+cface $439 -1 $440 $97 $441 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $157 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $442 -1 $443 $61 $444 0 #
+face $445 -1 -1 $-1 $446 $447 $62 $-1 $448 reversed double in T -10 -9 -10 10 -9 10 F #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $449 $158 $99 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 13 #
+rgb_color-st-attrib $-1 -1 $450 $-1 $159 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+face $451 -1 -1 $-1 $444 $452 $62 $-1 $453 reversed double in T -10 -10 -10 10 -10 10 F #
+loop $454 -1 -1 $-1 $-1 $455 $159 T -10 -10 -10 10 -9 -10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -9.5 -10 0 0 1 1 0 0 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $160 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+coedge $-1 -1 -1 $-1 $456 $457 $458 $459 forward $160 $-1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $460 $162 $63 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $461 $163 $101 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+rgb_color-st-attrib $-1 -1 $462 $-1 $164 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+face $463 -1 -1 $-1 $441 $464 $37 $-1 $465 reversed double in T -10 9 -10 -10 10 10 F #
+loop $466 -1 -1 $-1 $-1 $467 $164 T -10 9 -10 10 9 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 9 0 0 1 0 0 0 1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $165 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 11 #
+coedge $-1 -1 -1 $-1 $468 $469 $470 $471 forward $165 $-1 #
+coedge $-1 -1 -1 $-1 $472 $168 $473 $474 forward $102 $-1 #
+coedge $-1 -1 -1 $-1 $168 $472 $475 $476 forward $102 $-1 #
+coedge $-1 -1 -1 $-1 $477 $478 $168 $287 reversed $479 $-1 #
+edge $480 -1 -1 $-1 $481 -0.5 $482 0.5 $286 $483 forward @7 unknown T 10 9 10 10 10 10 #
+fctd_mark-eye-attrib $-1 -1 $484 $169 $38 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $485 $170 $65 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $486 $171 $106 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+rgb_color-st-attrib $-1 -1 $487 $-1 $172 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.60000002384185791 0.60000002384185791 0.60000002384185791 #
+face $488 -1 -1 $-1 $489 $490 $27 $-1 $491 reversed single T -12 12 -12 12 12 12 F #
+loop $492 -1 -1 $-1 $-1 $493 $172 T -12 -12 -12 -12 12 12 periphery $294 T #
+plane-surface $-1 -1 -1 $-1 -12 0 0 1 0 0 0 0 -1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $173 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 16 #
+coedge $-1 -1 -1 $-1 $494 $304 $495 $496 forward $173 $-1 #
+coedge $-1 -1 -1 $-1 $497 $176 $494 $498 forward $107 $-1 #
+coedge $-1 -1 -1 $-1 $176 $497 $499 $500 forward $107 $-1 #
+coedge $-1 -1 -1 $-1 $307 $306 $176 $300 reversed $308 $-1 #
+edge $501 -1 -1 $-1 $502 -12 $503 12 $299 $504 forward @7 unknown T 12 -12 -12 12 12 -12 #
+coedge $-1 -1 -1 $-1 $178 $177 $505 $506 forward $66 $-1 #
+coedge $-1 -1 -1 $-1 $507 $508 $177 $303 reversed $490 $-1 #
+edge $509 -1 -1 $-1 $311 -12 $510 12 $302 $511 forward @7 unknown T -12 12 12 12 12 12 #
+coedge $-1 -1 -1 $-1 $296 $512 $178 $305 reversed $173 $-1 #
+edge $513 -1 -1 $-1 $514 -12 $310 12 $304 $515 forward @7 unknown T -12 -12 12 12 -12 12 #
+coedge $-1 -1 -1 $-1 $299 $179 $512 $516 forward $308 $-1 #
+coedge $-1 -1 -1 $-1 $179 $299 $507 $517 reversed $308 $-1 #
+loop $518 -1 -1 $-1 $-1 $306 $489 T 12 -12 -12 12 12 12 unknown #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $519 $-1 $180 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+vertex $520 -1 -1 $-1 $180 $521 #
+vertex $522 -1 -1 $-1 $180 $523 #
+straight-curve $-1 -1 -1 $-1 12 0 12 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $524 $181 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @364 85:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='background' IDENTIFIER=A.000028:CSTRUC=016:COMMANDNAME=PICK100:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME=background IDENTIFIER=A.00002 5:ID=5110:PARENTID=132:DESCRIPTION=Pick: 5 faces picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE24:NEEDFLAG=BODY_BACKGROUND19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $183 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $525 -1 $526 $41 $188 0 #
+cface_ptr-ct-attrib $-1 -1 $-1 $184 $30 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $527 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $528 $185 $43 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $529 $186 $73 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @117 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000325:BoundaryLabel=upper_plate11:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $530 $187 $117 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+fctd_mark-eye-attrib $-1 -1 $531 $-1 $188 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $532 -1 -1 $-1 $-1 $203 $18 $-1 $533 reversed single T 10 9 -10 10 10 10 F #
+loop $-1 -1 -1 $-1 $-1 $338 $188 T -10 10 -10 10 10 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 10 0 0 -1 0 0 0 -1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $534 $336 $339 $535 forward $189 $-1 #
+coedge $-1 -1 -1 $-1 $343 $191 $192 $329 reversed $118 $-1 #
+coedge $-1 -1 -1 $-1 $336 $534 $191 $327 reversed $189 $-1 #
+edge $536 -1 -1 $-1 $345 -10 $537 10 $326 $538 forward @7 unknown T -10 9 -10 -10 9 10 #
+coedge $-1 -1 -1 $-1 $193 $192 $534 $539 forward $74 $-1 #
+edge $540 -1 -1 $-1 $334 -10 $537 10 $325 $541 forward @7 unknown T -10 9 -10 10 9 -10 #
+coedge $-1 -1 -1 $-1 $339 $338 $193 $331 reversed $322 $-1 #
+edge $542 -1 -1 $-1 $543 -10 $333 10 $330 $544 forward @7 unknown T -10 10 -10 10 10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $545 $-1 $195 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+vertex $546 -1 -1 $-1 $195 $547 #
+vertex $548 -1 -1 $-1 $347 $549 #
+straight-curve $-1 -1 -1 $-1 10 9.5 -10 0 -1 0 I I #
+coedge $-1 -1 -1 $-1 $324 $326 $196 $337 reversed $189 $-1 #
+edge $550 -1 -1 $-1 $341 -0.5 $345 0.5 $336 $551 forward @7 unknown T -10 9 10 -10 10 10 #
+coedge $-1 -1 -1 $-1 $330 $197 $202 $348 forward $322 $-1 #
+coedge $-1 -1 -1 $-1 $197 $330 $324 $535 reversed $322 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $552 $-1 $198 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+vertex $553 -1 -1 $-1 $198 $554 #
+straight-curve $-1 -1 -1 $-1 0 10 10 -1 0 0 I I #
+coedge $-1 -1 -1 $-1 $199 $325 $201 $347 reversed $118 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $555 $-1 $200 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+vertex $556 -1 -1 $-1 $337 $557 #
+straight-curve $-1 -1 -1 $-1 0 9 10 1 0 0 I I #
+edge $558 -1 -1 $-1 $205 -10 $334 10 $201 $559 forward @7 unknown T 10 9 -10 10 9 10 #
+edge $560 -1 -1 $-1 $206 -10 $333 10 $202 $561 forward @7 unknown T 10 10 -10 10 10 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $204 $124 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00001 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $562 $-1 $205 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+point $-1 -1 -1 $-1 10 9 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $563 $-1 $206 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+point $-1 -1 -1 $-1 10 10 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $209 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $564 -1 $565 $47 $214 0 #
+cface_ptr-ct-attrib $-1 -1 $-1 $210 $32 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $566 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $567 $211 $49 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $568 $212 $81 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000311:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $569 $213 $130 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+fctd_mark-eye-attrib $-1 -1 $570 $-1 $214 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $571 -1 -1 $-1 $-1 $229 $21 $-1 $572 reversed single T 10 -10 -10 10 -9 10 F #
+loop $-1 -1 -1 $-1 $-1 $378 $214 T -10 -9 -10 10 -9 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -9 0 0 -1 0 0 0 -1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $573 $376 $379 $574 forward $215 $-1 #
+coedge $-1 -1 -1 $-1 $383 $217 $218 $369 reversed $131 $-1 #
+coedge $-1 -1 -1 $-1 $376 $573 $217 $367 reversed $215 $-1 #
+edge $575 -1 -1 $-1 $385 -10 $576 10 $366 $577 forward @7 unknown T -10 -10 -10 -10 -10 10 #
+coedge $-1 -1 -1 $-1 $219 $218 $573 $578 forward $82 $-1 #
+edge $579 -1 -1 $-1 $374 -10 $576 10 $365 $580 forward @7 unknown T -10 -10 -10 10 -10 -10 #
+coedge $-1 -1 -1 $-1 $379 $378 $219 $371 reversed $362 $-1 #
+edge $581 -1 -1 $-1 $582 -10 $373 10 $370 $583 forward @7 unknown T -10 -9 -10 10 -9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $584 $-1 $221 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+vertex $585 -1 -1 $-1 $221 $586 #
+vertex $587 -1 -1 $-1 $387 $588 #
+straight-curve $-1 -1 -1 $-1 10 -9.5 -10 0 -1 0 I I #
+coedge $-1 -1 -1 $-1 $364 $366 $222 $377 reversed $215 $-1 #
+edge $589 -1 -1 $-1 $381 -0.5 $385 0.5 $376 $590 forward @7 unknown T -10 -10 10 -10 -9 10 #
+coedge $-1 -1 -1 $-1 $370 $223 $228 $388 forward $362 $-1 #
+coedge $-1 -1 -1 $-1 $223 $370 $364 $574 reversed $362 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $591 $-1 $224 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+vertex $592 -1 -1 $-1 $224 $593 #
+straight-curve $-1 -1 -1 $-1 0 -9 10 -1 0 0 I I #
+coedge $-1 -1 -1 $-1 $225 $365 $227 $387 reversed $131 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $594 $-1 $226 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+vertex $595 -1 -1 $-1 $377 $596 #
+straight-curve $-1 -1 -1 $-1 0 -10 10 1 0 0 I I #
+edge $597 -1 -1 $-1 $231 -10 $374 10 $227 $598 forward @7 unknown T 10 -10 -10 10 -10 10 #
+edge $599 -1 -1 $-1 $232 -10 $373 10 $228 $600 forward @7 unknown T 10 -9 -10 10 -9 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $230 $137 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00001 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $601 $-1 $231 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+point $-1 -1 -1 $-1 10 -10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $602 $-1 $232 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+point $-1 -1 -1 $-1 10 -9 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $235 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000017:Level=117:MaterialLabel=Air #
+cface $603 -1 $604 $53 $240 0 #
+cface_ptr-ct-attrib $-1 -1 $-1 $236 $34 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $605 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $606 $237 $55 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $607 $238 $89 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000320:BoundaryLabel=ground11:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $608 $239 $143 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+fctd_mark-eye-attrib $-1 -1 $609 $-1 $240 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+face $610 -1 -1 $-1 $-1 $255 $24 $-1 $611 reversed single T 12 -12 -12 12 12 12 F #
+loop $-1 -1 -1 $-1 $-1 $418 $240 T -12 12 -12 12 12 12 unknown #
+plane-surface $-1 -1 -1 $-1 0 12 0 0 -1 0 0 0 -1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $612 $416 $419 $613 forward $241 $-1 #
+coedge $-1 -1 -1 $-1 $423 $243 $244 $409 reversed $144 $-1 #
+coedge $-1 -1 -1 $-1 $416 $612 $243 $407 reversed $241 $-1 #
+edge $614 -1 -1 $-1 $425 -12 $615 12 $406 $616 forward @7 unknown T -12 -12 -12 -12 -12 12 #
+coedge $-1 -1 -1 $-1 $245 $244 $612 $617 forward $90 $-1 #
+edge $618 -1 -1 $-1 $414 -12 $615 12 $405 $619 forward @7 unknown T -12 -12 -12 12 -12 -12 #
+coedge $-1 -1 -1 $-1 $419 $418 $245 $411 reversed $402 $-1 #
+edge $620 -1 -1 $-1 $621 -12 $413 12 $410 $622 forward @7 unknown T -12 12 -12 12 12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $623 $-1 $247 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+vertex $624 -1 -1 $-1 $247 $625 #
+vertex $626 -1 -1 $-1 $427 $627 #
+straight-curve $-1 -1 -1 $-1 12 0 -12 0 -1 0 I I #
+coedge $-1 -1 -1 $-1 $404 $406 $248 $417 reversed $241 $-1 #
+edge $628 -1 -1 $-1 $421 -12 $425 12 $416 $629 forward @7 unknown T -12 -12 12 -12 12 12 #
+coedge $-1 -1 -1 $-1 $410 $249 $254 $428 forward $402 $-1 #
+coedge $-1 -1 -1 $-1 $249 $410 $404 $613 reversed $402 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $630 $-1 $250 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+vertex $631 -1 -1 $-1 $250 $632 #
+straight-curve $-1 -1 -1 $-1 0 12 12 -1 0 0 I I #
+coedge $-1 -1 -1 $-1 $251 $405 $253 $427 reversed $144 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $633 $-1 $252 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+vertex $634 -1 -1 $-1 $417 $635 #
+straight-curve $-1 -1 -1 $-1 0 -12 12 1 0 0 I I #
+edge $636 -1 -1 $-1 $257 -12 $414 12 $253 $637 forward @7 unknown T 12 -12 -12 12 -12 12 #
+edge $638 -1 -1 $-1 $258 -12 $413 12 $254 $639 forward @7 unknown T 12 12 -12 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $256 $150 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00001 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $640 $-1 $257 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+point $-1 -1 -1 $-1 12 -12 12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $641 $-1 $258 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+point $-1 -1 -1 $-1 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $642 $260 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @47 8:NAME=1969:VERSION=212:List=Voltage9:Label=100 #
+cshell $-1 -1 $-1 $643 $96 #
+cface $644 -1 $645 $262 $159 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $263 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $646 -1 $647 $154 $292 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $265 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=B.000018:Level=1016:MaterialLabel=Cu #
+cface $648 -1 $649 $97 $279 0 #
+face $650 -1 -1 $-1 $651 $652 $37 $-1 $653 reversed double in T -10 10 -10 10 10 10 F #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $267 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $654 -1 $655 $61 $271 0 #
+face $656 -1 -1 $-1 $268 $657 $62 $-1 $658 reversed double in T -10 -10 -10 -10 -9 10 F #
+rgb_color-st-attrib $-1 -1 $659 $-1 $268 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+face $660 -1 -1 $-1 $-1 $661 $62 $-1 $662 reversed double in T 10 -10 -10 10 -9 10 F #
+loop $663 -1 -1 $-1 $-1 $664 $268 T -10 -9 -10 10 -9 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -9 0 0 -1 0 0 0 -1 forward_v I I I I #
+real_attrib-name_attrib-gen-attrib $-1 -1 $665 $269 $99 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $666 $270 $159 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 14 #
+rgb_color-st-attrib $-1 -1 $667 $-1 $271 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+loop $668 -1 -1 $-1 $-1 $669 $271 T -10 -10 -10 10 -10 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 -10 0 0 1 0 0 0 1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $272 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+coedge $-1 -1 -1 $-1 $670 $671 $672 $673 forward $272 $-1 #
+coedge $-1 -1 -1 $-1 $674 $275 $675 $676 forward $160 $-1 #
+coedge $-1 -1 -1 $-1 $275 $674 $677 $678 forward $160 $-1 #
+coedge $-1 -1 -1 $-1 $679 $680 $275 $459 reversed $661 $-1 #
+edge $681 -1 -1 $-1 $682 -0.5 $683 0.5 $458 $684 forward @7 unknown T 10 -10 10 10 -9 10 #
+fctd_mark-eye-attrib $-1 -1 $685 $276 $63 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $686 $277 $101 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $687 $278 $164 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 9 #
+rgb_color-st-attrib $-1 -1 $688 $-1 $279 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+loop $689 -1 -1 $-1 $-1 $690 $279 T -10 9 -10 -10 10 10 periphery $465 T #
+plane-surface $-1 -1 -1 $-1 -10 9.5 0 1 0 0 0 0 -1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $280 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 10 #
+coedge $-1 -1 -1 $-1 $691 $475 $692 $693 forward $280 $-1 #
+coedge $-1 -1 -1 $-1 $694 $283 $691 $695 forward $165 $-1 #
+coedge $-1 -1 -1 $-1 $283 $694 $696 $697 forward $165 $-1 #
+coedge $-1 -1 -1 $-1 $478 $477 $283 $471 reversed $479 $-1 #
+edge $698 -1 -1 $-1 $699 -0.5 $700 0.5 $470 $701 forward @7 unknown T 10 9 -10 10 10 -10 #
+coedge $-1 -1 -1 $-1 $285 $284 $702 $703 forward $102 $-1 #
+coedge $-1 -1 -1 $-1 $704 $705 $284 $474 reversed $652 $-1 #
+edge $706 -1 -1 $-1 $482 -10 $707 10 $473 $708 forward @7 unknown T -10 10 10 10 10 10 #
+coedge $-1 -1 -1 $-1 $467 $709 $285 $476 reversed $280 $-1 #
+edge $710 -1 -1 $-1 $711 -10 $481 10 $475 $712 forward @7 unknown T -10 9 10 10 9 10 #
+coedge $-1 -1 -1 $-1 $470 $286 $709 $713 forward $479 $-1 #
+coedge $-1 -1 -1 $-1 $286 $470 $704 $714 reversed $479 $-1 #
+loop $715 -1 -1 $-1 $-1 $477 $651 T 10 9 -10 10 10 10 unknown #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $716 $-1 $287 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 13 #
+vertex $717 -1 -1 $-1 $287 $718 #
+vertex $719 -1 -1 $-1 $287 $720 #
+straight-curve $-1 -1 -1 $-1 10 9.5 10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $721 $288 $38 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=F.0000120:BoundaryLabel=ground11:FaceSense=0 #
+fctd_mark-eye-attrib $-1 -1 $722 $289 $65 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $723 $290 $106 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $724 $291 $172 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+rgb_color-st-attrib $-1 -1 $725 $-1 $292 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.60000002384185791 0.60000002384185791 0.60000002384185791 #
+face $726 -1 -1 $-1 $-1 $308 $27 $-1 $727 reversed single T 12 -12 -12 12 12 12 F #
+loop $728 -1 -1 $-1 $-1 $507 $292 T -12 12 -12 12 12 12 unknown #
+plane-surface $-1 -1 -1 $-1 0 12 0 0 -1 0 0 0 -1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $293 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 15 #
+coedge $-1 -1 -1 $-1 $729 $505 $508 $730 forward $293 $-1 #
+coedge $-1 -1 -1 $-1 $512 $296 $297 $498 reversed $173 $-1 #
+coedge $-1 -1 -1 $-1 $505 $729 $296 $496 reversed $293 $-1 #
+edge $731 -1 -1 $-1 $514 -12 $732 12 $495 $733 forward @7 unknown T -12 -12 -12 -12 -12 12 #
+coedge $-1 -1 -1 $-1 $298 $297 $729 $734 forward $107 $-1 #
+edge $735 -1 -1 $-1 $503 -12 $732 12 $494 $736 forward @7 unknown T -12 -12 -12 12 -12 -12 #
+coedge $-1 -1 -1 $-1 $508 $507 $298 $500 reversed $490 $-1 #
+edge $737 -1 -1 $-1 $738 -12 $502 12 $499 $739 forward @7 unknown T -12 12 -12 12 12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $740 $-1 $300 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+vertex $741 -1 -1 $-1 $300 $742 #
+vertex $743 -1 -1 $-1 $516 $744 #
+straight-curve $-1 -1 -1 $-1 12 0 -12 0 -1 0 I I #
+coedge $-1 -1 -1 $-1 $493 $495 $301 $506 reversed $293 $-1 #
+edge $745 -1 -1 $-1 $510 -12 $514 12 $505 $746 forward @7 unknown T -12 -12 12 -12 12 12 #
+coedge $-1 -1 -1 $-1 $499 $302 $307 $517 forward $490 $-1 #
+coedge $-1 -1 -1 $-1 $302 $499 $493 $730 reversed $490 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $747 $-1 $303 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+vertex $748 -1 -1 $-1 $303 $749 #
+straight-curve $-1 -1 -1 $-1 0 12 12 -1 0 0 I I #
+coedge $-1 -1 -1 $-1 $304 $494 $306 $516 reversed $173 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $750 $-1 $305 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+vertex $751 -1 -1 $-1 $506 $752 #
+straight-curve $-1 -1 -1 $-1 0 -12 12 1 0 0 I I #
+edge $753 -1 -1 $-1 $310 -12 $503 12 $306 $754 forward @7 unknown T 12 -12 -12 12 -12 12 #
+edge $755 -1 -1 $-1 $311 -12 $502 12 $307 $756 forward @7 unknown T 12 12 -12 12 12 12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $308 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 13 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $309 $180 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00001 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $757 $-1 $310 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+point $-1 -1 -1 $-1 12 -12 12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $758 $-1 $311 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+point $-1 -1 -1 $-1 12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $759 $313 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @364 85:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='background' IDENTIFIER=A.000068:CSTRUC=016:COMMANDNAME=PICK100:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME=background IDENTIFIER=A.00006 5:ID=5010:PARENTID=132:DESCRIPTION=Pick: 4 faces picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE24:NEEDFLAG=BODY_BACKGROUND19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $315 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $760 -1 $527 $41 $321 0 #
+cface $761 -1 $-1 $41 $30 0 #
+cface_ptr-ct-attrib $-1 -1 $-1 $317 $43 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $70 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $762 $318 $73 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $763 $319 $117 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000411:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $764 $320 $188 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+fctd_mark-eye-attrib $-1 -1 $765 $-1 $321 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+plane-surface $-1 -1 -1 $-1 10 9.5 0 -1 0 0 0 0 1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $326 $324 $328 $539 reversed $189 $-1 #
+edge $766 -1 -1 $-1 $341 -10 $543 10 $339 $767 forward @7 unknown T -10 10 -10 -10 10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $768 $-1 $327 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 9 #
+vertex $769 -1 -1 $-1 $539 $770 #
+straight-curve $-1 -1 -1 $-1 -10 9 0 0 0 -1 I I #
+edge $771 -1 -1 $-1 $537 -0.5 $543 0.5 $534 $772 forward @7 unknown T -10 9 -10 -10 10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $773 $-1 $329 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+straight-curve $-1 -1 -1 $-1 0 9 -10 -1 0 0 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $774 $-1 $331 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+vertex $775 -1 -1 $-1 $331 $776 #
+straight-curve $-1 -1 -1 $-1 0 10 -10 1 0 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $332 $195 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00005 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $777 $-1 $333 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+point $-1 -1 -1 $-1 10 10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $778 $-1 $334 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+point $-1 -1 -1 $-1 10 9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $779 $-1 $337 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+straight-curve $-1 -1 -1 $-1 -10 9.5 10 0 -1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $340 $198 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00002 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $780 $-1 $341 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+point $-1 -1 -1 $-1 -10 10 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $344 $200 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00004 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $781 $-1 $345 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+point $-1 -1 -1 $-1 -10 9 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $782 $-1 $347 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 10 #
+straight-curve $-1 -1 -1 $-1 10 9 0 0 0 -1 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $783 $-1 $348 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 12 #
+straight-curve $-1 -1 -1 $-1 10 10 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $350 $205 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00001 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $352 $206 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00002 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $355 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $784 -1 $566 $47 $361 0 #
+cface $785 -1 $-1 $47 $32 0 #
+cface_ptr-ct-attrib $-1 -1 $-1 $357 $49 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $78 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $786 $358 $81 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $787 $359 $130 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000411:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $788 $360 $214 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+fctd_mark-eye-attrib $-1 -1 $789 $-1 $361 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+plane-surface $-1 -1 -1 $-1 10 -9.5 0 -1 0 0 0 0 1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $366 $364 $368 $578 reversed $215 $-1 #
+edge $790 -1 -1 $-1 $381 -10 $582 10 $379 $791 forward @7 unknown T -10 -9 -10 -10 -9 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $792 $-1 $367 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 9 #
+vertex $793 -1 -1 $-1 $578 $794 #
+straight-curve $-1 -1 -1 $-1 -10 -10 0 0 0 -1 I I #
+edge $795 -1 -1 $-1 $576 -0.5 $582 0.5 $573 $796 forward @7 unknown T -10 -10 -10 -10 -9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $797 $-1 $369 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+straight-curve $-1 -1 -1 $-1 0 -10 -10 -1 0 0 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $798 $-1 $371 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+vertex $799 -1 -1 $-1 $371 $800 #
+straight-curve $-1 -1 -1 $-1 0 -9 -10 1 0 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $372 $221 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00005 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $801 $-1 $373 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+point $-1 -1 -1 $-1 10 -9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $802 $-1 $374 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+point $-1 -1 -1 $-1 10 -10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $803 $-1 $377 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+straight-curve $-1 -1 -1 $-1 -10 -9.5 10 0 -1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $380 $224 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00002 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $804 $-1 $381 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+point $-1 -1 -1 $-1 -10 -9 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $384 $226 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00004 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $805 $-1 $385 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+point $-1 -1 -1 $-1 -10 -10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $806 $-1 $387 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 10 #
+straight-curve $-1 -1 -1 $-1 10 -10 0 0 0 -1 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $807 $-1 $388 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 12 #
+straight-curve $-1 -1 -1 $-1 10 -9 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $390 $231 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00001 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $392 $232 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00002 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $395 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000017:Level=117:MaterialLabel=Air #
+cface $808 -1 $605 $53 $401 0 #
+cface $809 -1 $-1 $53 $34 0 #
+cface_ptr-ct-attrib $-1 -1 $-1 $397 $55 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $86 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $810 $398 $89 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $811 $399 $143 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000420:BoundaryLabel=ground11:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $812 $400 $240 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+fctd_mark-eye-attrib $-1 -1 $813 $-1 $401 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+plane-surface $-1 -1 -1 $-1 12 0 0 -1 0 0 0 -0 1 forward_v I I I I #
+coedge $-1 -1 -1 $-1 $406 $404 $408 $617 reversed $241 $-1 #
+edge $814 -1 -1 $-1 $421 -12 $621 12 $419 $815 forward @7 unknown T -12 12 -12 -12 12 12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $816 $-1 $407 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 9 #
+vertex $817 -1 -1 $-1 $617 $818 #
+straight-curve $-1 -1 -1 $-1 -12 -12 0 0 0 -1 I I #
+edge $819 -1 -1 $-1 $615 -12 $621 12 $612 $820 forward @7 unknown T -12 -12 -12 -12 12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $821 $-1 $409 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+straight-curve $-1 -1 -1 $-1 0 -12 -12 -1 0 0 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $822 $-1 $411 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+vertex $823 -1 -1 $-1 $411 $824 #
+straight-curve $-1 -1 -1 $-1 0 12 -12 1 0 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $412 $247 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00005 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $825 $-1 $413 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+point $-1 -1 -1 $-1 12 12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $826 $-1 $414 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+point $-1 -1 -1 $-1 12 -12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $827 $-1 $417 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+straight-curve $-1 -1 -1 $-1 -12 0 12 0 -1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $420 $250 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00002 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $828 $-1 $421 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+point $-1 -1 -1 $-1 -12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $424 $252 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00004 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $829 $-1 $425 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+point $-1 -1 -1 $-1 -12 -12 12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $830 $-1 $427 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 10 #
+straight-curve $-1 -1 -1 $-1 12 -12 0 0 0 -1 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $831 $-1 $428 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 12 #
+straight-curve $-1 -1 -1 $-1 12 12 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $430 $257 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00001 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $432 $258 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00002 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $832 $434 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @49 8:NAME=1979:VERSION=212:List=Voltage10:Label=-100 #
+cface $833 -1 $834 $435 $101 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $436 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $835 -1 $836 $262 $271 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $438 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $837 -1 $838 $154 $172 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $440 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=B.000018:Level=1016:MaterialLabel=Cu #
+cface $839 -1 $840 $97 $164 0 #
+rgb_color-st-attrib $-1 -1 $841 $-1 $441 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+face $842 -1 -1 $-1 $-1 $479 $37 $-1 $843 reversed double in T 10 9 -10 10 10 10 F #
+loop $844 -1 -1 $-1 $-1 $704 $441 T -10 10 -10 10 10 10 unknown #
+plane-surface $-1 -1 -1 $-1 0 10 0 0 -1 0 0 0 -1 forward_v I I I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $443 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $845 -1 $846 $61 $446 0 #
+rgb_color-st-attrib $-1 -1 $847 $-1 $444 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+loop $848 -1 -1 $-1 $-1 $849 $444 T -10 -10 -10 -10 -9 10 periphery $658 T #
+plane-surface $-1 -1 -1 $-1 -10 -9.5 0 1 0 0 0 0 -1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $850 $445 $268 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 17 #
+rgb_color-st-attrib $-1 -1 $851 $-1 $446 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+loop $852 -1 -1 $-1 $-1 $679 $446 T 10 -10 -10 10 -9 10 unknown #
+plane-surface $-1 -1 -1 $-1 10 -9.5 0 -1 0 0 0 0 1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $447 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 2 #
+coedge $-1 -1 -1 $-1 $853 $675 $680 $854 forward $447 $-1 #
+fctd_mark-eye-attrib $-1 -1 $855 $449 $99 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $856 $450 $159 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $857 $451 $271 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 15 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $452 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+coedge $-1 -1 -1 $-1 $858 $677 $859 $860 forward $452 $-1 #
+coedge $-1 -1 -1 $-1 $861 $455 $858 $862 forward $272 $-1 #
+coedge $-1 -1 -1 $-1 $455 $861 $853 $863 forward $272 $-1 #
+coedge $-1 -1 -1 $-1 $680 $679 $455 $673 reversed $661 $-1 #
+edge $864 -1 -1 $-1 $865 -0.5 $866 0.5 $672 $867 forward @7 unknown T 10 -10 -10 10 -9 -10 #
+coedge $-1 -1 -1 $-1 $457 $456 $868 $869 forward $160 $-1 #
+coedge $-1 -1 -1 $-1 $664 $870 $456 $676 reversed $447 $-1 #
+edge $871 -1 -1 $-1 $683 -10 $872 10 $675 $873 forward @7 unknown T -10 -9 10 10 -9 10 #
+coedge $-1 -1 -1 $-1 $669 $874 $457 $678 reversed $452 $-1 #
+edge $875 -1 -1 $-1 $876 -10 $682 10 $677 $877 forward @7 unknown T -10 -10 10 10 -10 10 #
+coedge $-1 -1 -1 $-1 $672 $458 $874 $878 forward $661 $-1 #
+coedge $-1 -1 -1 $-1 $458 $672 $664 $854 reversed $661 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $879 $-1 $459 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 25 #
+vertex $880 -1 -1 $-1 $459 $881 #
+vertex $882 -1 -1 $-1 $459 $883 #
+straight-curve $-1 -1 -1 $-1 10 -9.5 10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $884 $460 $63 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=B.0000111:FaceSense=0 #
+fctd_mark-eye-attrib $-1 -1 $885 $461 $101 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $886 $462 $164 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $887 $463 $279 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $464 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 9 #
+coedge $-1 -1 -1 $-1 $888 $702 $705 $889 forward $464 $-1 #
+coedge $-1 -1 -1 $-1 $709 $467 $468 $695 reversed $280 $-1 #
+coedge $-1 -1 -1 $-1 $702 $888 $467 $693 reversed $464 $-1 #
+edge $890 -1 -1 $-1 $711 -10 $891 10 $692 $892 forward @7 unknown T -10 9 -10 -10 9 10 #
+coedge $-1 -1 -1 $-1 $469 $468 $888 $893 forward $165 $-1 #
+edge $894 -1 -1 $-1 $700 -10 $891 10 $691 $895 forward @7 unknown T -10 9 -10 10 9 -10 #
+coedge $-1 -1 -1 $-1 $705 $704 $469 $697 reversed $652 $-1 #
+edge $896 -1 -1 $-1 $897 -10 $699 10 $696 $898 forward @7 unknown T -10 10 -10 10 10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $899 $-1 $471 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 17 #
+vertex $900 -1 -1 $-1 $471 $901 #
+vertex $902 -1 -1 $-1 $713 $903 #
+straight-curve $-1 -1 -1 $-1 10 9.5 -10 0 -1 0 I I #
+coedge $-1 -1 -1 $-1 $690 $692 $472 $703 reversed $464 $-1 #
+edge $904 -1 -1 $-1 $707 -0.5 $711 0.5 $702 $905 forward @7 unknown T -10 9 10 -10 10 10 #
+coedge $-1 -1 -1 $-1 $696 $473 $478 $714 forward $652 $-1 #
+coedge $-1 -1 -1 $-1 $473 $696 $690 $889 reversed $652 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $906 $-1 $474 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 14 #
+vertex $907 -1 -1 $-1 $474 $908 #
+straight-curve $-1 -1 -1 $-1 0 10 10 -1 0 0 I I #
+coedge $-1 -1 -1 $-1 $475 $691 $477 $713 reversed $280 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $909 $-1 $476 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 16 #
+vertex $910 -1 -1 $-1 $703 $911 #
+straight-curve $-1 -1 -1 $-1 0 9 10 1 0 0 I I #
+edge $912 -1 -1 $-1 $481 -10 $700 10 $477 $913 forward @7 unknown T 10 9 -10 10 9 10 #
+edge $914 -1 -1 $-1 $482 -10 $699 10 $478 $915 forward @7 unknown T 10 10 -10 10 10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $479 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $480 $287 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00001 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $916 $-1 $481 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 9 #
+point $-1 -1 -1 $-1 10 9 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $917 $-1 $482 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 10 #
+point $-1 -1 -1 $-1 10 10 10 #
+cface_ptr-ct-attrib $-1 -1 $-1 $484 $38 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $263 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $918 $485 $65 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=F.0000220:BoundaryLabel=ground11:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $919 $486 $106 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $920 $487 $172 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $921 $488 $292 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+rgb_color-st-attrib $-1 -1 $922 $-1 $489 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.60000002384185791 0.60000002384185791 0.60000002384185791 #
+plane-surface $-1 -1 -1 $-1 12 0 0 -1 0 0 0 -0 1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $490 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 14 #
+coedge $-1 -1 -1 $-1 $495 $493 $497 $734 reversed $293 $-1 #
+edge $923 -1 -1 $-1 $510 -12 $738 12 $508 $924 forward @7 unknown T -12 12 -12 -12 12 12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $925 $-1 $496 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 9 #
+vertex $926 -1 -1 $-1 $734 $927 #
+straight-curve $-1 -1 -1 $-1 -12 -12 0 0 0 -1 I I #
+edge $928 -1 -1 $-1 $732 -12 $738 12 $729 $929 forward @7 unknown T -12 -12 -12 -12 12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $930 $-1 $498 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+straight-curve $-1 -1 -1 $-1 0 -12 -12 -1 0 0 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $931 $-1 $500 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+vertex $932 -1 -1 $-1 $500 $933 #
+straight-curve $-1 -1 -1 $-1 0 12 -12 1 0 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $501 $300 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00005 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $934 $-1 $502 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 5 #
+point $-1 -1 -1 $-1 12 12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $935 $-1 $503 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+point $-1 -1 -1 $-1 12 -12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $936 $-1 $506 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+straight-curve $-1 -1 -1 $-1 -12 0 12 0 -1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $509 $303 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00002 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $937 $-1 $510 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+point $-1 -1 -1 $-1 -12 12 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $513 $305 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00004 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $938 $-1 $514 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 4 #
+point $-1 -1 -1 $-1 -12 -12 12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $939 $-1 $516 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 10 #
+straight-curve $-1 -1 -1 $-1 12 -12 0 0 0 -1 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $940 $-1 $517 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 12 #
+straight-curve $-1 -1 -1 $-1 12 12 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $520 $310 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00001 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $522 $311 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00002 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $941 $524 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @364 85:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='background' IDENTIFIER=A.000018:CSTRUC=016:COMMANDNAME=PICK100:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME=background IDENTIFIER=A.00001 5:ID=4910:PARENTID=132:DESCRIPTION=Pick: 3 faces picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE24:NEEDFLAG=BODY_BACKGROUND19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $526 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $527 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface_ptr-ct-attrib $-1 -1 $-1 $529 $73 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $113 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $942 $530 $117 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $943 $531 $188 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000511:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $944 $532 $321 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $945 $-1 $535 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 11 #
+straight-curve $-1 -1 -1 $-1 -10 10 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $536 $327 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00009 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $946 $-1 $537 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+point $-1 -1 -1 $-1 -10 9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $947 $-1 $539 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+straight-curve $-1 -1 -1 $-1 -10 9.5 -10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $540 $329 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $542 $331 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00008 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $948 $-1 $543 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+point $-1 -1 -1 $-1 -10 10 -10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $546 $333 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00005 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $548 $334 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $550 $337 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $553 $341 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $556 $345 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00004 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $558 $347 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00010 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $560 $348 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00012 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $565 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $566 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface_ptr-ct-attrib $-1 -1 $-1 $568 $81 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $126 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $949 $569 $130 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $950 $570 $214 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @117 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000525:BoundaryLabel=lower_plate11:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $951 $571 $361 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $952 $-1 $574 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 11 #
+straight-curve $-1 -1 -1 $-1 -10 -9 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $575 $367 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00009 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $953 $-1 $576 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+point $-1 -1 -1 $-1 -10 -10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $954 $-1 $578 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+straight-curve $-1 -1 -1 $-1 -10 -9.5 -10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $579 $369 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $581 $371 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00008 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $955 $-1 $582 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+point $-1 -1 -1 $-1 -10 -9 -10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $585 $373 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00005 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $587 $374 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $589 $377 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $592 $381 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $595 $385 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00004 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $597 $387 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00010 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $599 $388 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00012 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $604 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000017:Level=117:MaterialLabel=Air #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $605 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000017:Level=117:MaterialLabel=Air #
+cface_ptr-ct-attrib $-1 -1 $-1 $607 $89 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $139 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $956 $608 $143 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $957 $609 $240 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000520:BoundaryLabel=ground11:FaceSense=1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $958 $610 $401 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $959 $-1 $613 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 11 #
+straight-curve $-1 -1 -1 $-1 -12 12 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $614 $407 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00009 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $960 $-1 $615 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+point $-1 -1 -1 $-1 -12 -12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $961 $-1 $617 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+straight-curve $-1 -1 -1 $-1 -12 0 -12 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $618 $409 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $620 $411 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00008 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $962 $-1 $621 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+point $-1 -1 -1 $-1 -12 12 -12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $624 $413 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00005 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $626 $414 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $628 $417 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $631 $421 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $634 $425 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00004 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $636 $427 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00010 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $638 $428 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00012 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $963 $642 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @45 8:NAME=1999:VERSION=212:List=Voltage7:Label=0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $643 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $964 -1 $965 $435 $164 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $645 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $966 -1 $967 $262 $444 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $647 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $968 -1 $969 $154 $106 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $649 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=B.000018:Level=1016:MaterialLabel=Cu #
+cface $970 -1 $971 $97 $651 0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $972 $650 $441 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 11 #
+rgb_color-st-attrib $-1 -1 $973 $-1 $651 2 1 2 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 0.54901963472366333 0.90196079015731812 0.015686275437474251 #
+plane-surface $-1 -1 -1 $-1 10 9.5 0 -1 0 0 0 0 1 forward_v I I I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $652 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $655 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+cface $974 -1 $-1 $61 $159 0 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $975 $656 $444 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 16 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $657 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 3 #
+coedge $-1 -1 -1 $-1 $976 $868 $870 $977 forward $657 $-1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $978 $659 $268 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $979 $660 $446 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 18 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $661 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+coedge $-1 -1 -1 $-1 $870 $664 $671 $863 reversed $447 $-1 #
+edge $980 -1 -1 $-1 $683 -10 $865 10 $680 $981 forward @7 unknown T 10 -9 -10 10 -9 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $982 $665 $99 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=A.0000111:FaceSense=0 #
+fctd_mark-eye-attrib $-1 -1 $983 $666 $159 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $984 $667 $271 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+coedge $-1 -1 -1 $-1 $874 $669 $670 $862 reversed $452 $-1 #
+coedge $-1 -1 -1 $-1 $868 $976 $669 $860 reversed $657 $-1 #
+edge $985 -1 -1 $-1 $876 -10 $986 10 $859 $987 forward @7 unknown T -10 -10 -10 -10 -10 10 #
+coedge $-1 -1 -1 $-1 $671 $670 $976 $988 forward $272 $-1 #
+edge $989 -1 -1 $-1 $866 -10 $986 10 $858 $990 forward @7 unknown T -10 -10 -10 10 -10 -10 #
+edge $991 -1 -1 $-1 $992 -10 $865 10 $853 $993 forward @7 unknown T -10 -9 -10 10 -9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $994 $-1 $673 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 29 #
+vertex $995 -1 -1 $-1 $673 $996 #
+vertex $997 -1 -1 $-1 $878 $998 #
+straight-curve $-1 -1 -1 $-1 10 -9.5 -10 0 -1 0 I I #
+coedge $-1 -1 -1 $-1 $849 $859 $674 $869 reversed $657 $-1 #
+edge $999 -1 -1 $-1 $872 -0.5 $876 0.5 $868 $1000 forward @7 unknown T -10 -10 10 -10 -9 10 #
+coedge $-1 -1 -1 $-1 $675 $853 $849 $977 reversed $447 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1001 $-1 $676 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 26 #
+vertex $1002 -1 -1 $-1 $676 $1003 #
+straight-curve $-1 -1 -1 $-1 0 -9 10 -1 0 0 I I #
+coedge $-1 -1 -1 $-1 $677 $858 $679 $878 reversed $452 $-1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1004 $-1 $678 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 28 #
+vertex $1005 -1 -1 $-1 $869 $1006 #
+straight-curve $-1 -1 -1 $-1 0 -10 10 1 0 0 I I #
+edge $1007 -1 -1 $-1 $682 -10 $866 10 $679 $1008 forward @7 unknown T 10 -10 -10 10 -10 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $681 $459 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00001 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1009 $-1 $682 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 17 #
+point $-1 -1 -1 $-1 10 -10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1010 $-1 $683 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 18 #
+point $-1 -1 -1 $-1 10 -9 10 #
+cface_ptr-ct-attrib $-1 -1 $-1 $685 $63 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $1011 $155 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1012 $686 $101 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=B.0000211:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1013 $687 $164 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1014 $688 $279 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+coedge $-1 -1 -1 $-1 $692 $690 $694 $893 reversed $464 $-1 #
+edge $1015 -1 -1 $-1 $707 -10 $897 10 $705 $1016 forward @7 unknown T -10 10 -10 -10 10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1017 $-1 $693 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 21 #
+vertex $1018 -1 -1 $-1 $893 $1019 #
+straight-curve $-1 -1 -1 $-1 -10 9 0 0 0 -1 I I #
+edge $1020 -1 -1 $-1 $891 -0.5 $897 0.5 $888 $1021 forward @7 unknown T -10 9 -10 -10 10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1022 $-1 $695 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 18 #
+straight-curve $-1 -1 -1 $-1 0 9 -10 -1 0 0 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1023 $-1 $697 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 20 #
+vertex $1024 -1 -1 $-1 $697 $1025 #
+straight-curve $-1 -1 -1 $-1 0 10 -10 1 0 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $698 $471 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00005 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1026 $-1 $699 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 13 #
+point $-1 -1 -1 $-1 10 10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1027 $-1 $700 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 14 #
+point $-1 -1 -1 $-1 10 9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1028 $-1 $703 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 15 #
+straight-curve $-1 -1 -1 $-1 -10 9.5 10 0 -1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $706 $474 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00002 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1029 $-1 $707 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 11 #
+point $-1 -1 -1 $-1 -10 10 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $710 $476 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00004 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1030 $-1 $711 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 12 #
+point $-1 -1 -1 $-1 -10 9 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1031 $-1 $713 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 22 #
+straight-curve $-1 -1 -1 $-1 10 9 0 0 0 -1 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1032 $-1 $714 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 24 #
+straight-curve $-1 -1 -1 $-1 10 10 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $717 $481 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00001 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $719 $482 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00002 #
+cface_ptr-ct-attrib $-1 -1 $-1 $722 $65 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $1033 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1034 $723 $106 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=F.0000320:BoundaryLabel=ground11:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1035 $724 $172 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1036 $725 $292 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1037 $726 $489 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 6 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1038 $-1 $730 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 11 #
+straight-curve $-1 -1 -1 $-1 -12 12 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $731 $496 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00009 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1039 $-1 $732 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+point $-1 -1 -1 $-1 -12 -12 -12 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1040 $-1 $734 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 7 #
+straight-curve $-1 -1 -1 $-1 -12 0 -12 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $735 $498 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $737 $500 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00008 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1041 $-1 $738 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 8 #
+point $-1 -1 -1 $-1 -12 12 -12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $741 $502 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00005 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $743 $503 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $745 $506 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $748 $510 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $751 $514 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00004 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $753 $516 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00010 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $755 $517 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00012 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1042 $759 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @364 85:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='background' IDENTIFIER=A.000058:CSTRUC=016:COMMANDNAME=PICK100:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME=background IDENTIFIER=A.00005 5:ID=4810:PARENTID=132:DESCRIPTION=Pick: 2 faces picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE24:NEEDFLAG=BODY_BACKGROUND19:IGNOREEMPTYPARS=ALL #
+cface_ptr-ct-attrib $-1 -1 $-1 $763 $117 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $183 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1043 $764 $188 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1044 $765 $321 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000611:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $766 $535 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00011 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $769 $537 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $771 $539 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $775 $543 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00008 #
+cface_ptr-ct-attrib $-1 -1 $-1 $787 $130 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $209 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1045 $788 $214 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1046 $789 $361 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000611:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $790 $574 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00011 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $793 $576 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $795 $578 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $799 $582 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00008 #
+cface_ptr-ct-attrib $-1 -1 $-1 $811 $143 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $235 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1047 $812 $240 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1048 $813 $401 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=A.0000620:BoundaryLabel=ground11:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $814 $613 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00011 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $817 $615 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $819 $617 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $823 $621 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00008 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1049 $832 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @54 8:NAME=1949:VERSION=214:List=Condition13:Label=VOLTAGE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $834 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $1050 -1 $1051 $435 $279 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $836 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $1052 -1 $1053 $262 $268 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $838 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $1054 -1 $1033 $154 $489 0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $840 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=B.000018:Level=1016:MaterialLabel=Cu #
+cface $1055 -1 $-1 $97 $101 0 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1056 $841 $441 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 400 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1057 $842 $651 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 12 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $846 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=A.000018:Level=1016:MaterialLabel=Cu #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1058 $847 $444 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+coedge $-1 -1 -1 $-1 $859 $849 $861 $988 reversed $657 $-1 #
+edge $1059 -1 -1 $-1 $872 -10 $992 10 $870 $1060 forward @7 unknown T -10 -9 -10 -10 -9 10 #
+fctd_mark-eye-attrib $-1 -1 $1061 $850 $268 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1062 $851 $446 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1063 $-1 $854 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 36 #
+straight-curve $-1 -1 -1 $-1 10 -9 0 0 0 -1 I I #
+cface_ptr-ct-attrib $-1 -1 $-1 $855 $99 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $1064 $98 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1065 $856 $159 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=A.0000211:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1066 $857 $271 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1067 $-1 $860 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 33 #
+vertex $1068 -1 -1 $-1 $988 $1069 #
+straight-curve $-1 -1 -1 $-1 -10 -10 0 0 0 -1 I I #
+edge $1070 -1 -1 $-1 $986 -0.5 $992 0.5 $976 $1071 forward @7 unknown T -10 -10 -10 -10 -9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1072 $-1 $862 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 30 #
+straight-curve $-1 -1 -1 $-1 0 -10 -10 -1 0 0 I I #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1073 $-1 $863 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 32 #
+vertex $1074 -1 -1 $-1 $863 $1075 #
+straight-curve $-1 -1 -1 $-1 0 -9 -10 1 0 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $864 $673 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00005 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1076 $-1 $865 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 21 #
+point $-1 -1 -1 $-1 10 -9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1077 $-1 $866 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 22 #
+point $-1 -1 -1 $-1 10 -10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1078 $-1 $869 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 27 #
+straight-curve $-1 -1 -1 $-1 -10 -9.5 10 0 -1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $871 $676 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00002 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1079 $-1 $872 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 19 #
+point $-1 -1 -1 $-1 -10 -9 10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $875 $678 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00004 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1080 $-1 $876 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 20 #
+point $-1 -1 -1 $-1 -10 -10 10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1081 $-1 $878 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 34 #
+straight-curve $-1 -1 -1 $-1 10 -10 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $880 $682 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00001 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $882 $683 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00002 #
+cface $1082 -1 $-1 $435 $63 1 #
+cface_ptr-ct-attrib $-1 -1 $-1 $885 $101 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $643 $971 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1083 $886 $164 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @117 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=B.0000325:BoundaryLabel=upper_plate11:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1084 $887 $279 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1085 $-1 $889 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 23 #
+straight-curve $-1 -1 -1 $-1 -10 10 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $890 $693 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00009 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1086 $-1 $891 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 15 #
+point $-1 -1 -1 $-1 -10 9 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1087 $-1 $893 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 19 #
+straight-curve $-1 -1 -1 $-1 -10 9.5 -10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $894 $695 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $896 $697 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00008 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1088 $-1 $897 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 16 #
+point $-1 -1 -1 $-1 -10 10 -10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $900 $699 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00005 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $902 $700 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $904 $703 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $907 $707 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $910 $711 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00004 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $912 $713 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00010 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $914 $714 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00012 #
+cface $1089 -1 $-1 $154 $65 0 #
+cface_ptr-ct-attrib $-1 -1 $-1 $919 $106 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $838 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1090 $920 $172 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=F.0000420:BoundaryLabel=ground11:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1091 $921 $292 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1092 $922 $489 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $923 $730 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00011 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $926 $732 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $928 $734 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=F.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $932 $738 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=F.00008 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1093 $941 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @363 85:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='background' IDENTIFIER=A.000048:CSTRUC=016:COMMANDNAME=PICK100:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME=background IDENTIFIER=A.00004 5:ID=4710:PARENTID=131:DESCRIPTION=Pick: 1 face picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE24:NEEDFLAG=BODY_BACKGROUND19:IGNOREEMPTYPARS=ALL #
+cface_ptr-ct-attrib $-1 -1 $-1 $943 $188 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $315 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1094 $944 $321 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+cface_ptr-ct-attrib $-1 -1 $-1 $950 $214 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $355 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1095 $951 $361 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+cface_ptr-ct-attrib $-1 -1 $-1 $957 $240 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $395 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1096 $958 $401 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 576 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1097 $963 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @44 8:NAME=1839:VERSION=210:List=Level8:Label=10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $965 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $1098 -1 $1099 $435 $441 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $967 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $1100 -1 $1064 $262 $446 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $969 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $971 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @110 12:ENTITYTYPE=29:VERSION=431:Information=Hexahedral meshable18:Identifier=B.000018:Level=1016:MaterialLabel=Cu #
+fctd_mark-eye-attrib $-1 -1 $1101 $972 $441 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1102 $973 $651 1 0 0 0 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @11 VF_FACEAREA 20 #
+fctd_mark-eye-attrib $-1 -1 $1103 $975 $444 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1104 $-1 $977 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 35 #
+straight-curve $-1 -1 -1 $-1 -10 -9 0 0 0 -1 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1105 $978 $268 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @117 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=A.0000525:BoundaryLabel=lower_plate11:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1106 $979 $446 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $980 $854 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00012 #
+cface $1107 -1 $-1 $262 $99 1 #
+cface_ptr-ct-attrib $-1 -1 $-1 $983 $159 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $436 $846 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1108 $984 $271 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=A.0000311:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $985 $860 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00009 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1109 $-1 $986 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 23 #
+point $-1 -1 -1 $-1 -10 -10 -10 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1110 $-1 $988 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 31 #
+straight-curve $-1 -1 -1 $-1 -10 -9.5 -10 0 1 0 I I #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $989 $862 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $991 $863 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00008 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1111 $-1 $992 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 24 #
+point $-1 -1 -1 $-1 -10 -9 -10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $995 $865 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00005 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $997 $866 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00006 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $999 $869 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1002 $872 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00003 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1005 $876 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00004 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1007 $878 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00010 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $1011 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface_ptr-ct-attrib $-1 -1 $-1 $1013 $164 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $834 $649 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1112 $1014 $279 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=B.0000411:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1015 $889 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00011 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1018 $891 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1020 $893 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=B.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1024 $897 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=B.00008 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $1033 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface_ptr-ct-attrib $-1 -1 $-1 $1035 $172 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $647 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1113 $1036 $292 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=F.0000520:BoundaryLabel=ground11:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1114 $1037 $489 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1115 $1042 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @385 108:USERINPUT=BLOCK  Name='background' X0=-12  Y0=-12  Z0=-12  X1=12  Y1=12  Z1=12  MATERIALLABEL='Air'  LEVEL=18:CSTRUC=017:COMMANDNAME=BLOCK113:PARAMETERS=NAME=background X0=-12 Y0=-12 Z0=-12 X1=12 Y1=12 Z1=12 MATERIALLABEL=Air LEVEL=1 UNIQUENAME=background5:ID=4510:PARENTID=136:DESCRIPTION=Create block: background14:ACTIONTYPE=60025:STARTFLAG=BODY_BACKGROUND19:IGNOREEMPTYPARS=ALL #
+cface_ptr-ct-attrib $-1 -1 $-1 $1044 $321 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $526 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1046 $361 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $565 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1048 $401 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $604 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1116 $1049 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @43 8:NAME=1939:VERSION=210:List=Level7:Label=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $1051 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface $1117 -1 $1011 $435 $651 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $1053 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1118 $1056 $441 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=B.0000511:FaceSense=1 #
+fctd_mark-eye-attrib $-1 -1 $1119 $1057 $651 1 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1120 $1058 $444 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=A.0000411:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1059 $977 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00011 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1061 $268 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $967 $157 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1121 $1062 $446 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=A.0000611:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $1064 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface_ptr-ct-attrib $-1 -1 $-1 $1066 $271 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $645 $443 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1068 $986 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1070 $988 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @47 12:ENTITYTYPE=89:VERSION=218:Identifier=A.00007 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1074 $992 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @48 13:ENTITYTYPE=169:VERSION=218:Identifier=A.00008 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1084 $279 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $965 $440 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1091 $292 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $438 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1122 $1092 $489 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @112 12:ENTITYTYPE=49:VERSION=325:Information=External face18:Identifier=F.0000620:BoundaryLabel=ground11:FaceSense=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1123 $1093 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @312 66:USERINPUT=BOUNDARY OPTION=MODIFY  CONDITION=VOLTAGE   VOLTAGE=-1008:CSTRUC=020:COMMANDNAME=BOUNDARY78:PARAMETERS=THERMALCONDITION=NONE OPTION=MODIFY CONDITION=VOLTAGE VOLTAGE=-100 5:ID=3610:PARENTID=135:DESCRIPTION=Set boundary conditions14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_BOUNDARY19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1124 $1097 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @55 8:NAME=1759:VERSION=216:List=ElementType12:Label=Linear #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $-1 $1099 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @76 12:ENTITYTYPE=29:VERSION=418:Identifier=F.000017:Level=117:MaterialLabel=Air #
+cface_ptr-ct-attrib $-1 -1 $-1 $1101 $441 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $1051 $265 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1125 $1102 $651 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @89 12:ENTITYTYPE=49:VERSION=325:Information=Internal face18:Identifier=B.0000611:FaceSense=1 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1103 $444 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $836 $267 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1106 $446 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $1053 $655 #
+cface_ptr-ct-attrib $-1 -1 $-1 $1114 $489 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $-1 $969 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1126 $1115 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @196 37:USERINPUT=BOUNDARY PICK 'lower_plate'8:CSTRUC=020:COMMANDNAME=BOUNDARY49:PARAMETERS=OPTION=PICK BOUNDARYLABEL=lower_plate 5:ID=3510:PARENTID=114:ACTIONTYPE=50031:STARTFLAG=PROPERTYPICK_BOUNDARY #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1127 $1116 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @54 8:NAME=1849:VERSION=214:List=Potential13:Label=Default #
+cface_ptr-ct-attrib $-1 -1 $-1 $1119 $651 1 1 1 1 1 1 1 1 1 1 1 1 0 1 0 1 1 1 $1099 $840 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1128 $1123 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @198 39:USERINPUT=BOUNDARY UNPICK 'upper_plate'8:CSTRUC=020:COMMANDNAME=BOUNDARY51:PARAMETERS=OPTION=UNPICK BOUNDARYLABEL=upper_plate 5:ID=3410:PARENTID=114:ACTIONTYPE=50029:ENDFLAG=PROPERTYPICK_BOUNDARY #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1129 $1124 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @62 8:NAME=1619:VERSION=216:List=Information19:Label=External face #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1130 $1126 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @310 65:USERINPUT=BOUNDARY OPTION=MODIFY  CONDITION=VOLTAGE   VOLTAGE=1008:CSTRUC=020:COMMANDNAME=BOUNDARY77:PARAMETERS=THERMALCONDITION=NONE OPTION=MODIFY CONDITION=VOLTAGE VOLTAGE=100 5:ID=3310:PARENTID=135:DESCRIPTION=Set boundary conditions14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_BOUNDARY19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1131 $1127 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @68 8:NAME=1609:VERSION=216:List=Information25:Label=Hexahedral meshable #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1132 $1128 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @196 37:USERINPUT=BOUNDARY PICK 'upper_plate'8:CSTRUC=020:COMMANDNAME=BOUNDARY49:PARAMETERS=OPTION=PICK BOUNDARYLABEL=upper_plate 5:ID=3210:PARENTID=114:ACTIONTYPE=50031:STARTFLAG=PROPERTYPICK_BOUNDARY #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1133 $1129 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @62 8:NAME=1629:VERSION=216:List=Information19:Label=Internal face #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1134 $1130 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @198 39:USERINPUT=BOUNDARY UNPICK 'lower_plate'8:CSTRUC=020:COMMANDNAME=BOUNDARY51:PARAMETERS=OPTION=UNPICK BOUNDARYLABEL=lower_plate 5:ID=3110:PARENTID=114:ACTIONTYPE=50029:ENDFLAG=PROPERTYPICK_BOUNDARY #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1135 $1131 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @50 8:NAME=1159:VERSION=29:List=Name15:Label=ModelBody #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1136 $1132 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @308 64:USERINPUT=BOUNDARY OPTION=MODIFY  CONDITION=VOLTAGE   VOLTAGE=-18:CSTRUC=020:COMMANDNAME=BOUNDARY76:PARAMETERS=THERMALCONDITION=NONE OPTION=MODIFY CONDITION=VOLTAGE VOLTAGE=-1 5:ID=3010:PARENTID=135:DESCRIPTION=Set boundary conditions14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_BOUNDARY19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1137 $1133 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @51 6:NAME=79:VERSION=218:List=MaterialLabel9:Label=Air #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1138 $1134 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @196 37:USERINPUT=BOUNDARY PICK 'lower_plate'8:CSTRUC=020:COMMANDNAME=BOUNDARY49:PARAMETERS=OPTION=PICK BOUNDARYLABEL=lower_plate 5:ID=2910:PARENTID=114:ACTIONTYPE=50031:STARTFLAG=PROPERTYPICK_BOUNDARY #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1139 $1135 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @51 7:NAME=769:VERSION=218:List=MaterialLabel8:Label=Cu #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1140 $1136 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @128 26:USERINPUT=BOUNDARY GUIINIT8:CSTRUC=020:COMMANDNAME=BOUNDARY26:PARAMETERS=OPTION=GUIINIT 5:ID=2810:PARENTID=114:ACTIONTYPE=500 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1141 $1137 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @61 7:NAME=649:VERSION=218:List=BoundaryLabel17:Label=lower_plate #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1142 $1138 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @180 29:USERINPUT=MATERIALS PICK 'Cu'8:CSTRUC=021:COMMANDNAME=MATERIALS40:PARAMETERS=OPTION=PICK MATERIALLABEL=Cu 5:ID=2710:PARENTID=114:ACTIONTYPE=50031:STARTFLAG=PROPERTYPICK_MATERIAL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1143 $1139 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @61 7:NAME=659:VERSION=218:List=BoundaryLabel17:Label=upper_plate #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1144 $1140 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @130 27:USERINPUT=MATERIALS GUIINIT8:CSTRUC=021:COMMANDNAME=MATERIALS26:PARAMETERS=OPTION=GUIINIT 5:ID=2610:PARENTID=114:ACTIONTYPE=500 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1145 $1141 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @56 7:NAME=669:VERSION=218:List=BoundaryLabel12:Label=ground #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1146 $1142 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @688 120:USERINPUT=MATERIALS OPTION=MODIFY  EPSANISOTROPY=ISOTROPIC   EPSILON=1.0E+36    SIGANISOTROPY=ISOTROPIC   SIGMA=5.96E+078:CSTRUC=021:COMMANDNAME=MATERIALS397:PARAMETERS=MUANISOTROPY=ISOTROPIC MULINEARITY=LINEAR MU=1.0 HC=0.0 MPHASE=0 MUXX=1.0 MUYY=1.0 MUZZ=1.0 HCX=0.0 HCY=0.0 HCZ=0.0 MAPHASE=0 SPHASE=0 SIGXX=0.0 SIGYY=0.0 SIGZZ=0.0 SAPHASE=0 EPHASE=0 EPSXX=1.0 EPSYY=1.0 EPSZZ=1.0 EAPHASE=0 KAPANISOTROPY=ISOTROPIC BASENAME=Cu IW=CU_I JOULEHEAT=YES USESIBC=No OPTION=MODIFY EPSANISOTROPY=ISOTROPIC EPSILON=1.0E+36 SIGANISOTROPY=ISOTROPIC SIGMA=5.96E+07 5:ID=2510:PARENTID=135:DESCRIPTION=Set material properties14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_MATERIAL19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1147 $1143 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_BOUNDARY_DATA @69 11:NAME=ground17:Condition=VOLTAGE9:Voltage=021:ThermalCondition=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1148 $1144 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @688 120:USERINPUT=MATERIALS OPTION=MODIFY  EPSANISOTROPY=ISOTROPIC   EPSILON=1.0E+36    SIGANISOTROPY=ISOTROPIC   SIGMA=5.96E+078:CSTRUC=021:COMMANDNAME=MATERIALS397:PARAMETERS=MUANISOTROPY=ISOTROPIC MULINEARITY=LINEAR MU=1.0 HC=0.0 MPHASE=0 MUXX=1.0 MUYY=1.0 MUZZ=1.0 HCX=0.0 HCY=0.0 HCZ=0.0 MAPHASE=0 SPHASE=0 SIGXX=0.0 SIGYY=0.0 SIGZZ=0.0 SAPHASE=0 EPHASE=0 EPSXX=1.0 EPSYY=1.0 EPSZZ=1.0 EAPHASE=0 KAPANISOTROPY=ISOTROPIC BASENAME=Cu IW=CU_I JOULEHEAT=YES USESIBC=No OPTION=MODIFY EPSANISOTROPY=ISOTROPIC EPSILON=1.0E+36 SIGANISOTROPY=ISOTROPIC SIGMA=5.96E+07 5:ID=2410:PARENTID=135:DESCRIPTION=Set material properties14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_MATERIAL19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1149 $1145 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_BOUNDARY_DATA @77 16:NAME=upper_plate17:Condition=VOLTAGE11:Voltage=10021:ThermalCondition=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1150 $1146 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @684 118:USERINPUT=MATERIALS OPTION=MODIFY  EPSANISOTROPY=ISOTROPIC   EPSILON=1.0E+36    SIGANISOTROPY=ISOTROPIC   SIGMA=5.8E-78:CSTRUC=021:COMMANDNAME=MATERIALS395:PARAMETERS=MUANISOTROPY=ISOTROPIC MULINEARITY=LINEAR MU=1.0 HC=0.0 MPHASE=0 MUXX=1.0 MUYY=1.0 MUZZ=1.0 HCX=0.0 HCY=0.0 HCZ=0.0 MAPHASE=0 SPHASE=0 SIGXX=0.0 SIGYY=0.0 SIGZZ=0.0 SAPHASE=0 EPHASE=0 EPSXX=1.0 EPSYY=1.0 EPSZZ=1.0 EAPHASE=0 KAPANISOTROPY=ISOTROPIC BASENAME=Cu IW=CU_I JOULEHEAT=YES USESIBC=No OPTION=MODIFY EPSANISOTROPY=ISOTROPIC EPSILON=1.0E+36 SIGANISOTROPY=ISOTROPIC SIGMA=5.8E-7 5:ID=2310:PARENTID=135:DESCRIPTION=Set material properties14:ACTIONTYPE=50029:USEFLAG=PROPERTYPICK_MATERIAL19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1151 $1147 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_BOUNDARY_DATA @78 16:NAME=lower_plate17:Condition=VOLTAGE12:Voltage=-10021:ThermalCondition=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1152 $1148 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @180 29:USERINPUT=MATERIALS PICK 'Cu'8:CSTRUC=021:COMMANDNAME=MATERIALS40:PARAMETERS=OPTION=PICK MATERIALLABEL=Cu 5:ID=2210:PARENTID=114:ACTIONTYPE=50031:STARTFLAG=PROPERTYPICK_MATERIAL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1153 $1149 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_MATERIAL_DATA @429 7:Name=Cu9:Version=514:MuAnisotropy=113:MuLinearity=16:Mu=1.08:MPhase=08:MuXX=1.08:MuYY=1.08:MuZZ=1.09:MAPhase=06:Hc=0.07:HcX=0.07:HcY=0.07:HcZ=0.015:SigAnisotropy=114:Sigma=596000.08:SPhase=09:SigXX=0.09:SigYY=0.09:SigZZ=0.09:SAPhase=015:EpsAnisotropy=115:Epsilon=1.0E+368:EPhase=09:EpsXX=1.09:EpsYY=1.09:EpsZZ=1.09:EAPhase=015:KapAnisotropy=111:BaseName=Cu7:Iw=CU_I17:MuSigAnisotropy=17:MuSig=09:MuSigXX=09:MuSigYY=09:MuSigZZ=0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1154 $1150 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @130 27:USERINPUT=MATERIALS GUIINIT8:CSTRUC=021:COMMANDNAME=MATERIALS26:PARAMETERS=OPTION=GUIINIT 5:ID=2110:PARENTID=114:ACTIONTYPE=500 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1155 $1151 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_MATERIAL_DATA @395 8:Name=Air14:MuAnisotropy=113:MuLinearity=16:Mu=1.08:MPhase=08:MuXX=1.08:MuYY=1.08:MuZZ=1.09:MAPhase=04:Hc=05:HcX=05:HcY=05:HcZ=015:SigAnisotropy=17:Sigma=08:SPhase=07:SigXX=07:SigYY=07:SigZZ=09:SAPhase=015:EpsAnisotropy=111:Epsilon=1.08:EPhase=09:EpsXX=1.09:EpsYY=1.09:EpsZZ=1.09:EAPhase=015:KapAnisotropy=112:BaseName=Air8:Iw=AIR_I17:MuSigAnisotropy=17:MuSig=09:MuSigXX=09:MuSigYY=09:MuSigZZ=0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1156 $1152 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @216 56:USERINPUT=ANALYSISDATA OPTION=ACTIVATE PROGRAM=TOSCAELEC8:CSTRUC=024:COMMANDNAME=ANALYSISDATA45:PARAMETERS=OPTION=ACTIVATE PROGRAM=TOSCAELEC 5:ID=1910:PARENTID=132:DESCRIPTION=Set analysis options14:ACTIONTYPE=500 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1157 $1153 $4 1 0 0 1 1 1 1 1 1 1 1 0 1 0 0 1 0 1 @15 VF_ID_NUM_LOCAL 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1158 $1154 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @392 117:USERINPUT=FACEDATA OPTION=MODIFY  BOUNDARYLABEL='upper_plate'  ELEMENTTYPE=Linear   FORMETHOD=NONE    BACKMETHOD=NONE8:CSTRUC=020:COMMANDNAME=FACEDATA101:PARAMETERS=OPTION=MODIFY BOUNDARYLABEL=upper_plate ELEMENTTYPE=Linear FORMETHOD=NONE BACKMETHOD=NONE 5:ID=1610:PARENTID=125:DESCRIPTION=Set face data14:ACTIONTYPE=57517:USEFLAG=PICK_FACE25:WITHFLAG=BODY_UPPER PLATE17:ENDFLAG=PICK_FACE #
+name_attrib-gen-attrib $-1 -1 $1159 $1155 $4 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 _VF_MODELBODY_ #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1160 $1156 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @368 86:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='Upper Plate' IDENTIFIER=A.000038:CSTRUC=016:COMMANDNAME=PICK103:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='Upper Plate' IDENTIFIER=A.00003 5:ID=1510:PARENTID=131:DESCRIPTION=Pick: 1 face picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE25:NEEDFLAG=BODY_UPPER PLATE19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1157 $4 2 5 3 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @9 _VF_DATA_ @158 12:ENTITYTYPE=19:VERSION=212:Identifier=J14:Name=ModelBody20:UniqueName=ModelBody17:ModelPart=Default17:VectorsValidId=1114:GeomValidId=1117:ColoursValidId=31 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1161 $1158 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @392 117:USERINPUT=FACEDATA OPTION=MODIFY  BOUNDARYLABEL='lower_plate'  ELEMENTTYPE=Linear   FORMETHOD=NONE    BACKMETHOD=NONE8:CSTRUC=020:COMMANDNAME=FACEDATA101:PARAMETERS=OPTION=MODIFY BOUNDARYLABEL=lower_plate ELEMENTTYPE=Linear FORMETHOD=NONE BACKMETHOD=NONE 5:ID=1410:PARENTID=125:DESCRIPTION=Set face data14:ACTIONTYPE=57517:USEFLAG=PICK_FACE25:WITHFLAG=BODY_LOWER PLATE17:ENDFLAG=PICK_FACE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1162 $1160 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @368 86:USERINPUT=PICK OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='Lower Plate' IDENTIFIER=A.000058:CSTRUC=016:COMMANDNAME=PICK103:PARAMETERS=WAIT=NO WILDCARD=NO OPTION=TOGGLE TYPE=FACE UNIQUEBODYNAME='Lower Plate' IDENTIFIER=A.00005 5:ID=1310:PARENTID=131:DESCRIPTION=Pick: 1 face picked14:ACTIONTYPE=55019:STARTFLAG=PICK_FACE25:NEEDFLAG=BODY_LOWER PLATE19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1163 $1161 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @393 109:USERINPUT=BLOCK  Name='Lower Plate' X0=-10  Y0=-10  Z0=-10  X1=10  Y1=-9  Z1=10  MATERIALLABEL='Cu'  LEVEL=108:CSTRUC=017:COMMANDNAME=BLOCK119:PARAMETERS=NAME='Lower Plate' X0=-10 Y0=-10 Z0=-10 X1=10 Y1=-9 Z1=10 MATERIALLABEL=Cu LEVEL=10 UNIQUENAME='Lower Plate'4:ID=910:PARENTID=137:DESCRIPTION=Create block: Lower Plate14:ACTIONTYPE=60026:STARTFLAG=BODY_LOWER PLATE19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1164 $1162 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @389 107:USERINPUT=BLOCK  Name='Upper Plate' X0=-10  Y0=9  Z0=-10  X1=10  Y1=10  Z1=10  MATERIALLABEL='Cu'  LEVEL=108:CSTRUC=017:COMMANDNAME=BLOCK117:PARAMETERS=NAME='Upper Plate' X0=-10 Y0=9 Z0=-10 X1=10 Y1=10 Z1=10 MATERIALLABEL=Cu LEVEL=10 UNIQUENAME='Upper Plate'4:ID=710:PARENTID=137:DESCRIPTION=Create block: Upper Plate14:ACTIONTYPE=60026:STARTFLAG=BODY_UPPER PLATE19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1165 $1163 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @92 53:USERINPUT=COMPATIBILITY LOCALPICKING=YES IDVERSION=174:ID=410:PARENTID=114:ACTIONTYPE=650 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1166 $1164 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @36 4:ID=310:PARENTID=114:ACTIONTYPE=600 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1167 $1165 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @164 4:ID=210:PARENTID=158:DESCRIPTION=Start modelling operations (5/2/2017 18:06:51)14:ACTIONTYPE=60064:COMMENTSTRINGS=// Start modelling operations (5/2/2017 18:06:51) #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1168 $1166 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @21 VF_COMMANDHISTORYDATA @257 4:ID=114:ACTIONTYPE=70034:COMMENTSTRINGS=/ Opera-3d Modeller47:COMMENTSTRINGS=/ Opera 14R1 [Build 25963] (x64)46:COMMENTSTRINGS=/ Started: 02/May/2017 18:06:4973:COMMENTSTRINGS=/ Node: MAILUEFTERL. Processor: AMD64/x64. System: Windows19:IGNOREEMPTYPARS=ALL #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1169 $1167 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @62 8:NAME=1629:VERSION=216:List=Information19:Label=Internal face #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1170 $1168 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @45 8:NAME=1999:VERSION=212:List=Voltage7:Label=0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1171 $1169 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @54 8:NAME=1949:VERSION=214:List=Condition13:Label=VOLTAGE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1172 $1170 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @43 8:NAME=1939:VERSION=210:List=Level7:Label=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1173 $1171 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @51 6:NAME=79:VERSION=218:List=MaterialLabel9:Label=Air #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1174 $1172 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @49 8:NAME=1979:VERSION=212:List=Voltage10:Label=-100 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1175 $1173 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @61 7:NAME=659:VERSION=218:List=BoundaryLabel17:Label=upper_plate #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1176 $1174 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @50 8:NAME=1159:VERSION=29:List=Name15:Label=ModelBody #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1177 $1175 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @57 8:NAME=1989:VERSION=215:List=UniqueName15:Label=ModelBody #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1178 $1176 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @51 7:NAME=769:VERSION=218:List=MaterialLabel8:Label=Cu #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1179 $1177 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @55 8:NAME=1859:VERSION=218:List=ElemShapePref10:Label=None #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1180 $1178 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @67 7:NAME=889:VERSION=211:List=LCName30:Label=Global coordinate system #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1181 $1179 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @56 7:NAME=669:VERSION=218:List=BoundaryLabel12:Label=ground #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1182 $1180 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @62 8:NAME=1619:VERSION=216:List=Information19:Label=External face #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1183 $1181 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @58 8:NAME=1919:VERSION=221:List=ThermalCondition10:Label=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1184 $1182 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @44 8:NAME=1839:VERSION=210:List=Level8:Label=10 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1185 $1183 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @52 8:NAME=1869:VERSION=215:List=SymmetryBC10:Label=None #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1186 $1184 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @61 7:NAME=649:VERSION=218:List=BoundaryLabel17:Label=lower_plate #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1187 $1185 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @68 8:NAME=1609:VERSION=216:List=Information25:Label=Hexahedral meshable #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1188 $1186 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @47 8:NAME=1969:VERSION=212:List=Voltage9:Label=100 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1189 $1187 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @55 8:NAME=1759:VERSION=216:List=ElementType12:Label=Linear #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1190 $1188 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @54 8:NAME=1849:VERSION=214:List=Potential13:Label=Default #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1191 $1189 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @52 8:NAME=1889:VERSION=215:List=BackMethod10:Label=None #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1192 $1190 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @51 8:NAME=1879:VERSION=214:List=ForMethod10:Label=None #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1193 $1191 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_COLOUR_DATA @54 8:NAME=1829:VERSION=214:List=ModelPart13:Label=Default #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1194 $1192 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @78 7:NAME=169:VERSION=113:Command=TITLE14:Parameter=DATE14:ChrVal=TOPLEFT6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1195 $1193 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @83 6:NAME=79:VERSION=115:Command=SOLVERS16:Parameter=OPTION16:ChrVal=OVERWRITE6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1196 $1194 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @82 7:NAME=109:VERSION=115:Command=SOLVERS17:Parameter=SURFACE13:ChrVal=CURVED6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1197 $1195 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @76 6:NAME=89:VERSION=115:Command=SOLVERS15:Parameter=UNITS10:ChrVal=CGS6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1198 $1196 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @79 7:NAME=159:VERSION=113:Command=TITLE18:Parameter=POSITION11:ChrVal=NONE6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1199 $1197 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @93 7:NAME=139:VERSION=115:Command=$STRING25:Parameter=VF_ANALYSISTYPE16:ChrVal=ToscaElec6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1200 $1198 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @85 7:NAME=119:VERSION=121:Command=PRECISIONDATA16:Parameter=ABSTOL11:Value=1e-066:Used=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1201 $1199 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @78 6:NAME=39:VERSION=112:Command=MESH20:Parameter=SURFACETOL10:ChrVal=0.06:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1202 $1200 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @80 6:NAME=59:VERSION=112:Command=MESH14:Parameter=TYPE18:ChrVal=PREFERTETRA6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1203 $1201 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @69 6:NAME=19:VERSION=112:Command=MESH14:Parameter=SIZE8:ChrVal=16:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1204 $1202 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @80 6:NAME=99:VERSION=115:Command=SOLVERS17:Parameter=ELEMENT12:ChrVal=MIXED6:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1205 $1203 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @95 6:NAME=69:VERSION=112:Command=FILL19:Parameter=TOLERANCE14:ChrVal=1.0E-0611:Value=1e-066:Used=3 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1206 $1204 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @78 6:NAME=29:VERSION=112:Command=MESH19:Parameter=NORMALTOL11:ChrVal=30.06:Used=2 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1207 $1205 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @88 7:NAME=129:VERSION=121:Command=PRECISIONDATA19:Parameter=SMALLFACE11:Value=1e-066:Used=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1208 $1206 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @95 6:NAME=49:VERSION=112:Command=MESH19:Parameter=TOLERANCE14:ChrVal=1.0E-0611:Value=1e-066:Used=3 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1209 $1207 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @12 VF_DCOD_DATA @63 7:NAME=149:VERSION=113:Command=TITLE16:Parameter=STRING6:Used=0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1210 $1208 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @18 VF_BACKGROUND_DATA @122 31:NAME=LOCKEDMODELBODY_BACKGROUND9:VERSION=119:AnalysisProgramID=29:SCALEX=109:SCALEY=109:SCALEZ=109:SCALER=109:ROTZNUM=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1211 $1209 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_BOUNDARY_DATA @69 11:NAME=ground17:Condition=VOLTAGE9:Voltage=021:ThermalCondition=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1212 $1210 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @18 VF_BACKGROUND_DATA @89 20:NAME=EMLF_BACKGROUND9:VERSION=19:SCALEX=109:SCALEY=109:SCALEZ=109:SCALER=109:ROTZNUM=1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1213 $1211 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_BOUNDARY_DATA @77 16:NAME=upper_plate17:Condition=VOLTAGE11:Voltage=10021:ThermalCondition=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1214 $1212 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_BOUNDARY_DATA @78 16:NAME=lower_plate17:Condition=VOLTAGE12:Voltage=-10021:ThermalCondition=NONE #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1215 $1213 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_MATERIAL_DATA @395 8:Name=Air14:MuAnisotropy=113:MuLinearity=16:Mu=1.08:MPhase=08:MuXX=1.08:MuYY=1.08:MuZZ=1.09:MAPhase=04:Hc=05:HcX=05:HcY=05:HcZ=015:SigAnisotropy=17:Sigma=08:SPhase=07:SigXX=07:SigYY=07:SigZZ=09:SAPhase=015:EpsAnisotropy=111:Epsilon=1.08:EPhase=09:EpsXX=1.09:EpsYY=1.09:EpsZZ=1.09:EAPhase=015:KapAnisotropy=112:BaseName=Air8:Iw=AIR_I17:MuSigAnisotropy=17:MuSig=09:MuSigXX=09:MuSigYY=09:MuSigZZ=0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1216 $1214 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_MATERIAL_DATA @429 7:Name=Cu9:Version=514:MuAnisotropy=113:MuLinearity=16:Mu=1.08:MPhase=08:MuXX=1.08:MuYY=1.08:MuZZ=1.09:MAPhase=06:Hc=0.07:HcX=0.07:HcY=0.07:HcZ=0.015:SigAnisotropy=114:Sigma=596000.08:SPhase=09:SigXX=0.09:SigYY=0.09:SigZZ=0.09:SAPhase=015:EpsAnisotropy=115:Epsilon=1.0E+368:EPhase=09:EpsXX=1.09:EpsYY=1.09:EpsZZ=1.09:EAPhase=015:KapAnisotropy=111:BaseName=Cu7:Iw=CU_I17:MuSigAnisotropy=17:MuSig=09:MuSigXX=09:MuSigYY=09:MuSigZZ=0 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1217 $1215 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_ANALYSIS_DATA @659 14:NAME=ToscaElec9:VERSION=49:PROGRAM=211:LINEARITY=113:ITERATIONS=2115:TOLERANCE=0.0017:HXEXT=07:HYEXT=07:HZEXT=08:UPWIND=110:NLITTIM=2112:MAXADERR=0.111:DELTAT=0.018:RPM=300015:FREQUENCY=1e+0916:FREQUENCY2=2e+095:NEV=113:CONVTOL=1e-0814:POTENTIALCUT=113:THERMALTEMP=015:MinMeshCells=1417:MeshLimitFactor=315:MaxMeshChange=319:Size=1.07068735e-0820:XSize=1.07068735e-0820:YSize=1.07068735e-0820:ZSize=1.07068735e-0817:DefaultMedium=Air13:BoxDistance=014:XPeriodShift=014:YPeriodShift=014:ZPeriodShift=013:LogList=TTime11:AngModNum=012:Relaxation=119:BeamTolerance=0.00114:SecondaryGen=115:LDIterations=1117:LDTolerance=0.00115:MaxAdaptLevel=413:AdaptTol=0.02 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1218 $1216 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_ANALYSIS_DATA @659 14:NAME=ToscaMagn9:VERSION=49:PROGRAM=111:LINEARITY=113:ITERATIONS=2115:TOLERANCE=0.0017:HXEXT=07:HYEXT=07:HZEXT=08:UPWIND=110:NLITTIM=2112:MAXADERR=0.111:DELTAT=0.018:RPM=300015:FREQUENCY=1e+0916:FREQUENCY2=2e+095:NEV=113:CONVTOL=1e-0814:POTENTIALCUT=113:THERMALTEMP=015:MinMeshCells=1417:MeshLimitFactor=315:MaxMeshChange=319:Size=1.07068735e-0820:XSize=1.07068735e-0820:YSize=1.07068735e-0820:ZSize=1.07068735e-0817:DefaultMedium=Air13:BoxDistance=014:XPeriodShift=014:YPeriodShift=014:ZPeriodShift=013:LogList=TTime11:AngModNum=012:Relaxation=119:BeamTolerance=0.00114:SecondaryGen=115:LDIterations=1117:LDTolerance=0.00115:MaxAdaptLevel=413:AdaptTol=0.02 #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1219 $1217 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @15 VF_DATA_VECTOR3 0 #
+real_attrib-name_attrib-gen-attrib $-1 -1 $1220 $1218 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @15 VF_DATA_VECTOR2 1 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1221 $1219 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @14 VF_DATA_HIDDEN @0  #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1222 $1220 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_DATA_SELECTED @16 1,,2,,6,,7,,41,, #
+integer_attrib-name_attrib-gen-attrib $-1 -1 $1223 $1221 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @15 VF_DATA_TOUCHED 154 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $1224 $1222 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @15 VF_BHCURVE_DATA @448 12:NAME=Default9:VERSION=19:UNITSET=03:B=06:B=64006:B=92007:B=101007:B=110007:B=120007:B=130007:B=140007:B=145007:B=150007:B=155007:B=157507:B=160007:B=165007:B=170007:B=175007:B=180007:B=185007:B=190007:B=195007:B=200007:B=205007:B=210007:B=215007:B=220007:B=225007:B=230003:H=03:H=15:H=1.73:H=25:H=2.43:H=33:H=45:H=6.25:H=8.14:H=114:H=164:H=204:H=274:H=424:H=604:H=825:H=1155:H=1505:H=1905:H=2335:H=2805:H=3455:H=4505:H=6005:H=8006:H=11806:H=1600 #
+string_attrib-name_attrib-gen-attrib $-1 -1 $-1 $1223 $0 2 1 1 1 1 1 1 1 1 1 1 1 1 1 0 1 1 1 @16 VF_MODELLER_DATA @160 17:NAME=MODELLERDATA9:VERSION=113:SURFACEMESH=315:SELEMENTS=2095212:VOLUMEMESH=216:VELEMENTS=28219310:QWSCANID=012:IDVERSION=1712:ABSTOL=1e-0615:SMALLFACE=1e-06 #
+End-of-ACIS-data 

@@ -1,0 +1,5 @@
+numpy
+scipy
+pygobject
+gi
+matplotlib
