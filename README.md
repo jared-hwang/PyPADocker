@@ -36,7 +36,7 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 
 *   Enable the use of Gui Applications 
     * Linux
-        ** To enable the use of GUI applications (on linux) add the following parameters:
+        * To enable the use of GUI applications (on linux) add the following parameters:
 
     `-v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY`
      
