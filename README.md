@@ -43,3 +43,7 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 ### Customizing the image
 
 The build file is cached, so any changes or added build instructions can be added onto the end without rebuilding the entire image. 
+
+### Note for Windows
+
+Linux containers require a "minimal linux kernal" to be run on Windows, so installation requires a few extra steps. See [this page](https://tutorials.ubuntu.com/tutorial/tutorial-windows-ubuntu-hyperv-containers) for more details if running Windows.
