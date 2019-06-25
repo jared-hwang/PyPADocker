@@ -43,7 +43,7 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
         <sub>Note: you may have to run <code>xhost +local:docker</code> on the host machine to give docker X11 display permissions.</sub>
 
     * Windows
-        * Download and install [VcXsrv Windows X Server](https://sourceforge.net/projects/vcxsrv/) with all settings allowed
+        * Download and install [VcXsrv Windows X Server](https://sourceforge.net/projects/vcxsrv/) with all settings allowed (Xming would also work)
         * Get your IP address with `ipconfig` 
         * Add `-e DISPLAY=[IP ADDRESS]:0.0` to the run command
     * Mac
