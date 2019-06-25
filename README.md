@@ -36,7 +36,7 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 
 *   Enable the use of Gui Applications 
     * Linux
-        * Add the following parameters:
+        * Add the following parameters before pypa:
 
         `-v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY`
 
