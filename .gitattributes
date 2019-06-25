@@ -1,1 +1,1 @@
-*.txt -crlf
+*.py text eol=lf
