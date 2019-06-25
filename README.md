@@ -34,12 +34,15 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 
     `-v [absolute path to host directory]:[desired absolute path in image]`
 
-*   To enable the use of GUI applications (on linux) add the following parameters:
+*   Enable the use of Gui Applications 
+    * Linux
+        ** To enable the use of GUI applications (on linux) add the following parameters:
 
     `-v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY`
      
     <sub>Note: you may have to run <code>xhost +local:docker</code> on the host machine to give docker X11 display permissions.</sub>
 
+    
 ### Customizing the image
 
 The build file is cached, so any changes or added build instructions can be added onto the end without rebuilding the entire image. 
