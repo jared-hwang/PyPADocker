@@ -18,7 +18,7 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 
 ### Build the PyPA image
 
-*   Run the docker build command (if using linux, `sudo` must be used with every docker command).
+*   Run the docker build command in the dockerfile directory (if using linux, `sudo` must be used with every docker command).
 
     `docker build -t pypa .`
 
