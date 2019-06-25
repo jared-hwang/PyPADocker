@@ -10,7 +10,7 @@ This is the Dockerfile for a PyPA image that contains most modules necessary for
 *   warp
 *   pythonocc
 
-and a variety of packages that can be seen in the dockerfile, as well as the conda `environment.yml`.
+and a variety of packages that can be seen in the dockerfile, as well as the conda `environment.yml`. For more information on Docker in general or to understand the principles behind containerization, see [the Docker documentation](for details). 
 
 ### Install Docker
 
