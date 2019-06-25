@@ -36,11 +36,21 @@ and a variety of packages that can be seen in the dockerfile, as well as the con
 
 *   Enable the use of Gui Applications 
     * Linux
-        * To enable the use of GUI applications (on linux) add the following parameters:
+        * Add the following parameters:
 
-    `-v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY`
+        `-v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY`
      
-    <sub>Note: you may have to run <code>xhost +local:docker</code> on the host machine to give docker X11 display permissions.</sub>
+          <sub>Note: you may have to run <code>xhost +local:docker</code> on the host machine to give docker X11 display        
+          permissions.</sub>
+    * Windows
+        * Download and install (https://cuneyt.aliustaoglu.biz/en/running-gui-applications-in-docker-on-windows-linux-mac-hosts/)[https://sourceforge.net/projects/vcxsrv/] with all settings allowed
+        * Get your IP address with `ipconfig` 
+        * Add `-e DISPLAY=[IP ADDRESS]:0.0 to the run command
+    * Mac
+        * Install [XQuartz](https://www.xquartz.org/)
+        * Get your IP address with `ipconfig` and run `xhost +[IP ADDRESS]
+        * Add `-e DISPLAY=[IP ADDRESS]:0 -v /tmp/.X11-unix:/tmp/.X11-unix` to the run command
+    * For details on any of the above, see [this webpage](https://cuneyt.aliustaoglu.biz/en/running-gui-applications-in-docker-on-windows-linux-mac-hosts/)
 
     
 ### Customizing the image
