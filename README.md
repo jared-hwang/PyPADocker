@@ -46,4 +46,4 @@ The build file is cached, so any changes or added build instructions can be adde
 
 ### Note for Windows
 
-Linux containers require a "minimal linux kernal" to be run on Windows, so installation requires a few extra steps. See [this page](https://tutorials.ubuntu.com/tutorial/tutorial-windows-ubuntu-hyperv-containers) for more details if running Windows.
+Linux containers require a "minimal linux kernal" to be run on Windows, so installation may require a few extra steps. See [this page](https://tutorials.ubuntu.com/tutorial/tutorial-windows-ubuntu-hyperv-containers) for more details.
