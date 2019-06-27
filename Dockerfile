@@ -70,7 +70,8 @@ RUN rm Anaconda3-2019.03-Linux-x86_64.sh
 ENV PATH /root/anaconda3/bin:$PATH
 
 # Create (PyPA) environment from yml and activate it automatically
-RUN conda update conda
+RUN conda update conda \
+    && conda update anaconda 
 RUN conda env create -f ./installation/environment.yml
 RUN echo "source activate PyPA" > ~/.bashrc
 ENV PATH /root/anaconda3/envs/PyPA/bin:$PATH
