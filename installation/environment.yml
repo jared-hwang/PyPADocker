@@ -72,5 +72,6 @@ dependencies:
   - wheel=0.33.4=py36_0
   - xz=5.2.4=h14c3975_4
   - zlib=1.2.11=h7b6447c_3
+  - h5py=2.9.0
 prefix: /home/rfq-dip-student/anaconda3/envs/PyPA
 

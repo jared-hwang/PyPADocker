@@ -21,7 +21,6 @@ RUN apt-get install -y \
     libx11-dev \
     openmpi-bin libopenmpi-dev \
     python3-mpi4py \
-    python3-h5py \
     python3-pip \
     python-pip \
     gfortran \
@@ -97,7 +96,6 @@ RUN cd ./installation/warp/pywarp90 \
     && make pclean3
 
 # Install bempp and related modules
-RUN conda install -c anaconda h5py 
 RUN cd ./installation/bempp \
     && python setup.py install
 
@@ -108,3 +106,11 @@ RUN cd ./installation/dans_pymodules \
 # pythonocc-utils required with pythonocc
 RUN cd ./installation/pythonocc-utils \
     && pip install .
+
+# # hdf5 parallel -- DOESN'T WORK 
+# RUN cd ./installation/hdf5-1.10.5 \
+#     && CC=$(which mpicc) ./configure --enable-shared --enable-parallel \
+#     && make \
+#     && make check \
+#     && make install
+
